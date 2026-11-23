@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#04070f" />
+  <title>GarminCoach Elite · Biyometri & Performans OS</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- AUTHENTICATION GATE OVERLAY -->
+  <div id="auth-gate-overlay" class="auth-gate-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-gate-title">
+    <div class="auth-card">
+      <div class="auth-brand-row">
+        <div class="brand-mark">GC</div>
+        <div>
+          <div id="auth-gate-title" class="brand-name" style="font-size:20px;">GarminCoach Elite</div>
+          <div class="brand-tag">garmin.alidincerozdemir.com · Güvenli Sporcu Girişi</div>
+        </div>
+      </div>
+
+      <div id="auth-default-hint" class="auth-hint-box">Oturum durumu kontrol ediliyor...</div>
+      <div id="auth-error-msg" class="auth-error-box hidden"></div>
+
+      <form id="auth-login-form" onsubmit="submitAppLogin(event)">
+        <div class="field" style="margin-bottom:10px;">
+          <label for="login-username">Kullanıcı Adı</label>
+          <input id="login-username" type="text" required autocomplete="username" placeholder="Kullanıcı adınız" />
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label for="login-password">Şifre</label>
+          <input id="login-password" type="password" required autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <label class="auth-remember-row">
+          <input id="login-remember" type="checkbox" checked />
+          <span>Bu cihazda oturumu açık tut</span>
+        </label>
+        <button type="submit" id="auth-login-btn" class="btn btn-primary" style="width:100%; justify-content:center; padding:11px 14px;">🔐 Giriş Yap ve Kokpiti Aç</button>
+      </form>
+
+      <button type="button" class="btn btn-sm" style="width:100%; justify-content:center; margin-top:10px;" onclick="toggleLoginSetupPanel()">⚙️ Kullanıcı Adı &amp; Şifre Belirle / Değiştir</button>
+
+      <form id="auth-inline-setup" class="auth-setup-panel hidden" onsubmit="submitInlineCredentialSetup(event)">
+        <div style="font-size:12px; font-weight:700; color:var(--cyan); margin-bottom:8px;">Yeni Giriş Bilgileri Tanımla (Tüm Cihazlar)</div>
+        <div class="field" style="margin-bottom:8px;">
+          <label for="setup-current-pass">Mevcut Şifre</label>
+          <input id="setup-current-pass" type="password" autocomplete="current-password" placeholder="İlk kurulumda boş bırakabilirsiniz" />
+        </div>
+        <div class="field" style="margin-bottom:8px;">
+          <label for="setup-new-user">Yeni Kullanıcı Adı</label>
+          <input id="setup-new-user" type="text" required minlength="2" autocomplete="username" placeholder="Örn. ali" />
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label for="setup-new-pass">Yeni Şifre (En az 4 karakter)</label>
+          <input id="setup-new-pass" type="password" required minlength="4" autocomplete="new-password" placeholder="En az 4 karakter" />
+        </div>
+        <button type="submit" class="btn btn-cyan" style="width:100%; justify-content:center;">💾 Bilgileri Kaydet ve Giriş Yap</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- DESKTOP LEFT COMMAND RAIL -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">GC</div>
+        <div>
+          <div class="brand-name">GarminCoach</div>
+          <div class="brand-tag">ELITE TELEMETRY OS</div>
+        </div>
+      </div>
+
+      <div class="athlete-chip">
+        <div class="athlete-chip-top">
+          <span>Sporcu Profili</span>
+          <span class="badge badge-ok" id="side-readiness-chip">--/100</span>
+        </div>
+        <div class="athlete-chip-sub" id="side-athlete-sub">1988 · Baz 46 bpm · 59–74 ms HRV</div>
+      </div>
+
+      <nav class="side-nav" aria-label="Ana Navigasyon">
+        <button class="nav-btn active" data-tab="dashboard">⚡ Sabah Kokpiti</button>
+        <button class="nav-btn" data-tab="workouts">🏋️ Antrenman & Kas</button>
+        <button class="nav-btn" data-tab="weekly">📊 Haftalık Strateji</button>
+        <button class="nav-btn" data-tab="archive">🗂️ 30G Doküman & Arşiv</button>
+        <button class="nav-btn" data-tab="settings">⚙️ Komuta & Ayarlar</button>
+      </nav>
+
+      <div class="side-actions">
+        <button class="btn btn-primary" onclick="triggerEngine('gunlukGarminAnalizi', true)">↻ Garmin & Hava Senkron</button>
+        <button class="btn btn-cyan" onclick="openWorkoutModal()">+ Antrenman Kaydet</button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-area">
+      <!-- TOP TELEMETRY RIBBON -->
+      <header class="telemetry-ribbon">
+        <div class="ribbon-left">
+          <div class="ribbon-title" id="page-title">Sabah Biyometri & Akşam Hava Kokpiti</div>
+          <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
+        </div>
+        <div class="ribbon-right">
+          <span class="pill" id="pill-location">📍 Yükleniyor...</span>
+          <span class="pill mono" id="pill-date">--</span>
+          <span class="pill mono" id="pill-clock">--:-- TRT</span>
+          <button class="btn btn-primary btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">↻ Senkronize Et</button>
+          <button class="btn btn-sm" onclick="logoutApp()" title="Ekranı Kilitle / Çıkış Yap">🔒 <span id="pill-auth-user">ali</span> · Kilitle</button>
+        </div>
+      </header>
+
+      <!-- RED ALERT BANNER -->
+      <div id="red-alert-banner" class="alert-banner hidden">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:22px;">🚨</span>
+          <div>
+            <div style="font-weight:800; color:#fca5a5;">Kırmızı Alarm: Kişisel Fizyolojik Eşikler Aşıldı</div>
+            <div id="red-alert-text" style="font-size:13px; color:#fecaca;"></div>
+          </div>
+        </div>
+        <span class="badge badge-crit">Yüksek Yük Pas</span>
+      </div>
+
+      <!-- TAB 1: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-panel active">
+        <div class="grid-2">
+          <!-- Hero Dual-Ring Readiness + Sleep Architecture -->
+          <div class="card card-glow">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Sabah Hazırlık & Body Battery Halkası</div>
+                <div class="card-sub">%30 Body Battery + %30 Uyku + %25 Gece HRV + %15 RHR</div>
+              </div>
+              <span class="badge badge-ok" id="readiness-badge">--</span>
+            </div>
+            <div class="readiness-hero">
+              <div class="dual-ring">
+                <svg viewBox="0 0 174 174">
+                  <circle class="ring-track" cx="87" cy="87" r="72" stroke-width="12" />
+                  <circle class="ring-fill" id="ring-readiness" cx="87" cy="87" r="72" stroke-width="12" stroke="#00e5a3" stroke-dasharray="452.39" stroke-dashoffset="452.39" />
+                  <circle class="ring-track" cx="87" cy="87" r="54" stroke-width="8" />
+                  <circle class="ring-fill" id="ring-bb" cx="87" cy="87" r="54" stroke-width="8" stroke="#38bdf8" stroke-dasharray="339.29" stroke-dashoffset="339.29" />
+                </svg>
+                <div class="dual-ring-center">
+                  <div class="dual-ring-score mono" id="readiness-score">--</div>
+                  <div class="dual-ring-sub" id="readiness-status-label">OPTIMAL</div>
+                  <div class="dual-ring-bb mono" id="bb-ring-label">BB --</div>
+                </div>
+              </div>
+              <div class="formula-bars" id="readiness-breakdown"></div>
+            </div>
+            <div class="sleep-strip-wrap">
+              <div class="bar-row-head">
+                <span>Gece Uyku Mimarisi</span>
+                <strong class="mono" id="sleep-total-label">--</strong>
+              </div>
+              <div class="sleep-strip" id="sleep-hypnogram"></div>
+              <div class="sleep-legend" id="sleep-legend"></div>
+              <div class="sleep-debt-banner" id="sleep-debt-box"></div>
+            </div>
+          </div>
+
+          <!-- 17:00-21:00 Semicircle AQI Gauge + Hourly Strip -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">17:00–21:00 Akşam Yürüyüş & Hava Kalitesi Kadranı</div>
+                <div class="card-sub" id="weather-source-label">MET Norway + Open-Meteo AQI</div>
+              </div>
+              <button class="btn btn-cyan btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">⟳ Havayı Yenile</button>
+            </div>
+            <div class="dial-flex">
+              <div class="aqi-gauge-box">
+                <svg viewBox="0 0 210 122" width="210" height="122">
+                  <!-- 4 segments: Yeşil, Sarı, Turuncu, Kırmızı -->
+                  <path d="M 20 102 A 85 85 0 0 1 58 31" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="round" opacity="0.88" />
+                  <path d="M 65 27 A 85 85 0 0 1 105 17" fill="none" stroke="#f59e0b" stroke-width="14" opacity="0.88" />
+                  <path d="M 112 17 A 85 85 0 0 1 152 31" fill="none" stroke="#fb923c" stroke-width="14" opacity="0.88" />
+                  <path d="M 158 36 A 85 85 0 0 1 190 102" fill="none" stroke="#ef4444" stroke-width="14" stroke-linecap="round" opacity="0.88" />
+                  <g id="aqi-needle" transform="rotate(-65 105 102)">
+                    <line x1="105" y1="102" x2="105" y2="28" stroke="#f8fafc" stroke-width="3" stroke-linecap="round" />
+                    <circle cx="105" cy="102" r="6" fill="#00e5a3" />
+                  </g>
+                </svg>
+                <div class="aqi-gauge-center">
+                  <div class="mono" style="font-size:20px; font-weight:800;" id="aqi-dial-val">-- AQI</div>
+                  <div id="aqi-dial-badge" class="badge badge-ok">--</div>
+                </div>
+              </div>
+              <div class="weather-kpis" id="evening-weather-stats"></div>
+            </div>
+            <div class="best-slot-banner" id="best-walk-slot-banner"></div>
+            <div class="hourly-strip" id="hourly-walk-strip"></div>
+            <div class="clothing-box" id="evening-clothing-advice">--</div>
+          </div>
+        </div>
+
+        <!-- Physiological Baseline Corridors -->
+        <div class="corridor-grid mt-18" id="baseline-cards"></div>
+
+        <!-- AI Coach + Chat & Multi-Mode Trend Lab -->
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title" id="ai-headline">Günün Performans Koçu Reçetesi</div>
+                <div class="card-sub" id="ai-source-tag">Gemini 3.6 Flash AI & Deterministik Koç</div>
+              </div>
+              <span class="badge badge-info" id="today-weekday-badge">--</span>
+            </div>
+            <div id="ai-daily-blocks"></div>
+
+            <div class="coach-chat-box">
+              <div class="card-title" style="font-size:13px;">💬 Canlı AI Performans Koçuna Sor</div>
+              <div class="chip-group mt-12">
+                <button class="chip" onclick="askCoachPreset('Bugün hangi Kochler rotasyonuna girmeliyim?')">Kochler rotasyonu</button>
+                <button class="chip" onclick="askCoachPreset('Son 7 günlük uyku borcum ve HRV trendime göre bu akşam nasıl yükleneyim?')">Uyku borcu & HRV</button>
+                <button class="chip" onclick="askCoachPreset('Sağ omzum hafif yorgun, 10 kg Omuz-Sırt gününü nasıl revize edelim?')">Omuz revizesi</button>
+              </div>
+              <form class="chat-input-row" onsubmit="submitCoachChat(event)">
+                <input id="coach-question-input" placeholder="Örn: Bugün 6 kg yerine 8 kg geçeyim mi?" />
+                <button type="submit" class="btn btn-primary btn-sm" id="btn-ask-coach">Gönder</button>
+              </form>
+              <div id="coach-chat-reply" class="chat-reply" style="display:none;"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Biyometrik Trend Laboratuvarı</div>
+                <div class="card-sub">Kişisel baz koridorlarıyla geçmiş seri analizi</div>
+              </div>
+              <div class="chip-group">
+                <button class="chip active" onclick="switchTrendMode('hrv', this)">HRV & RHR</button>
+                <button class="chip" onclick="switchTrendMode('readiness', this)">Hazırlık & Uyku</button>
+                <button class="chip" onclick="switchTrendMode('steps', this)">Adım & Stres</button>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="hrvRhrChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deep Garmin Telemetry & Energy Lab -->
+        <div class="section-divider">
+          <h2>🔬 Derin Garmin Telemetri & Enerji Laboratuvarı (8 Ek Katman)</h2>
+          <span class="badge badge-info">Canlı Gün İçi Akış</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Anlık Body Battery & Enerji Olayları</div>
+                <div class="card-sub">Uykuda şarj, stres kayıpları ve antrenman pil etkisi</div>
+              </div>
+              <span class="badge badge-warn" id="bb-current-badge">🔋 --</span>
+            </div>
+            <div class="chart-wrap" style="height:200px;">
+              <canvas id="bbIntradayChart"></canvas>
+            </div>
+            <div class="event-timeline" id="bb-events-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Gece 5-Dk HRV Dalgası & Sinir Sistemi Stres Dağılımı</div>
+                <div class="card-sub">Garmin 5 dakikalık HRV okumaları ve gün içi stres yüzdeleri</div>
+              </div>
+              <span class="badge badge-ok" id="hrv-peak-badge">Tepe -- ms</span>
+            </div>
+            <div class="chart-wrap" style="height:200px;">
+              <canvas id="hrvNightChart"></canvas>
+            </div>
+            <div class="sleep-strip-wrap">
+              <div class="bar-row-head">
+                <span>Gün İçi Stres & Dinlenme Dağılımı</span>
+                <strong class="mono" id="stress-max-label">Maks --</strong>
+              </div>
+              <div class="stress-bar" id="stress-breakdown-bar"></div>
+              <div class="sleep-legend" id="stress-breakdown-legend"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Gün Boyu Canlı Nabız Eğrisi (/dailyHeartRate)</div>
+                <div class="card-sub">2 dakikalık örnekleme ve 7 günlük dinlenik nabız ortalaması</div>
+              </div>
+              <span class="badge badge-info" id="intraday-rhr-badge">7G RHR: --</span>
+            </div>
+            <div class="chart-wrap" style="height:235px;">
+              <canvas id="intradayHrChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Metabolizma · Çıkılan Kat · Fitness Yaşı · Solunum</div>
+                <div class="card-sub">BMR, aktif kalori, rakım, yoğun gün hedefi ve uyku içgörüsü</div>
+              </div>
+            </div>
+            <div class="deep-cards" id="deep-telemetry-cards"></div>
+          </div>
+        </div>
+
+        <!-- Connect+ 1: Active Intelligence 3 Times of Day & Correlation Matrix -->
+        <div class="section-divider">
+          <h2>🧠 Active Intelligence (Gün Boyu İçgörü & Korelasyonlar)</h2>
+          <span class="badge badge-info">Garmin Connect+</span>
+        </div>
+
+        <div class="intel-grid-3" id="active-intel-3x"></div>
+
+        <div class="card mt-18">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Kişisel Fizyoloji Korelasyon Matrisi (Pearson r)</div>
+              <div class="card-sub">Uyku stresi, Body Battery şarjı, adım yükü ve HRV arasındaki gerçek istatistiksel ilişki</div>
+            </div>
+            <span class="badge badge-ok mono" id="corr-sample-badge">-- gün örneklem</span>
+          </div>
+          <div class="corr-grid" id="correlation-matrix-grid"></div>
+        </div>
+
+        <!-- Connect+ 2: Performance Dashboard (ACWR, Aerobic Efficiency Ef & Custom Chart Builder) -->
+        <div class="section-divider">
+          <h2>📈 Performans Laboratuvarı & Çapraz Metrik Oluşturucu</h2>
+          <span class="badge badge-ok mono" id="perf-acwr-badge">ACWR --</span>
+        </div>
+
+        <div class="acwr-strip" id="acwr-ef-strip"></div>
+
+        <div class="card mt-18">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Çapraz Metrik Grafik Oluşturucu (Performance Dashboard)</div>
+              <div class="card-sub">İki farklı biyometrik veriyi çift eksende üst üste çizdirip trend kırılımlarını keşfet</div>
+            </div>
+            <div class="chip-group">
+              <button type="button" class="chip active" onclick="applyCustomPreset('hrv_nightly_avg', 'sleep_stress_avg', this)">HRV vs Uyku Stresi</button>
+              <button type="button" class="chip" onclick="applyCustomPreset('body_battery_max', 'active_kilocalories', this)">BB vs Aktif Kalori</button>
+              <button type="button" class="chip" onclick="applyCustomPreset('readiness_score', 'rhr', this)">Hazırlık vs RHR</button>
+            </div>
+          </div>
+          <div class="builder-controls">
+            <div class="builder-field">
+              <label for="custom-x1">Sol Eksen (X1)</label>
+              <select id="custom-x1" class="builder-select" onchange="renderCustomCompareChart()">
+                <option value="hrv_nightly_avg" selected>Gece HRV (ms)</option>
+                <option value="readiness_score">Sabah Hazırlık Skoru</option>
+                <option value="body_battery_max">Body Battery Maks</option>
+                <option value="sleep_score">Uyku Skoru</option>
+                <option value="sleep_hours">Uyku Süresi (saat)</option>
+                <option value="steps">Günlük Adım</option>
+                <option value="active_kilocalories">Aktif Kalori (kcal)</option>
+                <option value="rhr">Dinlenik Nabız (bpm)</option>
+                <option value="sleep_stress_avg">Uyku Stresi</option>
+                <option value="vo2_max">VO2 Max</option>
+              </select>
+            </div>
+            <div class="builder-field">
+              <label for="custom-x2">Sağ Eksen (X2)</label>
+              <select id="custom-x2" class="builder-select" onchange="renderCustomCompareChart()">
+                <option value="sleep_stress_avg" selected>Uyku Stresi</option>
+                <option value="hrv_nightly_avg">Gece HRV (ms)</option>
+                <option value="readiness_score">Sabah Hazırlık Skoru</option>
+                <option value="body_battery_max">Body Battery Maks</option>
+                <option value="sleep_score">Uyku Skoru</option>
+                <option value="sleep_hours">Uyku Süresi (saat)</option>
+                <option value="steps">Günlük Adım</option>
+                <option value="active_kilocalories">Aktif Kalori (kcal)</option>
+                <option value="rhr">Dinlenik Nabız (bpm)</option>
+                <option value="vo2_max">VO2 Max</option>
+              </select>
+            </div>
+            <div class="builder-field" style="max-width:160px;">
+              <label for="custom-chart-type">Grafik Tipi</label>
+              <select id="custom-chart-type" class="builder-select" onchange="renderCustomCompareChart()">
+                <option value="line" selected>Çizgi (Trend)</option>
+                <option value="bar">Sütun (Çift Bar)</option>
+              </select>
+            </div>
+          </div>
+          <div class="chart-wrap mt-16" style="height:260px;">
+            <canvas id="customCompareChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: WORKOUT LAB & ANATOMICAL HEATMAP -->
+      <section id="tab-workouts" class="tab-panel">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Antrenman Geçmişi</div>
+                <div class="card-sub">5–6 km açık hava kardiyo ve 2–8 kg dambıl kuvvet</div>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-cyan btn-sm" onclick="openWorkoutModal()">+ Seans Ekle</button>
+                <button class="btn btn-primary btn-sm" onclick="triggerEngine('sonAntrenmaniManuelAnalizEt')">⚡ Analiz Et</button>
+              </div>
+            </div>
+            <div class="chip-group" style="margin-bottom:12px;">
+              <button class="chip active" onclick="filterActivities('ALL', this)">Tümü</button>
+              <button class="chip" onclick="filterActivities('CARDIO', this)">Yürüyüş / Koşu</button>
+              <button class="chip" onclick="filterActivities('STRENGTH', this)">Kuvvet (Dambıl)</button>
+            </div>
+            <div class="activity-list" id="activity-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title" id="selected-act-title">Antrenman Özeti & Delta Kıyaslama</div>
+                <div class="card-sub" id="selected-act-sub">Seans seçin</div>
+              </div>
+            </div>
+            <div class="weather-kpis" id="selected-act-kpis" style="grid-template-columns:repeat(4,1fr);"></div>
+            <div id="selected-act-ai" class="mt-16"></div>
+          </div>
+        </div>
+
+        <!-- Connect+ 4 (Hydration Only) & Connect+ 3 (Live Activity Strength Coach) -->
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">💧 Antrenman Sonrası Sıvı İhtiyacı</div>
+                <div class="card-sub">Ter kaybı bazlı %150 rehidrasyon ve elektrolit protokolü (gıda/kalori hariç)</div>
+              </div>
+              <span class="badge badge-info mono" id="rehydration-daily-badge">Bugün: -- ml</span>
+            </div>
+            <div id="rehydration-panel"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">🏋️ Live Activity: Evde Dambıl & Kuvvet Koçu</div>
+                <div class="card-sub">Gerçek zamanlı set akışı, 60 sn sesli dinlenme sayacı & GarminCoach kaydı</div>
+              </div>
+              <span class="badge badge-ok mono" id="live-tonnage-badge">0 kg Tonaj</span>
+            </div>
+            <div class="live-coach-grid">
+              <div>
+                <div class="live-controls-grid">
+                  <div class="builder-field">
+                    <label for="live-ex-select">Hareket</label>
+                    <select id="live-ex-select" class="builder-select">
+                      <option value="Dumbbell Flye|Göğüs">Dumbbell Flye (Göğüs)</option>
+                      <option value="Hammer Curl|Ön Kol">Hammer Curl (Ön Kol)</option>
+                      <option value="Overhead Press|Omuz">Overhead Press (Omuz)</option>
+                      <option value="Bent-Over Row|Sırt">Bent-Over Row (Sırt)</option>
+                      <option value="Kneeling Ab Wheel|Core">Kneeling Ab Wheel (Core)</option>
+                      <option value="Squat|Bacak">Squat (Bacak)</option>
+                    </select>
+                  </div>
+                  <div class="builder-field">
+                    <label for="live-weight">Ağırlık (kg)</label>
+                    <input id="live-weight" class="live-input mono" type="number" value="6" min="2" max="24" step="1" />
+                  </div>
+                  <div class="builder-field">
+                    <label for="live-sets">Hedef Set</label>
+                    <input id="live-sets" class="live-input mono" type="number" value="4" min="1" max="10" />
+                  </div>
+                  <div class="builder-field">
+                    <label for="live-reps">Tekrar</label>
+                    <input id="live-reps" class="live-input mono" type="number" value="15" min="1" max="40" />
+                  </div>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                  <button type="button" class="btn btn-primary btn-sm" onclick="completeLiveSet()">✓ Set Tamamla</button>
+                  <button type="button" class="btn btn-sm" onclick="adjustRestTimer(15)">+15 sn</button>
+                  <button type="button" class="btn btn-sm" onclick="skipRestTimer()">⏭ Atla</button>
+                  <button type="button" class="btn btn-cyan btn-sm" id="btn-save-live" onclick="saveLiveSession()">💾 Seansı Kaydet</button>
+                  <button type="button" class="btn btn-sm" onclick="resetLiveSession()">↺ Sıfırla</button>
+                </div>
+              </div>
+              <div>
+                <div class="timer-ring-box">
+                  <div class="card-sub mono" id="live-set-status">Hazır · Hedef 4 Set</div>
+                  <div class="timer-big mono" id="live-timer-val">01:00</div>
+                  <div class="bar-track"><div id="live-timer-bar" class="bar-fill" style="width:100%; background:#38bdf8;"></div></div>
+                </div>
+                <div class="live-set-log" id="live-completed-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Çift Yönlü Anatomik Kas Haritası (Ön & Arka)</div>
+                <div class="card-sub">Göğüs, Omuz, Sırt, Ön Kol, Core & Bacak yük yoğunluğu</div>
+              </div>
+              <span class="badge badge-info" id="selected-muscle-badge">Kas seçin</span>
+            </div>
+            <div class="anatomy-wrap" id="muscle-heatmap-box"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header map-toolbar">
+              <div>
+                <div class="card-title">GPS Rota Haritası & Z1–Z5 Kalp Hızı Bölgeleri</div>
+                <div class="card-sub">Nabız renk gradyanı + Dark Sokak / Topo 3D / Uydu katman</div>
+              </div>
+              <button type="button" class="btn btn-sm" id="btn-map-layer" onclick="toggleMapLayer()">🗻 Topo 3D Görünüm</button>
+            </div>
+            <div id="activity-map"></div>
+            <div class="hr-legend-strip" id="map-hr-legend">
+              <span><i class="hr-dot" style="background:#38bdf8;"></i>Z1 (&lt;115 bpm)</span>
+              <span><i class="hr-dot" style="background:#00e5a3;"></i>Z2 (115–134)</span>
+              <span><i class="hr-dot" style="background:#f59e0b;"></i>Z3 (135–151)</span>
+              <span><i class="hr-dot" style="background:#ef4444;"></i>Z4+ (&ge;152)</span>
+              <span>🟢 Başlangıç · 🏁 Bitiş · 🔥 Tepe Nabız</span>
+            </div>
+            <div id="hr-zones-bars" class="mt-16"></div>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Aktivite İçi Nabız & Kadans Zaman Serisi (/details)</div>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="activitySeriesChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card" id="elev-profile-card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">⛰️ Yükseklik (Rakım) & Nabız Kesit Profili</div>
+                <div class="card-sub">Garmin /details direkt rakım (m) + nabız tepkisi</div>
+              </div>
+              <span class="badge badge-info mono" id="elev-gain-badge">-- m Tırmanış</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="activityElevChart"></canvas>
+            </div>
+            <div class="drift-strip" id="cardiac-drift-strip"></div>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">🔄 Kochler 3'lü Rotasyon & 48s Kas Toparlanma</div>
+                <div class="card-sub">Kas soğuma yüzdesine göre sıradaki kuvvet bloğunu tek tıkla Canlı Koç'a yükle</div>
+              </div>
+              <span class="badge badge-ok" id="kochler-next-badge">Hazır</span>
+            </div>
+            <div id="kochler-rotation-panel"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">🏆 Hareket PR & İlerleyici Yüklenme (Progressive Overload)</div>
+                <div class="card-sub">Garmin /exerciseSets geçmişine göre rekorlar ve sıradaki hedef</div>
+              </div>
+            </div>
+            <div class="table-wrap" id="pr-overload-table"></div>
+          </div>
+        </div>
+
+        <div class="card mt-18" id="strength-sets-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Kuvvet Setleri & Hacim Dökümü (/exerciseSets)</div>
+              <div class="card-sub">6–10 kg dambıl set / tekrar / toplam tonaj</div>
+            </div>
+          </div>
+          <div class="table-wrap" id="strength-sets-table"></div>
+        </div>
+      </section>
+
+      <!-- TAB 3: WEEKLY EXECUTIVE COCKPIT -->
+      <section id="tab-weekly" class="tab-panel">
+        <div class="card card-glow">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Pazar Yönetici Kokpiti & Haftalık Strateji Bülteni</div>
+              <div class="card-sub" id="weekly-date-label">Hafta başlangıcı: --</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="triggerEngine('haftalikStratejiBulteni')">📊 Bülteni Yenile</button>
+          </div>
+          <p id="weekly-exec-summary" style="font-size:13.5px; color:var(--text-secondary);"></p>
+          <div class="grid-3 mt-16" id="weekly-wow-grid"></div>
+        </div>
+
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Hedef Karnesi, MVP & Dikkat Bayrağı</div>
+            </div>
+            <div id="weekly-scorecard"></div>
+            <div id="weekly-mvp-flags" class="mt-16"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Haftalık Z1–Z5 Dağılımı & Kardiyo/Kuvvet Dengesi</div>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="weeklyZonesChart"></canvas>
+            </div>
+            <div id="weekly-cardio-strength" class="mt-12"></div>
+          </div>
+        </div>
+
+        <div class="card mt-18">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Gelecek 7 Gün Hava Reçeteli Pazartesi–Pazar Takvimi</div>
+              <div class="card-sub">Gemini AI (0.25 temp) & yerelHaftalikProgramOlustur</div>
+            </div>
+          </div>
+          <div class="grid-7" id="weekly-schedule-cards"></div>
+        </div>
+      </section>
+
+      <!-- TAB 4: ARCHIVE (30-DAY ROLLING DOC + UNLIMITED SHEET) -->
+      <section id="tab-archive" class="tab-panel">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Arşiv Kontrol Paneli (30 Günlük Kayan Pencere + PostgreSQL Veritabanı)</div>
+              <div class="card-sub">Eski Google Dokümanlar & Google E-Tablolar GunlukVeriler sekmesinin sınırsız karşılığı</div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-cyan btn-sm" onclick="openBiometricModal()">+ Günlük Veri Ekle</button>
+              <button class="btn btn-sm" onclick="exportCsv()">⬇ CSV İndir</button>
+            </div>
+          </div>
+          <div class="field" style="max-width:340px;">
+            <input id="archive-search" placeholder="Tarih veya durum ara (örn. 2026-11, OPTIMAL)..." oninput="renderArchive()" />
+          </div>
+        </div>
+
+        <div class="grid-2 mt-18">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">30 Günlük Kayan Doküman Penceresi</div>
+                <div class="card-sub">En yeni üstte · Upsert</div>
+              </div>
+            </div>
+            <div id="rolling-doc-list" style="max-height:540px; overflow-y:auto;"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Sınırsız Biyometri Tablosu (GunlukVeriler)</div>
+                <div class="card-sub">Tüm geçmiş kayıtlar</div>
+              </div>
+            </div>
+            <div class="table-wrap" style="max-height:540px; overflow-y:auto;" id="biometrics-archive-table"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: SETTINGS & COMMAND CENTER -->
+      <section id="tab-settings" class="tab-panel">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Hibrit Konum & Kişisel Eşikler (Ayarlar!B2)</div>
+                <div class="card-sub">1. Manuel Şehir → 2. Son 5G GPS &gt;15 km → 3. Varsayılan Ümraniye</div>
+              </div>
+            </div>
+            <div class="chip-group" style="margin-bottom:12px;">
+              <button class="chip" onclick="quickSetCity('')">Otomatik (Ümraniye/GPS)</button>
+              <button class="chip" onclick="quickSetCity('Kadıköy')">Kadıköy</button>
+              <button class="chip" onclick="quickSetCity('Beşiktaş')">Beşiktaş</button>
+              <button class="chip" onclick="quickSetCity('Ankara')">Ankara</button>
+              <button class="chip" onclick="quickSetCity('İzmir')">İzmir</button>
+              <button class="chip" onclick="quickSetCity('Antalya')">Antalya</button>
+            </div>
+            <form id="settings-form" class="form-grid" onsubmit="saveSettings(event)">
+              <div class="field"><label for="inp-city">Manuel Şehir Override</label><input id="inp-city" placeholder="Boş = GPS >15km veya Ümraniye" /></div>
+              <div class="field"><label for="inp-birth">Doğum Yılı</label><input id="inp-birth" type="number" /></div>
+              <div class="field"><label for="inp-rhr-base">Baz RHR (bpm)</label><input id="inp-rhr-base" type="number" /></div>
+              <div class="field"><label for="inp-rhr-warn">Nabız Uyarı Eşiği (bpm)</label><input id="inp-rhr-warn" type="number" /></div>
+              <div class="field"><label for="inp-hrv-min">Baz HRV Alt (ms)</label><input id="inp-hrv-min" type="number" /></div>
+              <div class="field"><label for="inp-hrv-warn">HRV Uyarı Eşiği (ms)</label><input id="inp-hrv-warn" type="number" /></div>
+              <div class="field"><label for="inp-resp-warn">Gece Solunum Eşiği</label><input id="inp-resp-warn" type="number" step="0.1" /></div>
+              <div class="field"><label for="inp-stress-warn">Uyku Stresi Eşiği</label><input id="inp-stress-warn" type="number" /></div>
+              <div class="field"><label for="inp-temp-warn">Deri Sıcaklığı (+°C)</label><input id="inp-temp-warn" type="number" step="0.1" /></div>
+              <div class="field"><label for="inp-spo2-warn">SpO2 Uyarı (%)</label><input id="inp-spo2-warn" type="number" /></div>
+              <div style="grid-column:1 / -1; margin-top:6px;">
+                <button type="submit" class="btn btn-primary">💾 Kaydet & Canlı Havayı Yenile</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Otomasyon Tetikleyicileri & Sistem Günlüğü</div>
+                <div class="card-sub">pg_cron + garmin-coach-engine (11 Garmin Endpoint Hazır)</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+              <button class="btn btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">gunlukGarminAnalizi()</button>
+              <button class="btn btn-sm" onclick="triggerEngine('dokumaniSessizGuncelle', false)">dokumaniSessizGuncelle()</button>
+              <button class="btn btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">havaVeKonumGuncelle()</button>
+              <button class="btn btn-sm" onclick="triggerEngine('haftalikStratejiBulteni')">haftalikStratejiBulteni()</button>
+              <button class="btn btn-sm" onclick="triggerEngine('sonAntrenmaniManuelAnalizEt')">sonAntrenmaniManuelAnalizEt()</button>
+            </div>
+            <div class="table-wrap" style="max-height:310px; overflow-y:auto;" id="sync-logs-table"></div>
+          </div>
+        </div>
+
+        <div class="card mt-18">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔐 Uygulama Giriş Bilgileri &amp; Alan Adı (garmin.alidincerozdemir.com)</div>
+              <div class="card-sub">Tüm cihazlarda geçerli SHA-256 korumalı kullanıcı adı ve şifre yönetimi</div>
+            </div>
+            <span class="badge badge-info mono" id="settings-auth-badge">Varsayılan Giriş</span>
+          </div>
+          <form id="auth-settings-form" class="form-grid" onsubmit="saveAppCredentials(event)">
+            <div class="field"><label for="inp-auth-username">Yeni Kullanıcı Adı</label><input id="inp-auth-username" type="text" required minlength="2" autocomplete="username" placeholder="Örn. ali" /></div>
+            <div class="field"><label for="inp-auth-current-pass">Mevcut Şifre</label><input id="inp-auth-current-pass" type="password" autocomplete="current-password" placeholder="Özel şifre varsa mevcut şifreniz" /></div>
+            <div class="field"><label for="inp-auth-new-pass">Yeni Şifre</label><input id="inp-auth-new-pass" type="password" required minlength="4" autocomplete="new-password" placeholder="En az 4 karakter" /></div>
+            <div class="field"><label for="inp-auth-confirm-pass">Yeni Şifre (Tekrar)</label><input id="inp-auth-confirm-pass" type="password" required minlength="4" autocomplete="new-password" placeholder="Yeni şifreyi tekrar girin" /></div>
+            <div style="grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;">
+              <button type="submit" class="btn btn-primary">🔐 Kullanıcı Adı ve Şifreyi Güncelle</button>
+              <button type="button" class="btn" onclick="logoutApp()">🔒 Oturumu Kapat (Giriş Ekranını Test Et)</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <nav class="mobile-nav" aria-label="Mobil Menü">
+    <button class="active" data-tab="dashboard">⚡<span>Kokpit</span></button>
+    <button data-tab="workouts">🏋️<span>Antrenman</span></button>
+    <button data-tab="weekly">📊<span>Strateji</span></button>
+    <button data-tab="archive">🗂️<span>Arşiv</span></button>
+    <button data-tab="settings">⚙️<span>Ayarlar</span></button>
+  </nav>
+
+  <!-- WORKOUT LOG MODAL -->
+  <div class="modal-backdrop" id="workout-modal">
+    <div class="modal-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Hızlı Antrenman Kaydet</div>
+          <div class="card-sub">Kuvvet (2–8 kg dambıl) veya açık hava yürüyüş/koşu</div>
+        </div>
+        <button class="btn btn-sm" onclick="closeModals()">✕</button>
+      </div>
+      <form class="form-grid" onsubmit="submitWorkoutModal(event)">
+        <div class="field">
+          <label>Tür</label>
+          <select id="w-type" onchange="toggleWorkoutFields()">
+            <option value="strength_training">Kuvvet (Dambıl)</option>
+            <option value="walking">Açık Hava Yürüyüşü</option>
+            <option value="running">Koşu / Hızlı Yürüyüş</option>
+          </select>
+        </div>
+        <div class="field"><label>Süre (dk)</label><input id="w-dur" type="number" value="42" required /></div>
+        <div class="field strength-only"><label>Dambıl Ağırlığı (kg)</label><input id="w-weight" type="number" value="6" min="2" max="20" /></div>
+        <div class="field strength-only"><label>Set x Tekrar</label><div style="display:flex; gap:6px;"><input id="w-sets" type="number" value="4" /><input id="w-reps" type="number" value="15" /></div></div>
+        <div class="field cardio-only" style="display:none;"><label>Mesafe (km)</label><input id="w-dist" type="number" step="0.1" value="5.5" /></div>
+        <div class="field"><label>Ort. Nabız (bpm)</label><input id="w-hr" type="number" value="112" /></div>
+        <div style="grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+          <button type="button" class="btn" onclick="closeModals()">İptal</button>
+          <button type="submit" class="btn btn-primary">Kaydet & Analiz Et</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- BIOMETRIC LOG MODAL -->
+  <div class="modal-backdrop" id="biometric-modal">
+    <div class="modal-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Günlük Biyometri Kaydet / Güncelle</div>
+          <div class="card-sub">Hazırlık skoru (%30 BB + %30 Uyku + %25 HRV + %15 RHR) otomatik hesaplanır</div>
+        </div>
+        <button class="btn btn-sm" onclick="closeModals()">✕</button>
+      </div>
+      <form class="form-grid" onsubmit="submitBiometricModal(event)">
+        <div class="field"><label>Tarih</label><input id="b-date" type="date" required /></div>
+        <div class="field"><label>Body Battery Maks</label><input id="b-bb" type="number" value="90" min="0" max="100" /></div>
+        <div class="field"><label>Uyku Skoru</label><input id="b-sleep" type="number" value="84" min="0" max="100" /></div>
+        <div class="field"><label>Gece HRV (ms)</label><input id="b-hrv" type="number" value="65" /></div>
+        <div class="field"><label>Dinlenik Nabız (bpm)</label><input id="b-rhr" type="number" value="46" /></div>
+        <div class="field"><label>Adım</label><input id="b-steps" type="number" value="9800" /></div>
+        <div style="grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+          <button type="button" class="btn" onclick="closeModals()">İptal</button>
+          <button type="submit" class="btn btn-primary">Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "GarminCoach Pro",
+  "short_name": "GarminCoach",
+  "description": "Kişisel Garmin Biyometri, Hava Kalitesi Kadranı ve AI Performans Koçu",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#050811",
+  "theme_color": "#050811",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
