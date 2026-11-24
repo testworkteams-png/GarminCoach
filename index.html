@@ -516,72 +516,15 @@
           </div>
         </div>
 
-        <!-- Connect+ 4 (Hydration Only) & Connect+ 3 (Live Activity Strength Coach) -->
-        <div class="grid-2 mt-18">
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">💧 Antrenman Sonrası Sıvı İhtiyacı</div>
-                <div class="card-sub">Ter kaybı bazlı %150 rehidrasyon ve elektrolit protokolü (gıda/kalori hariç)</div>
-              </div>
-              <span class="badge badge-info mono" id="rehydration-daily-badge">Bugün: -- ml</span>
+        <div class="card mt-18">
+          <div class="card-header">
+            <div>
+              <div class="card-title">💧 Antrenman Sonrası Sıvı İhtiyacı</div>
+              <div class="card-sub">Antrenman sonrası önerilen su miktarı</div>
             </div>
-            <div id="rehydration-panel"></div>
+            <span class="badge badge-info mono" id="rehydration-daily-badge">~-- ml</span>
           </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">🏋️ Live Activity: Evde Dambıl & Kuvvet Koçu</div>
-                <div class="card-sub">Gerçek zamanlı set akışı, 60 sn sesli dinlenme sayacı & GarminCoach kaydı</div>
-              </div>
-              <span class="badge badge-ok mono" id="live-tonnage-badge">0 kg Tonaj</span>
-            </div>
-            <div class="live-coach-grid">
-              <div>
-                <div class="live-controls-grid">
-                  <div class="builder-field">
-                    <label for="live-ex-select">Hareket</label>
-                    <select id="live-ex-select" class="builder-select">
-                      <option value="Dumbbell Flye|Göğüs">Dumbbell Flye (Göğüs)</option>
-                      <option value="Hammer Curl|Ön Kol">Hammer Curl (Ön Kol)</option>
-                      <option value="Overhead Press|Omuz">Overhead Press (Omuz)</option>
-                      <option value="Bent-Over Row|Sırt">Bent-Over Row (Sırt)</option>
-                      <option value="Kneeling Ab Wheel|Core">Kneeling Ab Wheel (Core)</option>
-                      <option value="Squat|Bacak">Squat (Bacak)</option>
-                    </select>
-                  </div>
-                  <div class="builder-field">
-                    <label for="live-weight">Ağırlık (kg)</label>
-                    <input id="live-weight" class="live-input mono" type="number" value="6" min="2" max="24" step="1" />
-                  </div>
-                  <div class="builder-field">
-                    <label for="live-sets">Hedef Set</label>
-                    <input id="live-sets" class="live-input mono" type="number" value="4" min="1" max="10" />
-                  </div>
-                  <div class="builder-field">
-                    <label for="live-reps">Tekrar</label>
-                    <input id="live-reps" class="live-input mono" type="number" value="15" min="1" max="40" />
-                  </div>
-                </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-                  <button type="button" class="btn btn-primary btn-sm" onclick="completeLiveSet()">✓ Set Tamamla</button>
-                  <button type="button" class="btn btn-sm" onclick="adjustRestTimer(15)">+15 sn</button>
-                  <button type="button" class="btn btn-sm" onclick="skipRestTimer()">⏭ Atla</button>
-                  <button type="button" class="btn btn-cyan btn-sm" id="btn-save-live" onclick="saveLiveSession()">💾 Seansı Kaydet</button>
-                  <button type="button" class="btn btn-sm" onclick="resetLiveSession()">↺ Sıfırla</button>
-                </div>
-              </div>
-              <div>
-                <div class="timer-ring-box">
-                  <div class="card-sub mono" id="live-set-status">Hazır · Hedef 4 Set</div>
-                  <div class="timer-big mono" id="live-timer-val">01:00</div>
-                  <div class="bar-track"><div id="live-timer-bar" class="bar-fill" style="width:100%; background:#38bdf8;"></div></div>
-                </div>
-                <div class="live-set-log" id="live-completed-list"></div>
-              </div>
-            </div>
-          </div>
+          <div id="rehydration-panel"></div>
         </div>
 
         <div class="grid-2 mt-18">
@@ -646,7 +589,7 @@
             <div class="card-header">
               <div>
                 <div class="card-title">🔄 Kochler 3'lü Rotasyon & 48s Kas Toparlanma</div>
-                <div class="card-sub">Kas soğuma yüzdesine göre sıradaki kuvvet bloğunu tek tıkla Canlı Koç'a yükle</div>
+                <div class="card-sub">Kas soğuma yüzdesine göre sıradaki önerilen kuvvet bloğu</div>
               </div>
               <span class="badge badge-ok" id="kochler-next-badge">Hazır</span>
             </div>

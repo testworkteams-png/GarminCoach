@@ -23,6 +23,7 @@
       notification_time: "09:00",
     },
     loading: false,
+    voting: false,
     listenerAttached: false,
   };
 
@@ -244,16 +245,12 @@
       tipEl.innerHTML = `<strong>💡 Günün Önerisi:</strong> ${esc(ins.action_tip || "--")}`;
     }
 
-    if (fbRow) fbRow.classList.remove("hidden");
-    if (upBtn) upBtn.classList.toggle("active-up", ins.feedback === 1);
-    if (downBtn) downBtn.classList.toggle("active-down", ins.feedback === -1);
-    if (fbStatus) {
-      fbStatus.textContent =
-        ins.feedback === 1
-          ? "Bu analizi beğendiniz · AI tercihlerinize kaydedildi"
-          : ins.feedback === -1
-          ? "Geri bildiriminiz alındı · Sonraki analizler buna göre uyarlanacak"
-          : "Bu içgörü faydalı oldu mu?";
+    const alreadyVoted = ins.feedback === 1 || ins.feedback === -1;
+    if (fbRow) fbRow.classList.toggle("hidden", alreadyVoted);
+    if (upBtn) upBtn.classList.remove("active-up");
+    if (downBtn) downBtn.classList.remove("active-down");
+    if (fbStatus && !alreadyVoted) {
+      fbStatus.textContent = "Bu öneri nasıldı?";
     }
   }
 
@@ -343,25 +340,40 @@
 
   hostObj.rateAiInsight = async function (vote) {
     const ins = moduleState.insight;
-    if (!ins?.id || !moduleState.auth?.authenticated) return;
-    const nextVote = ins.feedback === vote ? null : vote;
-    const prevVote = ins.feedback;
-    ins.feedback = nextVote;
+    if (
+      !ins?.id ||
+      !moduleState.auth?.authenticated ||
+      ins.feedback === 1 ||
+      ins.feedback === -1 ||
+      moduleState.voting ||
+      (vote !== 1 && vote !== -1)
+    ) {
+      return;
+    }
+
+    moduleState.voting = true;
+    ins.feedback = vote;
     renderInsightCard();
 
     try {
       const json = await aiApiCall({
         action: "submitFeedback",
         insight_id: ins.id,
-        feedback: nextVote,
+        feedback: vote,
       });
       if (json.insight) moduleState.insight = json.insight;
       renderInsightCard();
-      toast(nextVote === 1 ? "Beğenildi 👍" : nextVote === -1 ? "Not alındı 👎" : "Geri bildirim kaldırıldı");
+      toast(
+        vote === 1
+          ? "Faydalı olarak kaydedildi 👍 Sonraki öneriler buna göre şekillenecek."
+          : "Geliştir notu alındı 👎 Sonraki öneriler buna göre iyileştirilecek."
+      );
     } catch (err) {
-      ins.feedback = prevVote;
+      ins.feedback = null;
       renderInsightCard();
       toast(`Geri bildirim kaydedilemedi: ${err.message}`);
+    } finally {
+      moduleState.voting = false;
     }
   };
 

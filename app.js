@@ -40,13 +40,6 @@ const state = {
   tileLayer: null,
   mapLayerMode: "dark",
   routeLayer: null,
-  liveWorkout: {
-    setsCompleted: [],
-    restLeft: 60,
-    restTotal: 60,
-    timerId: null,
-    startedAt: null,
-  },
   auth: {
     authenticated: false,
     userId: null,
@@ -683,9 +676,8 @@ function renderActiveIntelligence3x(latest) {
   let workoutMsg = "Henüz kaydedilmiş antrenman bulunamadı.";
   let workoutBadge = "Beklemede";
   if (lastAct) {
-    const waterMl = Number(lastAct.session_comparison?.water_ml || 260);
-    const rehydMl = Math.round(waterMl * 1.5);
-    const waterCups = Math.max(1, Math.round(rehydMl / 200));
+    const waterMl = Math.max(200, Math.round((Number(lastAct.session_comparison?.water_ml || 250)) / 50) * 50);
+    const waterCups = Math.max(1, Math.round((waterMl / 250) * 2) / 2);
     const dist = Number(lastAct.distance_meters || 0);
     const durMin = Math.max(1, Number(lastAct.duration_seconds || 0) / 60);
     const ef = dist > 500 && lastAct.avg_hr ? ((dist / durMin) / Number(lastAct.avg_hr)).toFixed(2) : null;
@@ -695,7 +687,7 @@ function renderActiveIntelligence3x(latest) {
         ? ` Antrenman yükü: ${lastAct.training_load}.`
         : "";
     workoutBadge = String(lastAct.start_time_local || "").slice(5, 16).replace("T", " ");
-    workoutMsg = `${lastAct.activity_name} (${fmtDuration(lastAct.duration_seconds)}, ort. ${lastAct.avg_hr ?? "--"} atım/dk). Yaklaşık ${waterMl} ml ter kaybettin → yerine koymak için ${rehydMl} ml (~${waterCups} bardak) su iç.${efNote}`;
+    workoutMsg = `${lastAct.activity_name} (${fmtDuration(lastAct.duration_seconds)}, ort. ${lastAct.avg_hr ?? "--"} atım/dk). Toparlanma için ~${waterMl} ml (${waterCups} bardak) su içmen yeterli.${efNote}`;
   }
 
   const te = latest.raw_payload?.telemetry_extra || {};
@@ -1476,7 +1468,7 @@ function renderWorkouts() {
 
   const ai = act.ai_post_workout_analysis || {};
   const cmp = act.session_comparison || {};
-  const waterInfo = cmp.water_ml ? `💧 Tahmini Ter/Su Kaybı: ${cmp.water_ml} ml (Öneri: ~${Math.max(1, Math.round((cmp.water_ml * 1.5) / 200))} bardak su)` : "";
+  const waterInfo = cmp.water_ml ? `💧 Önerilen Su: ~${Math.max(200, Math.round(Number(cmp.water_ml) / 50) * 50)} ml (~${Math.max(1, Math.round(Number(cmp.water_ml) / 250))} bardak)` : "";
   const bbInfo = cmp.bb_impact != null ? ` · 🔋 Enerji Etkisi: ${cmp.bb_impact}` : "";
   document.getElementById("selected-act-ai").innerHTML = `
     <div class="coach-block"><h4>Seans Değerlendirmesi</h4><p>${escapeHtml(ai.summary || "--")} ${escapeHtml(waterInfo + bbInfo)}</p></div>
@@ -1710,7 +1702,6 @@ function renderWorkouts() {
   }
 
   renderKochlerRotationAndPRs();
-  renderLiveWorkoutUI();
 }
 
 function renderCardiacDriftAndClimb(act, hrSeries, elevArr, gainM) {
@@ -1797,21 +1788,6 @@ const KOCHLER_ROTATIONS = [
   },
 ];
 
-window.loadKochlerPreset = function (rotId) {
-  const rot = KOCHLER_ROTATIONS.find((r) => r.id === rotId);
-  if (!rot) return;
-  const sel = document.getElementById("live-ex-select");
-  const wInp = document.getElementById("live-weight");
-  const sInp = document.getElementById("live-sets");
-  const rInp = document.getElementById("live-reps");
-  if (sel) sel.value = rot.defaultEx;
-  if (wInp) wInp.value = String(rot.weight);
-  if (sInp) sInp.value = String(rot.sets);
-  if (rInp) rInp.value = String(rot.reps);
-  renderLiveWorkoutUI();
-  showToast(`✓ ${rot.title} (${rot.weight} kg) Canlı Koç'a yüklendi!`);
-};
-
 function renderKochlerRotationAndPRs() {
   const panel = document.getElementById("kochler-rotation-panel");
   const nextBadge = document.getElementById("kochler-next-badge");
@@ -1870,7 +1846,7 @@ function renderKochlerRotationAndPRs() {
             <span class="badge ${r.minRec >= 85 ? "badge-ok" : "badge-warn"} mono">%${r.avgRec}</span>
           </div>
           <div class="card-sub" style="margin:4px 0 8px;">${escapeHtml(r.note)}</div>
-          <button type="button" class="btn btn-sm ${r.id === bestRot.id ? "btn-primary" : ""}" style="width:100%;" onclick="loadKochlerPreset('${r.id}')">⚡ Yükle (${r.weight} kg)</button>
+          <div class="badge ${r.id === bestRot.id ? "badge-ok" : "badge-info"}" style="width:100%; text-align:center;">${r.id === bestRot.id ? "✓ Sıradaki Önerilen" : "Toparlanıyor"}</div>
         </div>`
         )
         .join("")}
@@ -1987,254 +1963,32 @@ function renderRehydrationCard(act) {
   const dailyBadge = document.getElementById("rehydration-daily-badge");
   if (!panel || !act) return;
 
-  const rawWater = act.session_comparison?.water_ml;
-  const isEstimated = !rawWater;
-  const durMin = Math.round((Number(act.duration_seconds || 1800)) / 60);
-  const sweatLossMl = Number(rawWater) || Math.round(durMin * ((Number(act.avg_hr || 105) >= 125) ? 9.5 : 6.8));
-  const targetMl = Math.round(sweatLossMl * 1.5);
-  const glasses = (targetMl / 250).toFixed(1);
-  const first30Ml = Math.round(targetMl * 0.5);
-  const next2hMl = targetMl - first30Ml;
-  const needsElectrolyte = sweatLossMl > 400 || (Number(act.duration_seconds || 0) > 2700);
-
-  const actDay = String(act.start_time_local || "").slice(0, 10);
-  const refDay = state.biometrics[0]?.log_date || actDay;
-  const sameDayActs = state.activities.filter((a) => String(a.start_time_local || "").slice(0, 10) === refDay);
-  const dailyRehyd = sameDayActs.reduce((sum, a) => {
-    const ml = Number(a.session_comparison?.water_ml) || Math.round((Number(a.duration_seconds || 0) / 60) * 7.2);
-    return sum + Math.round(ml * 1.5);
-  }, 0);
+  const rawWater = Number(act.session_comparison?.water_ml);
+  const durMin = Math.max(1, Math.round(Number(act.duration_seconds || 1800) / 60));
+  const avgHr = Number(act.avg_hr || 105);
+  const estMl = rawWater > 0 ? Math.round(rawWater) : Math.round(durMin * (avgHr >= 135 ? 8 : 5.5));
+  const targetMl = Math.max(200, Math.round(estMl / 50) * 50);
+  const glasses = Math.max(1, Math.round((targetMl / 250) * 2) / 2);
+  const needsElectrolyte = targetMl >= 600 || durMin >= 60;
 
   if (dailyBadge) {
-    dailyBadge.textContent = sameDayActs.length
-      ? `Bugün (${refDay.slice(5)}): +${dailyRehyd} ml`
-      : `Seans Hedefi: ${targetMl} ml`;
+    dailyBadge.textContent = `~${targetMl} ml (${glasses} bardak)`;
   }
 
   panel.innerHTML = `
-    <div class="rehydration-grid">
-      <div class="mini-box">
-        <div class="mini-box-lbl">Net Ter Kaybı</div>
-        <div class="mini-box-val mono" style="color:var(--cyan);">${sweatLossMl} ml</div>
-        <div class="card-sub">${isEstimated ? "Nabız/Süre Tahmini" : "Garmin /waterEstimated"}</div>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:10px 14px; border-radius:12px; background:var(--panel-soft); border:1px solid var(--border);">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <strong class="mono" style="font-size:18px; color:var(--emerald);">~${targetMl} ml</strong>
+        <span class="card-sub">· ${glasses} su bardağı (250 ml)</span>
       </div>
-      <div class="mini-box">
-        <div class="mini-box-lbl">%150 Telafi Hedefi</div>
-        <div class="mini-box-val mono" style="color:var(--emerald);">${targetMl} ml</div>
-        <div class="card-sub">~${glasses} su bardağı (250 ml)</div>
-      </div>
-      <div class="mini-box">
-        <div class="mini-box-lbl">İlk 30 Dakika</div>
-        <div class="mini-box-val mono" style="color:var(--purple);">${first30Ml} ml</div>
-        <div class="card-sub">Hemen antrenman bitiminde</div>
-      </div>
-      <div class="mini-box">
-        <div class="mini-box-lbl">Sonraki 2 Saat</div>
-        <div class="mini-box-val mono">${next2hMl} ml</div>
-        <div class="card-sub">Yudum yudum dağıtarak</div>
-      </div>
-    </div>
-    <div class="coach-block mt-16" style="border-left-color:${needsElectrolyte ? "#f59e0b" : "#38bdf8"}; margin-bottom:0;">
-      <h4>${needsElectrolyte ? "⚡ Elektrolit + Maden Suyu Uyarısı" : "💧 Sade Hidrasyon Yeterli"}</h4>
-      <p>${
+      <span class="card-sub">${
         needsElectrolyte
-          ? `Ter kaybı ${sweatLossMl} ml (${durMin} dk). Sadece su yerine 1 şişe doğal maden suyu (~400 mg sodyum/magnezyum) ekle.`
-          : `Hafif-orta ter kaybı (${sweatLossMl} ml). İlk 30 dakikada ${first30Ml} ml içmen toparlanma nabzını hızlandırır.`
-      }${sameDayActs.length > 1 ? ` · Bugünkü ${sameDayActs.length} seans toplamı: ${dailyRehyd} ml ekstra sıvı.` : ""}</p>
+          ? "Uzun/yoğun seans: suya ek 1 şişe doğal maden suyu ekleyebilirsin."
+          : "Antrenman sonrası yudum yudum su içmen toparlanma için yeterli."
+      }</span>
     </div>
   `;
 }
-
-function playRestBeep() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    [880, 1174].forEach((freq, idx) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.08, ctx.currentTime + idx * 0.16);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.16 + 0.14);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + idx * 0.16);
-      osc.stop(ctx.currentTime + idx * 0.16 + 0.15);
-    });
-  } catch {
-    // Ses tarayıcı tarafından engellenirse sessiz devam et
-  }
-}
-
-function formatMmSs(sec) {
-  const s = Math.max(0, Math.round(sec));
-  const m = String(Math.floor(s / 60)).padStart(2, "0");
-  const r = String(s % 60).padStart(2, "0");
-  return `${m}:${r}`;
-}
-
-window.renderLiveWorkoutUI = function () {
-  const lw = state.liveWorkout;
-  const totalVol = lw.setsCompleted.reduce((acc, s) => acc + s.volume_kg, 0);
-  const targetSets = Number(document.getElementById("live-sets")?.value || 4);
-
-  const tonBadge = document.getElementById("live-tonnage-badge");
-  if (tonBadge) tonBadge.textContent = `${totalVol} kg Tonaj · ${lw.setsCompleted.length} Set`;
-
-  const statusEl = document.getElementById("live-set-status");
-  if (statusEl) {
-    statusEl.textContent = lw.timerId
-      ? `Dinlenme Sayacı · Set ${lw.setsCompleted.length} / ${targetSets}`
-      : lw.setsCompleted.length
-      ? `Sıradaki Set ${lw.setsCompleted.length + 1} / ${targetSets} Hazır`
-      : `Hazır · Hedef ${targetSets} Set`;
-  }
-
-  const timerVal = document.getElementById("live-timer-val");
-  if (timerVal) timerVal.textContent = formatMmSs(lw.restLeft);
-
-  const timerBar = document.getElementById("live-timer-bar");
-  if (timerBar) {
-    const pct = lw.restTotal > 0 ? Math.min(100, Math.round((lw.restLeft / lw.restTotal) * 100)) : 0;
-    timerBar.style.width = `${pct}%`;
-    timerBar.style.background = lw.restLeft <= 10 && lw.timerId ? "#00e5a3" : "#38bdf8";
-  }
-
-  const listEl = document.getElementById("live-completed-list");
-  if (listEl) {
-    listEl.innerHTML = lw.setsCompleted.length
-      ? lw.setsCompleted
-          .map(
-            (s, i) => `
-          <div class="live-set-item">
-            <div><strong class="mono">#${i + 1}</strong> ${escapeHtml(s.exercise)} <span class="badge badge-info">${escapeHtml(s.muscle)}</span></div>
-            <div class="mono" style="color:var(--emerald);">${s.weight_kg} kg x ${s.reps} (${s.volume_kg} kg)</div>
-          </div>`
-          )
-          .reverse()
-          .join("")
-      : `<p class="card-sub" style="text-align:center;">Set tamamla butonuna bastığında 60 sn dinlenme sayacı otomatik başlar.</p>`;
-  }
-};
-
-function startRestTimer(sec) {
-  const lw = state.liveWorkout;
-  if (lw.timerId) clearInterval(lw.timerId);
-  lw.restLeft = sec;
-  lw.restTotal = Math.max(sec, 60);
-  lw.timerId = setInterval(() => {
-    lw.restLeft -= 1;
-    if (lw.restLeft <= 0) {
-      clearInterval(lw.timerId);
-      lw.timerId = null;
-      lw.restLeft = 0;
-      playRestBeep();
-      showToast("⏰ Dinlenme bitti — sıradaki sete geç!");
-    }
-    renderLiveWorkoutUI();
-  }, 1000);
-  renderLiveWorkoutUI();
-}
-
-window.completeLiveSet = function () {
-  const exRaw = document.getElementById("live-ex-select")?.value || "Dumbbell Flye|Göğüs";
-  const [exercise, muscle] = exRaw.split("|");
-  const weight_kg = Math.max(1, Number(document.getElementById("live-weight")?.value || 6));
-  const reps = Math.max(1, Number(document.getElementById("live-reps")?.value || 15));
-
-  if (!state.liveWorkout.startedAt) state.liveWorkout.startedAt = Date.now();
-  state.liveWorkout.setsCompleted.push({
-    exercise,
-    muscle,
-    weight_kg,
-    reps,
-    volume_kg: Math.round(weight_kg * reps),
-  });
-
-  startRestTimer(60);
-  showToast(`✓ ${exercise} (${weight_kg} kg x ${reps}) eklendi`);
-};
-
-window.adjustRestTimer = function (delta) {
-  const lw = state.liveWorkout;
-  const nextSec = Math.max(5, (lw.timerId ? lw.restLeft : 60) + delta);
-  startRestTimer(nextSec);
-};
-
-window.skipRestTimer = function () {
-  const lw = state.liveWorkout;
-  if (lw.timerId) clearInterval(lw.timerId);
-  lw.timerId = null;
-  lw.restLeft = 0;
-  renderLiveWorkoutUI();
-  showToast("Sıradaki set için hazır!");
-};
-
-window.resetLiveSession = function () {
-  const lw = state.liveWorkout;
-  if (lw.timerId) clearInterval(lw.timerId);
-  lw.timerId = null;
-  lw.setsCompleted = [];
-  lw.restLeft = 60;
-  lw.restTotal = 60;
-  lw.startedAt = null;
-  renderLiveWorkoutUI();
-};
-
-window.saveLiveSession = async function () {
-  const sets = state.liveWorkout.setsCompleted;
-  if (!sets.length) {
-    showToast("Önce en az 1 set tamamlayın.");
-    return;
-  }
-
-  const grouped = new Map();
-  for (const s of sets) {
-    const key = `${s.exercise}|${s.muscle}|${s.weight_kg}|${s.reps}`;
-    const prev = grouped.get(key) || { exercise: s.exercise, muscle: s.muscle, sets: 0, reps: s.reps, weight_kg: s.weight_kg, volume_kg: 0 };
-    prev.sets += 1;
-    prev.volume_kg += s.volume_kg;
-    grouped.set(key, prev);
-  }
-  const custom_sets = Array.from(grouped.values());
-  const names = [...new Set(sets.map((s) => s.exercise))].slice(0, 2).join(" & ");
-  const avgWeight = Math.round(sets.reduce((a, b) => a + b.weight_kg, 0) / sets.length);
-  const avgReps = Math.round(sets.reduce((a, b) => a + b.reps, 0) / sets.length);
-  const durationMin = Math.max(10, Math.round((Date.now() - (state.liveWorkout.startedAt || Date.now())) / 60000), sets.length * 3);
-
-  const btn = document.getElementById("btn-save-live");
-  if (btn) btn.disabled = true;
-  showToast("Canlı kuvvet seansı GarminCoach'a kaydediliyor...");
-
-  try {
-    const res = await fetch(ENGINE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "logWorkout",
-        activity_type: "strength_training",
-        activity_name: `Canlı Kuvvet: ${names}`,
-        duration_min: durationMin,
-        weight_kg: avgWeight,
-        sets: sets.length,
-        reps: avgReps,
-        avg_hr: 108,
-        custom_sets,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok || json.ok === false) throw new Error(json.error || "Kayıt hatası");
-    state.selectedActivityId = json.activity.activity_id;
-    resetLiveSession();
-    await loadAllData();
-    showToast("Seans, kas haritası ve sıvı ihtiyacı güncellendi!");
-  } catch (err) {
-    showToast(`Kayıt hatası: ${err.message}`);
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-};
 
 window.selectActivity = function (id) {
   state.selectedActivityId = id;
@@ -2915,10 +2669,12 @@ window.askCoachPreset = function (q) {
   submitCoachChat(new Event("submit"));
 };
 
-window.applyAiSuggestedRotation = function (rotId) {
+window.applyAiSuggestedRotation = function () {
   const wTabBtn = document.querySelector('[data-tab="workouts"]');
   if (wTabBtn) wTabBtn.click();
-  loadKochlerPreset(rotId);
+  setTimeout(() => {
+    document.getElementById("kochler-rotation-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 150);
 };
 
 window.submitCoachChat = async function (ev) {
@@ -2944,7 +2700,7 @@ window.submitCoachChat = async function (ev) {
       core_legs: "Ab Roller & Squat",
     };
     const rotBtn = r.suggested_rotation && rotNames[r.suggested_rotation]
-      ? `<div class="mt-12"><button type="button" class="btn btn-primary btn-sm" onclick="applyAiSuggestedRotation('${escapeHtml(r.suggested_rotation)}')">⚡ Önerilen Rotasyonu (${escapeHtml(rotNames[r.suggested_rotation])}) Canlı Koça Yükle</button></div>`
+      ? `<div class="mt-12"><button type="button" class="btn btn-primary btn-sm" onclick="applyAiSuggestedRotation()">💪 Önerilen Rotasyonu (${escapeHtml(rotNames[r.suggested_rotation])}) Gör</button></div>`
       : "";
     replyBox.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;"><strong>Koç Yanıtı</strong><span class="badge badge-info mono">${escapeHtml(modelLabel)}</span></div><div>${escapeHtml(r.answer || "")}</div>${items}${rotBtn}`;
   } catch (err) {
@@ -3411,7 +3167,6 @@ document.addEventListener("DOMContentLoaded", () => {
   window.GarminThemeEngine?.init();
   setupTabs();
   startIstanbulClock();
-  renderLiveWorkoutUI();
   initAuthGate();
   document.addEventListener("click", (e) => {
     const drawer = document.getElementById("notif-drawer");
