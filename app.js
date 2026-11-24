@@ -861,6 +861,43 @@ window.renderCustomCompareChart = function () {
   });
 };
 
+function formatBbEventLabel(ev) {
+  const raw = String(ev?.label || "").trim();
+  const upper = raw.toUpperCase();
+  const evType = String(ev?.type || "").trim().toUpperCase();
+  const isEmptyOrNone = !raw || upper === "NONE" || upper === "UNKNOWN" || upper === "NULL";
+
+  if (upper === "STRESSFUL_PERIOD" || (isEmptyOrNone && evType === "STRESS")) return "Yüksek Stres Harcaması";
+  if (upper === "RESTFUL_PERIOD" || (isEmptyOrNone && evType === "RECOVERY")) return "Dinlenme / Toparlanma";
+  if (evType === "NAP" || upper === "NAP") return "Kısa Şekerleme Şarjı";
+  if (evType === "SLEEP" || upper === "SLEEP") return "Gece Uykusu Şarjı";
+  if (evType === "ACTIVITY") {
+    return !isEmptyOrNone && upper !== "ACTIVITY" && upper !== "EXERCISE" ? raw : "Antrenman Harcaması";
+  }
+  if (isEmptyOrNone) {
+    return Number(ev?.impact) >= 0 ? "Dinlenme Şarjı" : "Gün İçi Enerji Harcaması";
+  }
+  return raw.includes("_") ? raw.replace(/_/g, " ") : raw;
+}
+
+function getBbEventIcon(ev) {
+  const evType = String(ev?.type || "").trim().toUpperCase();
+  if (evType === "SLEEP") return "😴";
+  if (evType === "NAP") return "💤";
+  if (evType === "ACTIVITY") return "🏃";
+  if (evType === "RECOVERY") return "🌿";
+  return "⚡";
+}
+
+function formatBbDurationTr(mins) {
+  const m = Number(mins);
+  if (!Number.isFinite(m) || m <= 0) return "-- dk";
+  if (m < 60) return `${Math.round(m)} dk`;
+  const h = Math.floor(m / 60);
+  const rem = Math.round(m % 60);
+  return rem > 0 ? `${h} sa ${rem} dk` : `${h} sa`;
+}
+
 function renderDeepTelemetry(latest) {
   const te = latest?.raw_payload?.telemetry_extra;
   if (!te) {
@@ -871,9 +908,14 @@ function renderDeepTelemetry(latest) {
 
   // 1. Body Battery Current & Events
   const bbCur = te.bb_current ?? latest.body_battery_min ?? "--";
+  const bbCurNum = Number(bbCur);
+  const hasBbCur = bbCur !== "--" && Number.isFinite(bbCurNum);
+  const bbStatusTr = hasBbCur ? (bbCurNum >= 50 ? "İyi seviye" : bbCurNum >= 25 ? "Orta seviye" : "Düşük — dinlen") : "--";
+  const bbColor = hasBbCur ? (bbCurNum >= 50 ? "#00e5a3" : bbCurNum >= 25 ? "#f59e0b" : "#ef4444") : "var(--text)";
+
   const bbBadge = document.getElementById("bb-current-badge");
   bbBadge.textContent = `🔋 Kalan: ${bbCur}/100 · Uyku +${te.bb_during_sleep ?? "--"}`;
-  bbBadge.className = `badge ${Number(bbCur) >= 40 ? "badge-ok" : Number(bbCur) >= 20 ? "badge-warn" : "badge-crit"}`;
+  bbBadge.className = `badge ${hasBbCur && bbCurNum >= 40 ? "badge-ok" : hasBbCur && bbCurNum >= 20 ? "badge-warn" : "badge-crit"}`;
 
   const bbSeries = Array.isArray(te.bb_series) ? te.bb_series : [];
   const bbCtx = document.getElementById("bbIntradayChart");
@@ -906,20 +948,82 @@ function renderDeepTelemetry(latest) {
   }
 
   const events = Array.isArray(te.bb_events) ? te.bb_events : [];
-  document.getElementById("bb-events-list").innerHTML = events.length
+  const charged = latest.body_battery_charged ?? te.bb_during_sleep ?? null;
+  const drained = latest.body_battery_drained ?? (te.bb_at_wake != null && hasBbCur ? Math.max(0, Number(te.bb_at_wake) - bbCurNum) : null);
+
+  const drainReasons = [];
+  const negEvents = events.filter((ev) => Number(ev?.impact) < 0);
+  const negLabelsLower = new Set();
+  for (const ev of negEvents) {
+    const lbl = formatBbEventLabel(ev);
+    negLabelsLower.add(lbl.toLowerCase());
+    drainReasons.push(`${lbl} (${ev.impact} puan)`);
+  }
+
+  const todayDate = String(latest.log_date || "").slice(0, 10);
+  const todayActs = (state.activities || []).filter((a) => String(a.start_time_local || "").slice(0, 10) === todayDate);
+  for (const act of todayActs) {
+    const actName = String(act.activity_name || "").trim();
+    if (actName && !negLabelsLower.has(actName.toLowerCase())) {
+      drainReasons.push(actName);
+    }
+  }
+
+  const bbSb = te.stress_breakdown || {};
+  const medHighStressPct = Math.round((bbSb.high_pct || 0) + (bbSb.med_pct || 0));
+  const activityPct = Math.round(bbSb.activity_pct || 0);
+  if (medHighStressPct > 0) drainReasons.push(`gün içi stres (%${medHighStressPct} orta/yüksek)`);
+  if (activityPct > 0) drainReasons.push(`fiziksel hareket (%${activityPct})`);
+
+  const bbMet = te.metabolism || {};
+  const activeMinTotal = Math.round((bbMet.active_min || 0) + (bbMet.highly_active_min || 0));
+  if (activeMinTotal > 0) drainReasons.push(`${activeMinTotal} dk aktif hareket`);
+  if (Number(latest.steps) > 0) drainReasons.push(`${Number(latest.steps).toLocaleString("tr-TR")} adım`);
+
+  const drainSummaryText = drainReasons.length
+    ? `Harcama kaynakları: ${drainReasons.slice(0, 3).join(" · ")}`
+    : "Gün içi bazal metabolizma ve rutin hareketlere harcandı.";
+
+  const bbSummaryHtml = `
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px;">
+      <div class="mini-box">
+        <div class="mini-box-lbl">Kalan Pil</div>
+        <div class="mini-box-val mono" style="color:${bbColor};">${bbCur}/100</div>
+        <div class="card-sub">${escapeHtml(bbStatusTr)}</div>
+      </div>
+      <div class="mini-box">
+        <div class="mini-box-lbl">Toplam Şarj</div>
+        <div class="mini-box-val mono" style="color:#00e5a3;">${charged != null ? `+${charged}` : "--"} puan</div>
+        <div class="card-sub">${te.bb_at_wake != null ? `Uyanışta ${te.bb_at_wake} puan` : "Uyku ve dinlenme"}</div>
+      </div>
+      <div class="mini-box">
+        <div class="mini-box-lbl">Harcanan</div>
+        <div class="mini-box-val mono" style="color:#fb923c;">${drained != null ? `-${drained}` : "--"} puan</div>
+        <div class="card-sub">${latest.body_battery_max != null ? `Maks ${latest.body_battery_max} → Anlık ${bbCur}` : "Gün içi enerji kaybı"}</div>
+      </div>
+    </div>
+    <div class="event-row" style="justify-content:flex-start; background:rgba(56,189,248,0.06); border-color:rgba(56,189,248,0.2);">
+      <div><strong style="color:var(--text);">⚡ Neye Harcandı?</strong> <span class="card-sub" style="color:var(--text-secondary);">${escapeHtml(drainSummaryText)}</span></div>
+    </div>
+  `;
+
+  const bbEventsHtml = events.length
     ? events
         .map((ev) => {
-          const pos = ev.impact >= 0;
-          const icon = ev.type === "SLEEP" ? "😴" : ev.type === "ACTIVITY" ? "🏃" : "⚡";
-          const labelTr = ev.label === "STRESSFUL_PERIOD" ? "Yüksek Stres Periyodu" : ev.label === "SLEEP" ? "Gece Uykusu Şarjı" : ev.label;
+          const pos = Number(ev.impact) >= 0;
+          const icon = getBbEventIcon(ev);
+          const labelTr = formatBbEventLabel(ev);
+          const durTr = formatBbDurationTr(ev.duration_min);
           return `
           <div class="event-row">
-            <div>${icon} <strong>${escapeHtml(labelTr)}</strong> <span class="card-sub mono">(${escapeHtml(ev.start_tr)} · ${ev.duration_min} dk)</span></div>
-            <span class="badge ${pos ? "badge-ok" : "badge-warn"} mono">${pos ? "+" : ""}${ev.impact} BB</span>
+            <div>${icon} <strong>${escapeHtml(labelTr)}</strong> <span class="card-sub mono">(${escapeHtml(ev.start_tr || "--:--")} · ${escapeHtml(durTr)})</span></div>
+            <span class="badge ${pos ? "badge-ok" : "badge-warn"} mono">${pos ? "+" : ""}${ev.impact} puan</span>
           </div>`;
         })
         .join("")
     : `<p class="card-sub">Bugün için Body Battery olay kaydı yok.</p>`;
+
+  document.getElementById("bb-events-list").innerHTML = bbSummaryHtml + bbEventsHtml;
 
   // 2. Night 5-Min HRV Wave & Stress Breakdown
   const baseHrv = te.hrv_baseline;
