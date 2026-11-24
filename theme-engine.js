@@ -2,6 +2,7 @@
   "use strict";
 
   const OVERRIDE_KEY = "garmincoach_theme_override_v1";
+  const CALM_KEY = "garmincoach_theme_calm_v1";
   const BANNER_DISMISS_KEY = "garmincoach_theme_banner_dismiss_v1";
   const WEATHER_CACHE_KEY = "garmincoach_weather_theme_cache_v1";
   const WEATHER_TTL_MS = 20 * 60 * 1000;
@@ -540,14 +541,15 @@
   }
 
   function buildFallbackWeatherFromSettings(settings) {
-    const f0 = settings?.weather_cache?.forecast_7d?.[0];
+    const f0 = settings?.weather_cache?.forecast7d?.[0] || settings?.weather_cache?.forecast_7d?.[0];
     if (!f0) return null;
     const ist = getIstanbulParts(new Date());
     const isDay = ist.hour >= 7 && ist.hour < 18 ? 1 : 0;
+    const wCode = f0.weather_code ?? (f0.precip_prob >= 55 || f0.precip_max >= 55 ? 61 : 2);
     return {
       city: settings?.active_city || settings?.default_city || null,
-      weather_code: f0.weather_code ?? (f0.precip_max >= 55 ? 61 : 2),
-      wind_kmh: f0.wind_max ?? 10,
+      weather_code: wCode,
+      wind_kmh: f0.wind_kmh ?? f0.wind_max ?? 10,
       temp_c: f0.temp_max ?? null,
       is_day: isDay,
       source: "settings_cache",
@@ -619,6 +621,22 @@
     return clean;
   }
 
+  function isCalmMode() {
+    try {
+      return localStorage.getItem(CALM_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setCalmMode(calm) {
+    try {
+      localStorage.setItem(CALM_KEY, calm ? "1" : "0");
+    } catch (_) {}
+    applyCurrentTheme();
+    return calm;
+  }
+
   function renderAmbientParticles(particleType) {
     const layer = document.getElementById("theme-ambient-layer");
     if (!layer) return;
@@ -628,7 +646,7 @@
       window.matchMedia &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    if (prefersReduced || !particleType || particleType === "none") {
+    if (prefersReduced || isCalmMode() || !particleType || particleType === "none") {
       layer.innerHTML = "";
       layer.dataset.mode = "none";
       return;
@@ -637,18 +655,19 @@
     if (layer.dataset.mode === particleType && layer.children.length > 0) return;
     layer.dataset.mode = particleType;
 
-    const count = particleType === "rain" ? 20 : particleType === "snow" ? 18 : 14;
+    // Gözü yormayan sakin yoğunluk ve yavaş akış
+    const count = particleType === "rain" ? 8 : 6;
     const html = [];
 
     for (let i = 0; i < count; i++) {
-      const left = ((i * 37 + 11) % 96) + 2;
-      const delay = -((i * 0.63) % 7).toFixed(2);
+      const left = ((i * 37 + 11) % 92) + 4;
+      const delay = -((i * 1.45) % 10).toFixed(2);
       const dur =
         particleType === "rain"
-          ? (1.1 + (i % 4) * 0.22).toFixed(2)
+          ? (2.6 + (i % 4) * 0.4).toFixed(2)
           : particleType === "wind"
-          ? (3.4 + (i % 4) * 0.7).toFixed(2)
-          : (7 + (i % 5) * 1.4).toFixed(2);
+          ? (7.5 + (i % 3) * 1.5).toFixed(2)
+          : (14 + (i % 5) * 1.8).toFixed(2);
 
       let cls = "theme-particle ";
       let content = "";
@@ -689,7 +708,7 @@
 
       const top =
         particleType === "twinkle" || particleType === "wind" || particleType === "halloween"
-          ? ((i * 29 + 7) % 85) + 5
+          ? ((i * 29 + 11) % 80) + 8
           : -8;
       html.push(
         `<span class="${cls}" style="left:${left}%; top:${top}%; animation-delay:${delay}s; animation-duration:${dur}s;">${content}</span>`
@@ -706,6 +725,7 @@
       pillEl.textContent = `${active.icon} ${active.badgeLabel || active.shortLabel}`;
     }
 
+    const firstName = typeof window !== "undefined" && window.__GC_FIRST_NAME ? String(window.__GC_FIRST_NAME) : "";
     const bannerEl = document.getElementById("theme-holiday-banner");
     if (bannerEl) {
       const dismissedDate = (() => {
@@ -723,7 +743,10 @@
         const titleEl = document.getElementById("theme-banner-title");
         const descEl = document.getElementById("theme-banner-desc");
         if (iconEl) iconEl.textContent = active.icon;
-        if (titleEl) titleEl.textContent = active.bannerTitle || active.name;
+        if (titleEl) {
+          const baseTitle = active.bannerTitle || active.name;
+          titleEl.textContent = firstName && active.id !== "kasim10" ? `${firstName}, ${baseTitle}` : baseTitle;
+        }
         if (descEl) descEl.textContent = active.bannerSubtitle || active.bannerDesc || "";
       }
     }
@@ -755,8 +778,14 @@
 
     const autoBtn = document.getElementById("btn-theme-auto");
     const classicBtn = document.getElementById("btn-theme-classic");
+    const calmBtn = document.getElementById("btn-theme-calm");
+    const calmOn = isCalmMode();
     if (autoBtn) autoBtn.classList.toggle("btn-primary", overrideMode === "auto");
     if (classicBtn) classicBtn.classList.toggle("btn-primary", overrideMode === "classic");
+    if (calmBtn) {
+      calmBtn.classList.toggle("btn-cyan", calmOn);
+      calmBtn.textContent = calmOn ? "🌙 Sakin Mod: Efektler Kapalı" : "✨ Sakin Mod: Efektler Açık";
+    }
 
     renderPreviewGrids(overrideMode);
   }
@@ -868,6 +897,10 @@
     setOverride(mode);
   };
 
+  hostObj.toggleCalmThemeMode = function () {
+    setCalmMode(!isCalmMode());
+  };
+
   hostObj.dismissHolidayBanner = function () {
     const ist = getIstanbulParts(new Date());
     const active = resolveCurrentTheme(new Date(), lastWeather);
@@ -897,6 +930,8 @@
     resolveCurrentTheme,
     applyCurrentTheme,
     setOverride,
+    setCalmMode,
+    isCalmMode,
     getCatalog: () => THEME_CATALOG,
   };
 })();

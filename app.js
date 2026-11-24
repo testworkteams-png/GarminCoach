@@ -132,6 +132,28 @@ function startIstanbulClock() {
   setInterval(tick, 15000);
 }
 
+function getUserFirstName() {
+  const raw = String(state.settings?.display_name || state.auth?.username || "").trim();
+  if (!raw || raw.toLowerCase() === "sporcu") return "";
+  const first = raw.split(/\s+/)[0];
+  return first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
+}
+
+function getTimeGreeting(name) {
+  let hr = new Date().getHours();
+  try {
+    const p = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Istanbul",
+      hour: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const hObj = p.find((x) => x.type === "hour");
+    if (hObj) hr = Number(hObj.value) % 24;
+  } catch (_) {}
+  const base = hr >= 5 && hr < 12 ? "Günaydın" : hr < 18 ? "İyi günler" : "İyi akşamlar";
+  return name ? `${base}, ${name}` : "Sabah Biyometri & Akşam Hava Kokpiti";
+}
+
 function setupTabs() {
   document.querySelectorAll("[data-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -143,9 +165,12 @@ function setupTabs() {
         p.classList.toggle("active", p.id === `tab-${target}`)
       );
       const titleEl = document.getElementById("page-title");
-      if (titleEl && TAB_TITLES[target]) titleEl.textContent = TAB_TITLES[target];
+      if (titleEl && TAB_TITLES[target]) {
+        const fn = getUserFirstName();
+        titleEl.textContent = target === "dashboard" && fn ? `${getTimeGreeting(fn)} · Biyometri Kokpiti` : TAB_TITLES[target];
+      }
       if (target === "workouts" && state.map) {
-        setTimeout(() => state.map.invalidateSize(), 120);
+        setTimeout(() => state.map.invalidateSize(), 160);
       }
     });
   });
@@ -204,6 +229,27 @@ function renderAll() {
 function renderTopbar() {
   const s = state.settings;
   const latest = state.biometrics[0];
+  const firstName = getUserFirstName();
+  window.__GC_FIRST_NAME = firstName;
+
+  const sideNameEl = document.getElementById("side-athlete-name");
+  if (sideNameEl) sideNameEl.textContent = firstName ? `👋 Merhaba, ${firstName}` : "Sporcu Profili";
+  const authPillEl = document.getElementById("pill-auth-user");
+  if (authPillEl && firstName) authPillEl.textContent = firstName;
+
+  const watchName = s?.weather_cache?.garmin_device?.name || null;
+  const watchTxt = watchName ? `⌚ ${watchName}` : "⌚ Garmin Saat";
+  const brandWatchEl = document.getElementById("brand-watch-label");
+  if (brandWatchEl) brandWatchEl.textContent = watchTxt;
+  const mobileWatchEl = document.getElementById("mobile-watch-pill");
+  if (mobileWatchEl) mobileWatchEl.textContent = watchTxt;
+
+  const dashPanel = document.getElementById("tab-dashboard");
+  const titleEl = document.getElementById("page-title");
+  if (titleEl && dashPanel?.classList.contains("active") && firstName) {
+    titleEl.textContent = `${getTimeGreeting(firstName)} · Biyometri Kokpiti`;
+  }
+
   if (s) {
     const age = new Date().getFullYear() - (s.birth_year || 1990);
     document.getElementById("side-athlete-sub").textContent =
@@ -581,8 +627,8 @@ function renderDashboard() {
 
   document.getElementById("ai-daily-blocks").innerHTML = `
     <div class="coach-block"><h4>Fizyolojik Durum</h4><p>${escapeHtml(brief.morning_coach_note || "--")}</p></div>
-    <div class="coach-block" style="border-left-color:#38bdf8;"><h4>Kuvvet & Dambıl Planı (6–10 kg)</h4><p>${escapeHtml(brief.strength_prescription || "--")}</p></div>
-    <div class="coach-block" style="border-left-color:#f59e0b;"><h4>17:00–21:00 Akşam Yürüyüşü</h4><p>${escapeHtml(brief.evening_walk_plan || "--")}</p></div>
+    <div class="coach-block" style="border-left-color:var(--cyan);"><h4>Kuvvet & Dambıl Planı (6–10 kg)</h4><p>${escapeHtml(brief.strength_prescription || "--")}</p></div>
+    <div class="coach-block" style="border-left-color:var(--amber);"><h4>17:00–21:00 Akşam Yürüyüşü</h4><p>${escapeHtml(brief.evening_walk_plan || "--")}</p></div>
   `;
 
   renderTrendChart();
@@ -855,7 +901,7 @@ function renderAcwrAndEf() {
     </div>
     <div class="card">
       <div class="kpi-label">Aerobik Verimlilik (Ef = Hız/Nabız)</div>
-      <div class="kpi-value mono" style="color:#38bdf8;">${curEf != null ? curEf.toFixed(2) : "--"}</div>
+      <div class="kpi-value mono" style="color:var(--cyan);">${curEf != null ? curEf.toFixed(2) : "--"}</div>
       <div class="card-sub">${
         cardioActs[0]
           ? `Son: ${escapeHtml(cardioActs[0].activity_name)} (${cardioActs[0].avg_hr} atım/dk)`
@@ -867,7 +913,7 @@ function renderAcwrAndEf() {
     </div>
     <div class="card">
       <div class="kpi-label">14 Günlük Antrenman Hacmi</div>
-      <div class="kpi-value mono" style="color:#a78bfa;">${count14} Seans</div>
+      <div class="kpi-value mono" style="color:var(--purple);">${count14} Seans</div>
       <div class="card-sub">Aktif Seans Kalorisi: <strong class="mono">${kcal14.toLocaleString("tr-TR")} kcal</strong></div>
       <div class="card-sub" style="margin-top:8px;">Toplam senkronize Garmin aktivitesi: <strong class="mono">${state.activities.length}</strong></div>
     </div>
@@ -1081,12 +1127,12 @@ function renderDeepTelemetry(latest) {
       </div>
       <div class="mini-box">
         <div class="mini-box-lbl">Toplam Şarj</div>
-        <div class="mini-box-val mono" style="color:#00e5a3;">${charged != null ? `+${charged}` : "--"} puan</div>
+        <div class="mini-box-val mono" style="color:var(--emerald);">${charged != null ? `+${charged}` : "--"} puan</div>
         <div class="card-sub">${te.bb_at_wake != null ? `Uyanışta ${te.bb_at_wake} puan` : "Uyku ve dinlenme"}</div>
       </div>
       <div class="mini-box">
         <div class="mini-box-lbl">Harcanan</div>
-        <div class="mini-box-val mono" style="color:#fb923c;">${drained != null ? `-${drained}` : "--"} puan</div>
+        <div class="mini-box-val mono" style="color:var(--orange);">${drained != null ? `-${drained}` : "--"} puan</div>
         <div class="card-sub">${latest.body_battery_max != null ? `Maks ${latest.body_battery_max} → Anlık ${bbCur}` : "Gün içi enerji kaybı"}</div>
       </div>
     </div>
@@ -1211,17 +1257,17 @@ function renderDeepTelemetry(latest) {
   document.getElementById("deep-telemetry-cards").innerHTML = `
     <div class="mini-box">
       <div class="mini-box-lbl">Toplam Metabolizma</div>
-      <div class="mini-box-val mono" style="color:#00e5a3;">${met.total_kcal ?? "--"} kcal</div>
+      <div class="mini-box-val mono" style="color:var(--emerald);">${met.total_kcal ?? "--"} kcal</div>
       <div class="card-sub">BMR ${met.bmr_kcal ?? "--"} + Aktif ${met.active_kcal ?? "--"} · Aktif ${met.active_min ?? 0} dk / Sedanter ${Math.round((met.sedentary_min || 0) / 60)} sa</div>
     </div>
     <div class="mini-box">
       <div class="mini-box-lbl">Çıkılan Kat & Rakım</div>
-      <div class="mini-box-val mono" style="color:#38bdf8;">${fl.ascended ?? "--"} / ${fl.goal ?? 10} Kat</div>
+      <div class="mini-box-val mono" style="color:var(--cyan);">${fl.ascended ?? "--"} / ${fl.goal ?? 10} Kat</div>
       <div class="card-sub">Tırmanış +${fl.meters_up ?? "--"} m · Ortam Rakımı ${fl.altitude_m ?? "--"} m</div>
     </div>
     <div class="mini-box">
       <div class="mini-box-lbl">Fitness Yaşı Potansiyeli</div>
-      <div class="mini-box-val mono" style="color:#a78bfa;">${fa.current_age ?? "--"} → ${fa.achievable_age ?? "--"} Yaş</div>
+      <div class="mini-box-val mono" style="color:var(--purple);">${fa.current_age ?? "--"} → ${fa.achievable_age ?? "--"} Yaş</div>
       <div class="card-sub">Kronolojik ${fa.chronological_age ?? 38} · Yoğun Gün ${fa.vigorous_days ?? "--"} / ${fa.vigorous_target ?? 3}</div>
     </div>
     <div class="mini-box">
@@ -1405,7 +1451,7 @@ function renderWorkouts() {
           <div class="card-sub">${escapeHtml(fmtIstanbulDateTime(a.start_time_local))} · ${escapeHtml(a.location_name || fallbackCity)}</div>
         </div>
         <div style="text-align:right;">
-          <div class="mono" style="font-weight:700; color:#00e5a3;">${escapeHtml(km)}</div>
+          <div class="mono" style="font-weight:700; color:var(--emerald);">${escapeHtml(km)}</div>
           <div class="card-sub">${fmtDuration(a.duration_seconds)} · ${a.avg_hr ?? "--"} atım/dk</div>
         </div>
       </div>`;
@@ -1433,9 +1479,9 @@ function renderWorkouts() {
   const bbInfo = cmp.bb_impact != null ? ` · 🔋 Enerji Etkisi: ${cmp.bb_impact}` : "";
   document.getElementById("selected-act-ai").innerHTML = `
     <div class="coach-block"><h4>Seans Değerlendirmesi</h4><p>${escapeHtml(ai.summary || "--")} ${escapeHtml(waterInfo + bbInfo)}</p></div>
-    <div class="coach-block" style="border-left-color:#38bdf8;"><h4>Geçmiş Seans Kıyaslaması &amp; Öne Çıkan</h4><p>${escapeHtml(cmp.verdict || ai.highlight || "--")}</p></div>
-    ${ai.recovery_plan ? `<div class="coach-block" style="border-left-color:#00e5a3;"><h4>Toparlanma Planı</h4><p>${escapeHtml(ai.recovery_plan)}</p></div>` : ""}
-    <div class="coach-block" style="border-left-color:#a78bfa;"><h4>Sonraki Adım</h4><p>${escapeHtml(ai.next_step || "--")}</p></div>
+    <div class="coach-block" style="border-left-color:var(--cyan);"><h4>Geçmiş Seans Kıyaslaması &amp; Öne Çıkan</h4><p>${escapeHtml(cmp.verdict || ai.highlight || "--")}</p></div>
+    ${ai.recovery_plan ? `<div class="coach-block" style="border-left-color:var(--emerald);"><h4>Toparlanma Planı</h4><p>${escapeHtml(ai.recovery_plan)}</p></div>` : ""}
+    <div class="coach-block" style="border-left-color:var(--purple);"><h4>Sonraki Adım</h4><p>${escapeHtml(ai.next_step || "--")}</p></div>
   `;
 
   // Dual Anatomy Muscle Heatmap
@@ -1652,7 +1698,7 @@ function renderWorkouts() {
                 <td><span class="badge badge-info">${escapeHtml(s.muscle)}</span></td>
                 <td class="mono">${sc} x ${perSet} <span class="card-sub">(${totR} top.)</span></td>
                 <td class="mono">${s.weight_kg} kg</td>
-                <td class="mono" style="color:#00e5a3;">${s.volume_kg} kg</td>
+                <td class="mono" style="color:var(--emerald);">${s.volume_kg} kg</td>
               </tr>`;
             })
             .join("")}
@@ -1706,12 +1752,12 @@ function renderCardiacDriftAndClimb(act, hrSeries, elevArr, gainM) {
     </div>
     <div class="mini-box">
       <div class="mini-box-lbl">Yokuş Nabız Maliyeti</div>
-      <div class="mini-box-val mono" style="color:#38bdf8;">${climbDelta != null ? `${climbDelta >= 0 ? "+" : ""}${Math.round(climbDelta)} atım/dk` : "--"}</div>
+      <div class="mini-box-val mono" style="color:var(--cyan);">${climbDelta != null ? `${climbDelta >= 0 ? "+" : ""}${Math.round(climbDelta)} atım/dk` : "--"}</div>
       <div class="card-sub">Yokuş ${avgClimb ? Math.round(avgClimb) : "--"} · Düz ${avgFlat ? Math.round(avgFlat) : "--"} atım/dk</div>
     </div>
     <div class="mini-box">
       <div class="mini-box-lbl">Tempo & Tırmanış</div>
-      <div class="mini-box-val mono" style="color:#a78bfa;">${paceMinKm.toFixed(1)} dk/km</div>
+      <div class="mini-box-val mono" style="color:var(--purple);">${paceMinKm.toFixed(1)} dk/km</div>
       <div class="card-sub">+${Math.round(gainM || 0)} m toplam tırmanış</div>
     </div>
   `;
@@ -1884,7 +1930,7 @@ function renderKochlerRotationAndPRs() {
               (p) => `<tr>
                 <td><strong>${escapeHtml(p.name)}</strong><div class="card-sub">${escapeHtml(p.muscle)} · ${escapeHtml(p.lastDate)}</div></td>
                 <td class="mono">${p.bestSets} x ${p.bestPerSet} (${p.bestWeight > 0 ? `${p.bestWeight} kg` : "Vücut Ağırlığı"})</td>
-                <td class="mono" style="color:#00e5a3;">${p.bestVol > 0 ? `${p.bestVol} kg` : `${p.bestTotReps} tekrar`}</td>
+                <td class="mono" style="color:var(--emerald);">${p.bestVol > 0 ? `${p.bestVol} kg` : `${p.bestTotReps} tekrar`}</td>
                 <td><span class="badge badge-info mono">${p.bestVol > 0 ? `Hedef ${p.bestVol + 30} kg (+2 tekrar)` : `Hedef ${p.bestTotReps + 4} toplam tekrar`}</span></td>
               </tr>`
             )
@@ -1968,17 +2014,17 @@ function renderRehydrationCard(act) {
     <div class="rehydration-grid">
       <div class="mini-box">
         <div class="mini-box-lbl">Net Ter Kaybı</div>
-        <div class="mini-box-val mono" style="color:#38bdf8;">${sweatLossMl} ml</div>
+        <div class="mini-box-val mono" style="color:var(--cyan);">${sweatLossMl} ml</div>
         <div class="card-sub">${isEstimated ? "Nabız/Süre Tahmini" : "Garmin /waterEstimated"}</div>
       </div>
       <div class="mini-box">
         <div class="mini-box-lbl">%150 Telafi Hedefi</div>
-        <div class="mini-box-val mono" style="color:#00e5a3;">${targetMl} ml</div>
+        <div class="mini-box-val mono" style="color:var(--emerald);">${targetMl} ml</div>
         <div class="card-sub">~${glasses} su bardağı (250 ml)</div>
       </div>
       <div class="mini-box">
         <div class="mini-box-lbl">İlk 30 Dakika</div>
-        <div class="mini-box-val mono" style="color:#a78bfa;">${first30Ml} ml</div>
+        <div class="mini-box-val mono" style="color:var(--purple);">${first30Ml} ml</div>
         <div class="card-sub">Hemen antrenman bitiminde</div>
       </div>
       <div class="mini-box">
@@ -2062,7 +2108,7 @@ window.renderLiveWorkoutUI = function () {
             (s, i) => `
           <div class="live-set-item">
             <div><strong class="mono">#${i + 1}</strong> ${escapeHtml(s.exercise)} <span class="badge badge-info">${escapeHtml(s.muscle)}</span></div>
-            <div class="mono" style="color:#00e5a3;">${s.weight_kg} kg x ${s.reps} (${s.volume_kg} kg)</div>
+            <div class="mono" style="color:var(--emerald);">${s.weight_kg} kg x ${s.reps} (${s.volume_kg} kg)</div>
           </div>`
           )
           .reverse()
@@ -2272,7 +2318,7 @@ function renderWeekly() {
   const mf = w.mvp_and_flags || {};
   document.getElementById("weekly-mvp-flags").innerHTML = `
     <div class="coach-block"><h4>🏆 Haftanın En Güçlü Değeri</h4><p>${escapeHtml(mf.mvp || "--")}</p></div>
-    <div class="coach-block" style="border-left-color:#f59e0b;"><h4>⚠️ Dikkat Edilmesi Gerekenler</h4><p>${escapeHtml(mf.attention_flag || "--")}</p></div>
+    <div class="coach-block" style="border-left-color:var(--amber);"><h4>⚠️ Dikkat Edilmesi Gerekenler</h4><p>${escapeHtml(mf.attention_flag || "--")}</p></div>
   `;
 
   const zList = w.zone_distribution || [];
@@ -2315,9 +2361,9 @@ function renderWeekly() {
           <strong>${escapeHtml(row.day)}</strong>
           <span class="badge badge-info">${escapeHtml(row.intensity)}</span>
         </div>
-        <div style="font-size:11.5px; color:#00e5a3; font-weight:700;">${escapeHtml(row.focus)}</div>
-        <div style="font-size:12px; color:#cbd5e1; flex:1;">${escapeHtml(row.plan)}</div>
-        <div class="mono" style="font-size:11px; color:#94a3b8; border-top:1px solid var(--border); padding-top:6px;">
+        <div style="font-size:11.5px; color:var(--emerald); font-weight:700;">${escapeHtml(row.focus)}</div>
+        <div style="font-size:12px; color:var(--text-secondary); flex:1;">${escapeHtml(row.plan)}</div>
+        <div class="mono" style="font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:6px;">
           ${wDay.temp_max != null ? `${wDay.temp_min}–${wDay.temp_max}°C · 💧%${wDay.precip_prob}` : "--"}
         </div>
       </div>`;
@@ -2364,7 +2410,7 @@ function renderMonthly() {
   if (whereEl) {
     whereEl.innerHTML = `
       <div class="coach-block"><h4>📍 Neredeyiz?</h4><p>${escapeHtml(brief.where_we_are || "--")}</p></div>
-      <div class="coach-block" style="border-left-color:#38bdf8;"><h4>🧭 Nereye Gidiyoruz?</h4><p>${escapeHtml(brief.where_we_are_going || "--")}</p></div>
+      <div class="coach-block" style="border-left-color:var(--cyan);"><h4>🧭 Nereye Gidiyoruz?</h4><p>${escapeHtml(brief.where_we_are_going || "--")}</p></div>
     `;
   }
 
@@ -2419,8 +2465,8 @@ function renderMonthly() {
     const actions = Array.isArray(brief.ceo_actions) ? brief.ceo_actions : [];
     actBox.innerHTML = `
       <div class="coach-block"><h4>🏆 Ayın En Büyük Kazanımı</h4><p>${escapeHtml(brief.biggest_win || "--")}</p></div>
-      <div class="coach-block" style="border-left-color:#f59e0b;"><h4>⚠️ En Büyük Risk</h4><p>${escapeHtml(brief.biggest_risk || "--")}</p></div>
-      <div class="coach-block" style="border-left-color:#a78bfa;">
+      <div class="coach-block" style="border-left-color:var(--amber);"><h4>⚠️ En Büyük Risk</h4><p>${escapeHtml(brief.biggest_risk || "--")}</p></div>
+      <div class="coach-block" style="border-left-color:var(--purple);">
         <h4>🎯 Gelecek Ay İçin 3 CEO Aksiyonu</h4>
         <ul style="margin:6px 0 0 18px; color:var(--text-secondary); font-size:13px;">
           ${actions.map((a) => `<li>${escapeHtml(a)}</li>`).join("") || "<li>Düzenli uyku ve antrenman ritmini koru.</li>"}
@@ -2499,6 +2545,10 @@ window.openNotificationItem = async function (id) {
   } else if (n.type === "WEEKLY_CEO" || n.payload?.mode === "weekly") {
     switchCeoMode("weekly");
   }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (targetTab === "workouts" && state.map) {
+    setTimeout(() => state.map.invalidateSize(), 200);
+  }
 };
 
 window.openGarminSetupTab = function () {
@@ -2535,7 +2585,7 @@ window.renderArchive = function () {
         <div class="card-sub" style="margin-top:4px;">
           BB ${b.body_battery_max ?? "--"} · Uyku ${b.sleep_score ?? "--"} · Kalp Dengesi ${b.hrv_nightly_avg ?? "--"} puan · Nabız ${b.rhr ?? "--"} atım/dk · Solunum ${b.sleep_respiration_avg ?? "--"} · Stres ${b.sleep_stress_avg ?? "--"}
         </div>
-        <div style="font-size:12.5px; margin-top:4px; color:#cbd5e1;">${escapeHtml(b.ai_daily_brief?.headline || "")}</div>
+        <div style="font-size:12.5px; margin-top:4px; color:var(--text-secondary);">${escapeHtml(b.ai_daily_brief?.headline || "")}</div>
       </div>`
     )
     .join("");
@@ -2568,6 +2618,10 @@ function renderSettings() {
   const s = state.settings;
   if (s) {
     document.getElementById("inp-city").value = s.manual_city_override || "";
+    const watchEl = document.getElementById("inp-watch-model");
+    if (watchEl && document.activeElement !== watchEl) {
+      watchEl.value = s.weather_cache?.garmin_device?.name || "";
+    }
     document.getElementById("inp-birth").value = s.birth_year ?? 1990;
     document.getElementById("inp-rhr-base").value = s.base_rhr ?? 46;
     document.getElementById("inp-rhr-warn").value = s.rhr_warn_threshold ?? 51;
@@ -2804,6 +2858,7 @@ window.quickSetCity = async function (city) {
 
 window.saveSettings = async function (ev) {
   ev.preventDefault();
+  const watchModel = (document.getElementById("inp-watch-model")?.value || "").trim();
   const payload = {
     action: "update_settings",
     manual_city_override: document.getElementById("inp-city").value.trim() || null,
@@ -2822,6 +2877,28 @@ window.saveSettings = async function (ev) {
     const res = await apiCall(payload);
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.error || "Kayıt hatası");
+
+    const curWatch = state.settings?.weather_cache?.garmin_device?.name || "";
+    if (state.auth.userId && watchModel !== curWatch) {
+      const { data: freshRow } = await sb
+        .from("athlete_settings")
+        .select("weather_cache")
+        .eq("user_id", state.auth.userId)
+        .maybeSingle();
+      const nextCache = { ...(freshRow?.weather_cache || state.settings?.weather_cache || {}) };
+      if (watchModel) {
+        nextCache.garmin_device = {
+          ...(nextCache.garmin_device || {}),
+          name: watchModel,
+          source: "user_settings",
+          updated_at: new Date().toISOString(),
+        };
+      } else {
+        delete nextCache.garmin_device;
+      }
+      await sb.from("athlete_settings").update({ weather_cache: nextCache }).eq("user_id", state.auth.userId);
+    }
+
     await loadAllData();
     showToast(`Ayarlar kaydedildi · Konum: ${json.loc?.active_city || payload.manual_city_override || "Güncellendi"}`);
   } catch (err) {
@@ -2854,7 +2931,7 @@ window.submitCoachChat = async function (ev) {
     if (!res.ok || json.ok === false) throw new Error(json.error || "Yanıt alınamadı");
     const r = json.reply || {};
     const items = Array.isArray(r.action_items) && r.action_items.length
-      ? `<ul style="margin:6px 0 0 18px; color:#00e5a3;">${r.action_items.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
+      ? `<ul style="margin:6px 0 0 18px; color:var(--emerald);">${r.action_items.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : "";
     const modelLabel = String(r.model_used || r.source || "Gemini AI").replace("models/", "");
     const rotNames = {
@@ -2867,7 +2944,7 @@ window.submitCoachChat = async function (ev) {
       : "";
     replyBox.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;"><strong>Koç Yanıtı</strong><span class="badge badge-info mono">${escapeHtml(modelLabel)}</span></div><div>${escapeHtml(r.answer || "")}</div>${items}${rotBtn}`;
   } catch (err) {
-    replyBox.innerHTML = `<span style="color:#f87171;">Hata: ${escapeHtml(err.message)}</span>`;
+    replyBox.innerHTML = `<span style="color:var(--red);">Hata: ${escapeHtml(err.message)}</span>`;
   }
 };
 
@@ -3298,13 +3375,23 @@ window.logoutApp = async function () {
   document.getElementById("notif-drawer")?.classList.add("hidden");
   document.getElementById("garmin-setup-banner")?.classList.add("hidden");
   document.getElementById("red-alert-banner")?.classList.add("hidden");
+  window.__GC_FIRST_NAME = "";
+  const brandEl = document.getElementById("brand-watch-label");
+  if (brandEl) brandEl.textContent = "⌚ Garmin Saat Bağlanıyor";
+  const mWatchEl = document.getElementById("mobile-watch-pill");
+  if (mWatchEl) mWatchEl.textContent = "⌚ Garmin Saat";
+  const sideNameEl = document.getElementById("side-athlete-name");
+  if (sideNameEl) sideNameEl.textContent = "Sporcu Profili";
+  const titleEl = document.getElementById("page-title");
+  if (titleEl) titleEl.textContent = TAB_TITLES.dashboard;
   const subEl = document.getElementById("side-athlete-sub");
-  if (subEl) subEl.textContent = "--";
+  if (subEl) subEl.textContent = "Profil yükleniyor...";
   const locEl = document.getElementById("pill-location");
   if (locEl) locEl.textContent = "📍 Yükleniyor...";
   const chipEl = document.getElementById("side-readiness-chip");
   if (chipEl) chipEl.textContent = "--/100";
 
+  window.GarminThemeEngine?.refreshFromSettings(null);
   renderNotifications();
   renderAll();
   updateAuthUiLabels();

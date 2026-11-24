@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <script>
+    if (window.location.protocol === "http:" && window.location.hostname === "garmin.alidincerozdemir.com") {
+      window.location.replace(window.location.href.replace(/^http:/i, "https:"));
+    }
+  </script>
   <meta name="theme-color" content="#04070f" />
   <title>GarminCoach Elite · Biyometri & Performans OS</title>
   <link rel="manifest" href="manifest.json" />
@@ -83,16 +88,16 @@
         <div class="brand-mark">GC</div>
         <div>
           <div class="brand-name">GarminCoach</div>
-          <div class="brand-tag">ELITE TELEMETRY OS</div>
+          <div class="brand-tag" id="brand-watch-label">⌚ Garmin Saat Bağlanıyor</div>
         </div>
       </div>
 
       <div class="athlete-chip">
         <div class="athlete-chip-top">
-          <span>Sporcu Profili</span>
+          <span id="side-athlete-name">Sporcu Profili</span>
           <span class="badge badge-ok" id="side-readiness-chip">--/100</span>
         </div>
-        <div class="athlete-chip-sub" id="side-athlete-sub">1988 · Normal 46 atım/dk · 59–74 denge</div>
+        <div class="athlete-chip-sub" id="side-athlete-sub">Profil yükleniyor...</div>
       </div>
 
       <nav class="side-nav" aria-label="Ana Navigasyon">
@@ -116,6 +121,7 @@
         <div class="ribbon-left">
           <div class="ribbon-title" id="page-title">Sabah Biyometri & Akşam Hava Kokpiti</div>
           <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
+          <span class="pill" id="mobile-watch-pill" title="Kayıtlı saat modelini Ayarlar sekmesinden güncelleyebilirsiniz">⌚ Garmin Saat</span>
         </div>
         <div class="ribbon-right">
           <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
@@ -135,7 +141,7 @@
             </div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">↻ Senkronize Et</button>
-          <button class="btn btn-sm" onclick="logoutApp()" title="Oturumu Kapat / Çıkış Yap">🔒 <span id="pill-auth-user">ali</span> · Çıkış</button>
+          <button class="btn btn-sm" onclick="logoutApp()" title="Oturumu Kapat / Çıkış Yap">🔒 <span id="pill-auth-user">Hesabım</span> · Çıkış</button>
         </div>
       </header>
 
@@ -481,7 +487,7 @@
                 <div class="card-sub" id="selected-act-sub">Seans seçin</div>
               </div>
             </div>
-            <div class="weather-kpis" id="selected-act-kpis" style="grid-template-columns:repeat(4,1fr);"></div>
+            <div class="act-kpi-grid" id="selected-act-kpis"></div>
             <div id="selected-act-ai" class="mt-16"></div>
           </div>
         </div>
@@ -805,7 +811,8 @@
               <button type="button" class="chip" onclick="quickSetCity('Antalya')">Antalya</button>
             </div>
             <form id="settings-form" class="form-grid" onsubmit="saveSettings(event)">
-              <div class="field"><label for="inp-city">Manuel Şehir Override</label><input id="inp-city" placeholder="Boş = GPS >15km veya Ümraniye" /></div>
+              <div class="field"><label for="inp-city">Manuel Şehir Override</label><input id="inp-city" placeholder="Boş bırakılırsa canlı GPS konumu kullanılır" /></div>
+              <div class="field"><label for="inp-watch-model">Kullanılan Saat Modeli</label><input id="inp-watch-model" placeholder="Örn. Garmin Fenix 7 Pro, Venu 3, Forerunner 965" /></div>
               <div class="field"><label for="inp-birth">Doğum Yılı</label><input id="inp-birth" type="number" /></div>
               <div class="field"><label for="inp-rhr-base">Normal Nabız (atım/dk)</label><input id="inp-rhr-base" type="number" /></div>
               <div class="field"><label for="inp-rhr-warn">Nabız Uyarı Eşiği (atım/dk)</label><input id="inp-rhr-warn" type="number" /></div>
@@ -852,6 +859,7 @@
           <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
             <button type="button" id="btn-theme-auto" class="btn btn-primary btn-sm" onclick="setAppThemeOverride('auto')">✨ Otomatik (Özel Gün + Canlı Hava)</button>
             <button type="button" id="btn-theme-classic" class="btn btn-sm" onclick="setAppThemeOverride('classic')">⚡ Klasik Garmin Koyu</button>
+            <button type="button" id="btn-theme-calm" class="btn btn-sm" onclick="toggleCalmThemeMode()">✨ Sakin Mod: Efektler Açık</button>
           </div>
           <div class="card-sub" style="margin-bottom:6px; font-weight:700;">🇹🇷 Türkiye Özel Günleri (Canlı Önizleme)</div>
           <div id="theme-preview-holidays" class="theme-chip-grid" style="margin-bottom:14px;"></div>
