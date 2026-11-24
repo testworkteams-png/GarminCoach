@@ -22,6 +22,8 @@
   --orange-soft: rgba(251, 146, 60, 0.15);
   --red: #ef4444;
   --red-soft: rgba(239, 68, 68, 0.15);
+  --bg-glow-1: rgba(0, 229, 163, 0.11);
+  --bg-glow-2: rgba(56, 189, 248, 0.10);
   --radius: 20px;
   --radius-sm: 13px;
   --shadow: 0 16px 40px rgba(0, 0, 0, 0.52);
@@ -35,13 +37,14 @@
 
 html, body {
   background:
-    radial-gradient(ellipse 80% 50% at 85% -10%, rgba(0, 229, 163, 0.11), transparent),
-    radial-gradient(ellipse 70% 45% at 10% -5%, rgba(56, 189, 248, 0.10), transparent),
+    radial-gradient(ellipse 80% 50% at 85% -10%, var(--bg-glow-1), transparent),
+    radial-gradient(ellipse 70% 45% at 10% -5%, var(--bg-glow-2), transparent),
     var(--bg);
   color: var(--text);
   font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   line-height: 1.5;
   min-height: 100vh;
+  transition: background-color 0.35s ease, color 0.25s ease;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1467,3 +1470,495 @@ tr:hover td { background: rgba(255, 255, 255, 0.025); }
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
+/* ============================================================================
+   DINAMIK TEMA MOTORU (TR ÖZEL GÜNLER + CANLI HAVA DURUMU + ORTAM EFEKTLERİ)
+   ============================================================================ */
+
+/* Ortam Parçacık Katmanı */
+.theme-ambient-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: hidden;
+}
+
+.theme-particle {
+  position: absolute;
+  display: block;
+  will-change: transform, opacity;
+  user-select: none;
+}
+
+.tp-snow {
+  color: rgba(248, 250, 252, 0.85);
+  font-size: 13px;
+  text-shadow: 0 0 8px rgba(186, 230, 253, 0.55);
+  animation: gcSnowFall 9s linear infinite;
+}
+
+.tp-rain {
+  width: 1.5px;
+  height: 22px;
+  background: linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.55));
+  border-radius: 2px;
+  transform: rotate(12deg);
+  animation: gcRainFall 1.3s linear infinite;
+}
+
+.tp-wind {
+  width: 34px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.42), transparent);
+  border-radius: 99px;
+  animation: gcWindDrift 4.2s linear infinite;
+}
+
+.tp-twinkle {
+  color: rgba(253, 224, 71, 0.85);
+  font-size: 11px;
+  animation: gcTwinkle 4.5s ease-in-out infinite;
+}
+
+.tp-halloween {
+  color: rgba(251, 146, 60, 0.82);
+}
+
+.tp-confetti {
+  width: 7px;
+  height: 10px;
+  border-radius: 2px;
+  opacity: 0.72;
+  animation: gcConfettiFloat 9.5s linear infinite;
+}
+
+.tp-emerald { background: #34d399; }
+.tp-gold { background: #fbbf24; }
+.tp-pink { background: #f472b6; }
+.tp-red { background: #f43f5e; }
+.tp-cyan { background: #38bdf8; }
+
+@keyframes gcSnowFall {
+  0% { transform: translate3d(0, -5vh, 0) rotate(0deg); opacity: 0; }
+  12% { opacity: 0.85; }
+  88% { opacity: 0.75; }
+  100% { transform: translate3d(26px, 108vh, 0) rotate(240deg); opacity: 0; }
+}
+
+@keyframes gcRainFall {
+  0% { transform: translate3d(0, -10vh, 0) rotate(12deg); opacity: 0; }
+  15% { opacity: 0.7; }
+  100% { transform: translate3d(-45px, 110vh, 0) rotate(12deg); opacity: 0; }
+}
+
+@keyframes gcWindDrift {
+  0% { transform: translate3d(-15vw, 0, 0); opacity: 0; }
+  25% { opacity: 0.65; }
+  75% { opacity: 0.45; }
+  100% { transform: translate3d(115vw, -12px, 0); opacity: 0; }
+}
+
+@keyframes gcConfettiFloat {
+  0% { transform: translate3d(0, -8vh, 0) rotate(0deg); opacity: 0; }
+  15% { opacity: 0.75; }
+  85% { opacity: 0.6; }
+  100% { transform: translate3d(-24px, 108vh, 0) rotate(540deg); opacity: 0; }
+}
+
+@keyframes gcTwinkle {
+  0%, 100% { transform: scale(0.75); opacity: 0.22; }
+  50% { transform: scale(1.2); opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-ambient-layer { display: none !important; }
+}
+
+/* Özel Gün Kutlama Bandı & Ayar Çipleri */
+.theme-holiday-banner {
+  border-color: var(--border-glow);
+  background: linear-gradient(135deg, var(--emerald-soft), var(--cyan-soft));
+  margin-bottom: 14px;
+}
+
+.theme-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.theme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.theme-chip:hover {
+  border-color: var(--cyan);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.theme-chip.active {
+  background: var(--emerald-soft);
+  border-color: var(--emerald);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-glow);
+}
+
+/* --- 1. DİNİ BAYRAMLAR --- */
+/* Ramazan Bayramı: Şekerleme, sıcaklık & birlik beraberlik */
+html[data-theme="ramazan"] {
+  --bg: #10081c;
+  --bg-surface: #180d29;
+  --bg-card: rgba(26, 15, 44, 0.82);
+  --bg-card-solid: #1a0f2c;
+  --bg-hover: rgba(44, 25, 72, 0.9);
+  --border: rgba(244, 114, 182, 0.22);
+  --border-glow: rgba(251, 191, 36, 0.45);
+  --emerald: #34d399;
+  --emerald-soft: rgba(52, 211, 153, 0.16);
+  --cyan: #f472b6;
+  --cyan-soft: rgba(244, 114, 182, 0.16);
+  --purple: #fbbf24;
+  --purple-soft: rgba(251, 191, 36, 0.16);
+  --bg-glow-1: rgba(244, 114, 182, 0.18);
+  --bg-glow-2: rgba(251, 191, 36, 0.14);
+}
+
+/* Kurban Bayramı: Paylaşma, bereket & birlik beraberlik (sıcak zümrüt & altın) */
+html[data-theme="kurban"] {
+  --bg: #05120e;
+  --bg-surface: #091d17;
+  --bg-card: rgba(11, 30, 24, 0.82);
+  --bg-card-solid: #0b1e18;
+  --bg-hover: rgba(18, 48, 38, 0.9);
+  --border: rgba(245, 158, 11, 0.22);
+  --border-glow: rgba(16, 185, 129, 0.42);
+  --emerald: #10b981;
+  --emerald-soft: rgba(16, 185, 129, 0.18);
+  --cyan: #fbbf24;
+  --cyan-soft: rgba(251, 191, 36, 0.16);
+  --purple: #38bdf8;
+  --bg-glow-1: rgba(16, 185, 129, 0.18);
+  --bg-glow-2: rgba(245, 158, 11, 0.13);
+}
+
+/* --- 2. RESMİ BAYRAMLAR & ANMA --- */
+/* 29 Ekim Cumhuriyet Bayramı */
+html[data-theme="cumhuriyet"] {
+  --bg: #12060a;
+  --bg-surface: #1b0a10;
+  --bg-card: rgba(29, 12, 18, 0.82);
+  --bg-card-solid: #1d0c12;
+  --bg-hover: rgba(50, 18, 28, 0.9);
+  --border: rgba(244, 63, 94, 0.24);
+  --border-glow: rgba(251, 191, 36, 0.45);
+  --emerald: #f43f5e;
+  --emerald-soft: rgba(244, 63, 94, 0.18);
+  --cyan: #fbbf24;
+  --cyan-soft: rgba(251, 191, 36, 0.16);
+  --bg-glow-1: rgba(225, 29, 72, 0.22);
+  --bg-glow-2: rgba(251, 191, 36, 0.13);
+}
+
+/* 23 Nisan Ulusal Egemenlik ve Çocuk Bayramı */
+html[data-theme="nisan23"] {
+  --bg: #071224;
+  --bg-surface: #0c1d36;
+  --bg-card: rgba(13, 29, 54, 0.82);
+  --bg-card-solid: #0d1d36;
+  --border: rgba(56, 189, 248, 0.24);
+  --border-glow: rgba(250, 204, 21, 0.42);
+  --emerald: #38bdf8;
+  --emerald-soft: rgba(56, 189, 248, 0.18);
+  --cyan: #fb7185;
+  --cyan-soft: rgba(251, 113, 133, 0.16);
+  --amber: #facc15;
+  --bg-glow-1: rgba(56, 189, 248, 0.20);
+  --bg-glow-2: rgba(251, 113, 133, 0.15);
+}
+
+/* 19 Mayıs Gençlik ve Spor Bayramı */
+html[data-theme="mayis19"] {
+  --bg: #070e21;
+  --bg-surface: #0d1733;
+  --bg-card: rgba(14, 23, 50, 0.82);
+  --bg-card-solid: #0e1732;
+  --border: rgba(34, 211, 238, 0.22);
+  --border-glow: rgba(244, 63, 94, 0.45);
+  --emerald: #22d3ee;
+  --emerald-soft: rgba(34, 211, 238, 0.16);
+  --cyan: #f43f5e;
+  --cyan-soft: rgba(244, 63, 94, 0.17);
+  --bg-glow-1: rgba(244, 63, 94, 0.19);
+  --bg-glow-2: rgba(34, 211, 238, 0.16);
+}
+
+/* 30 Ağustos Zafer Bayramı */
+html[data-theme="agustos30"] {
+  --bg: #0f080d;
+  --bg-surface: #180d14;
+  --bg-card: rgba(26, 14, 22, 0.82);
+  --bg-card-solid: #1a0e16;
+  --border: rgba(245, 158, 11, 0.24);
+  --border-glow: rgba(239, 68, 68, 0.42);
+  --emerald: #fbbf24;
+  --emerald-soft: rgba(251, 191, 36, 0.16);
+  --cyan: #ef4444;
+  --cyan-soft: rgba(239, 68, 68, 0.16);
+  --bg-glow-1: rgba(220, 38, 38, 0.18);
+  --bg-glow-2: rgba(245, 158, 11, 0.15);
+}
+
+/* 10 Kasım Atatürk'ü Anma Günü: Vakurlu sade monokrom */
+html[data-theme="kasim10"] {
+  --bg: #08090c;
+  --bg-surface: #101216;
+  --bg-card: rgba(17, 19, 24, 0.88);
+  --bg-card-solid: #111318;
+  --border: rgba(203, 213, 225, 0.16);
+  --border-glow: rgba(212, 175, 55, 0.34);
+  --emerald: #d4af37;
+  --emerald-soft: rgba(212, 175, 55, 0.14);
+  --cyan: #cbd5e1;
+  --cyan-soft: rgba(203, 213, 225, 0.12);
+  --bg-glow-1: rgba(148, 163, 184, 0.08);
+  --bg-glow-2: rgba(212, 175, 55, 0.07);
+}
+
+/* --- 3. EKSTRALAR --- */
+/* Yılbaşı: Karlı huzurlu kış gecesi */
+html[data-theme="yilbasi"] {
+  --bg: #050f1e;
+  --bg-surface: #0a1930;
+  --bg-card: rgba(11, 25, 48, 0.80);
+  --bg-card-solid: #0b1930;
+  --border: rgba(125, 211, 252, 0.22);
+  --border-glow: rgba(251, 191, 36, 0.38);
+  --emerald: #7dd3fc;
+  --emerald-soft: rgba(125, 211, 252, 0.16);
+  --cyan: #fbbf24;
+  --cyan-soft: rgba(251, 191, 36, 0.15);
+  --bg-glow-1: rgba(125, 211, 252, 0.18);
+  --bg-glow-2: rgba(52, 211, 153, 0.12);
+}
+
+/* Cadılar Bayramı: Eğlenceli balkabağı & mistik mor */
+html[data-theme="halloween"] {
+  --bg: #0f061c;
+  --bg-surface: #180b2b;
+  --bg-card: rgba(26, 13, 46, 0.84);
+  --bg-card-solid: #1a0d2e;
+  --border: rgba(251, 146, 60, 0.24);
+  --border-glow: rgba(192, 132, 252, 0.44);
+  --emerald: #fb923c;
+  --emerald-soft: rgba(251, 146, 60, 0.18);
+  --cyan: #c084fc;
+  --cyan-soft: rgba(192, 132, 252, 0.16);
+  --bg-glow-1: rgba(251, 146, 60, 0.18);
+  --bg-glow-2: rgba(168, 85, 247, 0.17);
+}
+
+/* --- 4. CANLI HAVA DURUMU TEMALARI --- */
+/* Açık Yıldızlı Gece */
+html[data-theme="weather_night"] {
+  --bg: #030612;
+  --bg-surface: #070d21;
+  --bg-card: rgba(10, 17, 40, 0.82);
+  --bg-card-solid: #0a1128;
+  --border: rgba(129, 140, 248, 0.18);
+  --border-glow: rgba(45, 212, 191, 0.36);
+  --emerald: #2dd4bf;
+  --emerald-soft: rgba(45, 212, 191, 0.15);
+  --cyan: #818cf8;
+  --cyan-soft: rgba(129, 140, 248, 0.15);
+  --bg-glow-1: rgba(99, 102, 241, 0.14);
+  --bg-glow-2: rgba(45, 212, 191, 0.09);
+}
+
+/* Kapalı / Bulutlu Mat */
+html[data-theme="weather_cloudy"] {
+  --bg: #101620;
+  --bg-surface: #17202e;
+  --bg-card: rgba(24, 33, 46, 0.84);
+  --bg-card-solid: #18212e;
+  --bg-hover: rgba(36, 48, 66, 0.9);
+  --border: rgba(148, 163, 184, 0.18);
+  --border-glow: rgba(96, 165, 250, 0.32);
+  --emerald: #34d399;
+  --cyan: #60a5fa;
+  --bg-glow-1: rgba(148, 163, 184, 0.12);
+  --bg-glow-2: rgba(96, 165, 250, 0.10);
+}
+
+/* Sisli & Puslu */
+html[data-theme="weather_fog"] {
+  --bg: #11161c;
+  --bg-surface: #192028;
+  --bg-card: rgba(27, 34, 42, 0.86);
+  --bg-card-solid: #1b222a;
+  --border: rgba(203, 213, 225, 0.17);
+  --border-glow: rgba(251, 191, 36, 0.34);
+  --emerald: #2dd4bf;
+  --cyan: #94a3b8;
+  --bg-glow-1: rgba(203, 213, 225, 0.11);
+  --bg-glow-2: rgba(245, 158, 11, 0.09);
+}
+
+/* Yağmurlu / Fırtınalı Petrol */
+html[data-theme="weather_rain"] {
+  --bg: #041018;
+  --bg-surface: #071925;
+  --bg-card: rgba(9, 28, 41, 0.82);
+  --bg-card-solid: #091c29;
+  --border: rgba(34, 211, 238, 0.20);
+  --border-glow: rgba(34, 211, 238, 0.42);
+  --emerald: #22d3ee;
+  --emerald-soft: rgba(34, 211, 238, 0.16);
+  --cyan: #38bdf8;
+  --bg-glow-1: rgba(14, 165, 233, 0.17);
+  --bg-glow-2: rgba(34, 211, 238, 0.13);
+}
+
+/* Karlı Buz Kristali */
+html[data-theme="weather_snow"] {
+  --bg: #071322;
+  --bg-surface: #0c1d33;
+  --bg-card: rgba(13, 30, 52, 0.82);
+  --bg-card-solid: #0d1e34;
+  --border: rgba(186, 230, 253, 0.24);
+  --border-glow: rgba(186, 230, 253, 0.45);
+  --emerald: #6ee7b7;
+  --cyan: #bae6fd;
+  --cyan-soft: rgba(186, 230, 253, 0.16);
+  --bg-glow-1: rgba(186, 230, 253, 0.16);
+  --bg-glow-2: rgba(56, 189, 248, 0.13);
+}
+
+/* Rüzgarlı Dinamik */
+html[data-theme="weather_wind"] {
+  --bg: #05141c;
+  --bg-surface: #091e2a;
+  --bg-card: rgba(11, 33, 44, 0.82);
+  --bg-card-solid: #0b212c;
+  --border: rgba(45, 212, 191, 0.22);
+  --border-glow: rgba(56, 189, 248, 0.40);
+  --emerald: #2dd4bf;
+  --cyan: #38bdf8;
+  --bg-glow-1: rgba(45, 212, 191, 0.16);
+  --bg-glow-2: rgba(56, 189, 248, 0.13);
+}
+
+/* GÜNEŞLİ · YÜKSEK KONTRAST GÜN IŞIĞI OKUNABİLİRLİK MODU */
+html[data-theme="weather_sunny"] {
+  --bg: #eef4fb;
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.94);
+  --bg-card-solid: #ffffff;
+  --bg-hover: #e2e8f0;
+  --border: rgba(15, 23, 42, 0.14);
+  --border-glow: rgba(4, 120, 87, 0.45);
+  --text: #0f172a;
+  --text-secondary: #1e293b;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+  --emerald: #047857;
+  --emerald-soft: rgba(4, 120, 87, 0.13);
+  --cyan: #0369a1;
+  --cyan-soft: rgba(3, 105, 161, 0.12);
+  --purple: #6d28d9;
+  --purple-soft: rgba(109, 40, 217, 0.12);
+  --amber: #b45309;
+  --amber-soft: rgba(180, 83, 9, 0.13);
+  --orange: #c2410c;
+  --orange-soft: rgba(194, 65, 12, 0.13);
+  --red: #b91c1c;
+  --red-soft: rgba(185, 28, 28, 0.12);
+  --shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  --bg-glow-1: rgba(251, 191, 36, 0.18);
+  --bg-glow-2: rgba(14, 165, 233, 0.14);
+}
+
+html[data-theme="weather_sunny"] .sidebar {
+  background: rgba(255, 255, 255, 0.96);
+  border-right-color: var(--border);
+}
+
+html[data-theme="weather_sunny"] .mobile-nav {
+  background: rgba(255, 255, 255, 0.97);
+  border-top: 1px solid var(--border);
+}
+
+html[data-theme="weather_sunny"] .athlete-chip,
+html[data-theme="weather_sunny"] .nav-btn.active,
+html[data-theme="weather_sunny"] .pill,
+html[data-theme="weather_sunny"] .btn,
+html[data-theme="weather_sunny"] .theme-chip,
+html[data-theme="weather_sunny"] .corridor-card,
+html[data-theme="weather_sunny"] .coach-block,
+html[data-theme="weather_sunny"] .notif-item {
+  background: rgba(15, 23, 42, 0.045);
+  color: var(--text);
+}
+
+html[data-theme="weather_sunny"] .btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.09);
+}
+
+html[data-theme="weather_sunny"] .btn-primary {
+  background: #047857;
+  color: #ffffff;
+  border-color: #047857;
+}
+
+html[data-theme="weather_sunny"] .btn-cyan {
+  background: #0369a1;
+  color: #ffffff;
+  border-color: #0369a1;
+}
+
+html[data-theme="weather_sunny"] .modal-card,
+html[data-theme="weather_sunny"] .auth-card,
+html[data-theme="weather_sunny"] .notif-drawer {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+}
+
+html[data-theme="weather_sunny"] .field input,
+html[data-theme="weather_sunny"] .field select,
+html[data-theme="weather_sunny"] .coach-chat-form input,
+html[data-theme="weather_sunny"] .search-box {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.22);
+}
+
+html[data-theme="weather_sunny"] th {
+  background: rgba(15, 23, 42, 0.05);
+  color: #334155;
+}
+
+html[data-theme="weather_sunny"] tr:hover td {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+html[data-theme="weather_sunny"] .alert-banner #red-alert-title { color: #b91c1c; }
+html[data-theme="weather_sunny"] .alert-banner.alert-warn #red-alert-title { color: #b45309; }
+html[data-theme="weather_sunny"] .hm-peak { background: rgba(4, 120, 87, 0.16); color: #065f46; }
+html[data-theme="weather_sunny"] .hm-good { background: rgba(3, 105, 161, 0.14); color: #075985; }
+html[data-theme="weather_sunny"] .hm-moderate { background: rgba(180, 83, 9, 0.14); color: #92400e; }
+html[data-theme="weather_sunny"] .hm-low { background: rgba(185, 28, 28, 0.14); color: #991b1b; }
+html[data-theme="weather_sunny"] .hm-empty { background: rgba(15, 23, 42, 0.04); color: #64748b; }
+

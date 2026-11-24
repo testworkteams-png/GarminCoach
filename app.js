@@ -178,6 +178,7 @@ async function loadAllData() {
   state.syncLogs = logsRes.data || [];
   if (intRes?.ok) state.integration = intRes;
 
+  window.GarminThemeEngine?.refreshFromSettings(state.settings);
   renderAll();
   renderNotifications();
   renderMonthly();
@@ -3315,6 +3316,7 @@ window.logoutApp = async function () {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  window.GarminThemeEngine?.init();
   setupTabs();
   startIstanbulClock();
   renderLiveWorkoutUI();
