@@ -112,6 +112,28 @@ html, body {
   font-weight: 600;
 }
 
+.brand-battery {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.brand-battery.bat-ok,
+#mobile-battery-pill.bat-ok {
+  color: var(--emerald);
+}
+
+.brand-battery.bat-warn,
+#mobile-battery-pill.bat-warn {
+  color: var(--amber);
+}
+
+.brand-battery.bat-low,
+#mobile-battery-pill.bat-low {
+  color: var(--red);
+}
+
 .athlete-chip {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
@@ -215,12 +237,14 @@ html, body {
   box-shadow: var(--shadow);
 }
 
-#mobile-watch-pill {
+#mobile-watch-pill,
+#mobile-battery-pill {
   display: none;
 }
 
 @media (max-width: 1024px) {
-  #mobile-watch-pill {
+  #mobile-watch-pill,
+  #mobile-battery-pill {
     display: inline-flex;
   }
 }

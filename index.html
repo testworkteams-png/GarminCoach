@@ -88,7 +88,8 @@
         <div class="brand-mark">GC</div>
         <div>
           <div class="brand-name">GarminCoach</div>
-          <div class="brand-tag" id="brand-watch-label">⌚ Garmin Saat Bağlanıyor</div>
+          <div class="brand-tag" id="brand-watch-label" onclick="openWatchSettings()" style="cursor:pointer;" title="Saat modelini düzenlemek için tıklayın">⌚ Garmin Saat Bağlanıyor</div>
+          <div class="brand-battery mono" id="brand-watch-battery">🔋 Pil: --</div>
         </div>
       </div>
 
@@ -121,7 +122,8 @@
         <div class="ribbon-left">
           <div class="ribbon-title" id="page-title">Sabah Biyometri & Akşam Hava Kokpiti</div>
           <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
-          <span class="pill" id="mobile-watch-pill" title="Kayıtlı saat modelini Ayarlar sekmesinden güncelleyebilirsiniz">⌚ Garmin Saat</span>
+          <span class="pill" id="mobile-watch-pill" onclick="openWatchSettings()" style="cursor:pointer;" title="Saat modelini düzenlemek için tıklayın">⌚ Garmin Saat</span>
+          <span class="pill mono" id="mobile-battery-pill" title="Pil durumu">🔋 --</span>
         </div>
         <div class="ribbon-right">
           <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
