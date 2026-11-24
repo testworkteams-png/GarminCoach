@@ -186,6 +186,30 @@
 
       <!-- TAB 1: DASHBOARD -->
       <section id="tab-dashboard" class="tab-panel active">
+        <!-- ACTIVE INTELLIGENCE DAILY AI SUMMARY CARD -->
+        <div class="card ai-insight-hero-card" id="ai-daily-insight-card">
+          <div class="card-header" style="margin-bottom:10px;">
+            <div>
+              <div class="card-title">✨ Günlük AI Özeti <span class="badge badge-info" id="ai-insight-cat-badge" style="margin-left:6px;">Hazırlanıyor</span></div>
+              <div class="card-sub">Son 14 günlük trend, uyku, kalp dengesi ve antrenman yükü ilişkisi</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+              <span class="badge badge-info mono" id="ai-insight-date-badge">--</span>
+              <button type="button" class="btn btn-sm" id="btn-ai-refresh" onclick="refreshAiInsight(true)" title="İçgörüyü Yenile">↻ Yenile</button>
+            </div>
+          </div>
+          <div class="ai-insight-title" id="ai-insight-title">Günlük AI Özeti yükleniyor...</div>
+          <p class="ai-insight-summary" id="ai-insight-summary">Verileriniz inceleniyor.</p>
+          <div class="ai-tip-box hidden" id="ai-insight-tip"></div>
+          <div class="ai-feedback-row hidden" id="ai-insight-feedback-row">
+            <span class="card-sub" id="ai-insight-fb-status">Bu içgörü faydalı oldu mu?</span>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="ai-fb-btn" id="btn-ai-fb-up" onclick="rateAiInsight(1)">👍 Faydalı</button>
+              <button type="button" class="ai-fb-btn" id="btn-ai-fb-down" onclick="rateAiInsight(-1)">👎 Geliştir</button>
+            </div>
+          </div>
+        </div>
+
         <div class="grid-2">
           <!-- Hero Dual-Ring Readiness + Sleep Architecture -->
           <div class="card card-glow">
@@ -846,6 +870,46 @@
           </div>
         </div>
 
+        <div class="card mt-18" id="ai-insights-settings-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🤖 Active Intelligence &amp; Günlük Bildirim Ayarları</div>
+              <div class="card-sub">Yapay zeka özet üretimi ve günlük bildirim zamanlaması kullanıcı tercihine göre anında yönetilir</div>
+            </div>
+            <span class="badge badge-ok">AI + APK</span>
+          </div>
+          <div class="toggle-list">
+            <div class="toggle-row">
+              <div>
+                <div style="font-weight:700; font-size:13.5px;">✨ AI Günlük Analizleri</div>
+                <div class="card-sub">Son 14 günlük trend, uyku, kalp dengesi ve yük ilişkisine göre günde bir kez özet üretir</div>
+              </div>
+              <label class="toggle-switch" aria-label="AI Günlük Analizleri">
+                <input type="checkbox" id="toggle-ai-insights" checked onchange="saveAiInsightPreferences()" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div style="font-weight:700; font-size:13.5px;">🔔 Günlük Bildirimler</div>
+                <div class="card-sub">Kapatıldığında veritabanı güncellenir ve cihazda zamanlanmış bildirimler anında iptal edilir</div>
+              </div>
+              <label class="toggle-switch" aria-label="Günlük Bildirimler">
+                <input type="checkbox" id="toggle-daily-notif" checked onchange="saveAiInsightPreferences()" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row" id="ai-notif-time-row">
+              <div>
+                <div style="font-weight:700; font-size:13.5px;">⏰ Günlük Bildirim Saati</div>
+                <div class="card-sub">Belirlenen saatte günün AI özet başlığı bildirim olarak düşer (tıklayınca AI kartı açılır)</div>
+              </div>
+              <input type="time" id="inp-notif-time" class="time-input-compact mono" value="09:00" onchange="saveAiInsightPreferences()" />
+            </div>
+          </div>
+          <div id="ai-notif-cap-hint" class="auth-hint-box" style="margin-top:12px;">Bildirim zamanlayıcısı kontrol ediliyor...</div>
+        </div>
+
         <div class="card mt-18" id="theme-settings-card">
           <div class="card-header">
             <div>
@@ -981,6 +1045,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="theme-engine.js"></script>
+  <script src="ai-insights.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

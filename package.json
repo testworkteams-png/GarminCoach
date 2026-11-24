@@ -1,0 +1,21 @@
+{
+  "name": "garmin-coach-pro",
+  "version": "1.0.0",
+  "description": "GarminCoach Pro - Web, PWA & Android APK Performans Kokpiti",
+  "scripts": {
+    "dev": "python3 -m http.server 8080",
+    "cap:init": "npx cap add android",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/local-notifications": "^6.1.0",
+    "@capacitor/push-notifications": "^6.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

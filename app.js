@@ -204,6 +204,7 @@ async function loadAllData() {
   if (intRes?.ok) state.integration = intRes;
 
   window.GarminThemeEngine?.refreshFromSettings(state.settings);
+  window.GarminAiInsights?.initForUser(state.settings, state.auth, sb);
   renderAll();
   renderNotifications();
   renderMonthly();
@@ -2546,6 +2547,9 @@ window.openNotificationItem = async function (id) {
     switchCeoMode("weekly");
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (n.payload?.focus_card === "ai-daily-insight-card") {
+    window.focusAiInsightCard?.();
+  }
   if (targetTab === "workouts" && state.map) {
     setTimeout(() => state.map.invalidateSize(), 200);
   }
@@ -3392,6 +3396,7 @@ window.logoutApp = async function () {
   if (chipEl) chipEl.textContent = "--/100";
 
   window.GarminThemeEngine?.refreshFromSettings(null);
+  window.GarminAiInsights?.reset();
   renderNotifications();
   renderAll();
   updateAuthUiLabels();
