@@ -1,16 +1,16 @@
 const SUPABASE_URL = "https://htooqswstuuzslvrgxsx.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5_1RDXV8unnW9ttkHEA_HQ_n8fJrt4I";
 const ENGINE_URL = `${SUPABASE_URL}/functions/v1/garmin-coach-engine`;
-const AUTH_STORAGE_KEY = "garmincoach_auth_session_v1";
+const AUTH_STORAGE_KEY = "garmincoach_sb_session_v1";
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 const TAB_TITLES = {
   dashboard: "Sabah Biyometri & Akşam Hava Kokpiti",
   workouts: "Antrenman & Anatomik Kas Laboratuvarı",
-  weekly: "Pazar Yönetici Kokpiti & Haftalık Strateji",
+  weekly: "Yönetici Kokpiti · Haftalık & Aylık Raporlar",
   archive: "30 Günlük Kayan Doküman & Sınırsız E-Tablo",
-  settings: "Hibrit Konum & Otomasyon Komuta Merkezi",
+  settings: "Hibrit Konum, Garmin API & Otomasyon Merkezi",
 };
 
 const state = {
@@ -18,10 +18,14 @@ const state = {
   biometrics: [],
   activities: [],
   weekly: null,
+  monthly: null,
+  notifications: [],
+  integration: null,
   syncLogs: [],
   selectedActivityId: null,
   activityFilter: "ALL",
   trendMode: "hrv",
+  ceoMode: "weekly",
   charts: {
     trend: null,
     activitySeries: null,
@@ -45,11 +49,35 @@ const state = {
   },
   auth: {
     authenticated: false,
-    username: "ali",
-    token: null,
-    isCustom: false,
+    userId: null,
+    email: null,
+    username: "Sporcu",
+    accessToken: null,
+    refreshToken: null,
   },
 };
+
+async function apiCall(payload) {
+  let token = state.auth.accessToken;
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data?.session?.access_token) {
+      token = data.session.access_token;
+      state.auth.accessToken = data.session.access_token;
+      state.auth.refreshToken = data.session.refresh_token || state.auth.refreshToken;
+    }
+  } catch (_) {}
+
+  return fetch(ENGINE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+}
 
 function showToast(msg) {
   const el = document.getElementById("toast");
@@ -124,26 +152,36 @@ function setupTabs() {
 }
 
 async function loadAllData() {
-  const [settingsRes, bioRes, actRes, weekRes, logsRes] = await Promise.all([
-    sb.from("athlete_settings").select("*").eq("id", 1).single(),
-    sb.from("daily_biometrics").select("*").order("log_date", { ascending: false }).limit(60),
-    sb.from("activities").select("*").order("start_time_local", { ascending: false }).limit(25),
-    sb.from("weekly_strategies").select("*").order("week_start_date", { ascending: false }).limit(1),
-    sb.from("sync_logs").select("*").order("created_at", { ascending: false }).limit(20),
+  if (!state.auth.authenticated || !state.auth.userId) return;
+  const uid = state.auth.userId;
+
+  const [settingsRes, bioRes, actRes, weekRes, monthRes, notifRes, logsRes, intRes] = await Promise.all([
+    sb.from("athlete_settings").select("*").eq("user_id", uid).maybeSingle(),
+    sb.from("daily_biometrics").select("*").eq("user_id", uid).order("log_date", { ascending: false }).limit(60),
+    sb.from("activities").select("*").eq("user_id", uid).order("start_time_local", { ascending: false }).limit(25),
+    sb.from("weekly_strategies").select("*").eq("user_id", uid).order("week_start_date", { ascending: false }).limit(1),
+    sb.from("monthly_reports").select("*").eq("user_id", uid).order("month_key", { ascending: false }).limit(1),
+    sb.from("notifications").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(25),
+    sb.from("sync_logs").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(20),
+    apiCall({ action: "getIntegrationStatus" }).then((r) => r.json()).catch(() => null),
   ]);
 
-  if (settingsRes.data) state.settings = settingsRes.data;
-  if (bioRes.data) state.biometrics = bioRes.data;
-  if (actRes.data) {
-    state.activities = actRes.data;
-    if (!state.selectedActivityId && state.activities.length > 0) {
-      state.selectedActivityId = state.activities[0].activity_id;
-    }
+  state.settings = settingsRes.data || null;
+  state.biometrics = bioRes.data || [];
+  state.activities = actRes.data || [];
+  if (state.activities.length > 0 && !state.activities.some((a) => a.activity_id === state.selectedActivityId)) {
+    state.selectedActivityId = state.activities[0].activity_id;
   }
-  if (weekRes.data?.[0]) state.weekly = weekRes.data[0];
-  if (logsRes.data) state.syncLogs = logsRes.data;
+  state.weekly = weekRes.data?.[0] || null;
+  state.monthly = monthRes.data?.[0] || null;
+  state.notifications = notifRes.data || [];
+  state.syncLogs = logsRes.data || [];
+  if (intRes?.ok) state.integration = intRes;
 
   renderAll();
+  renderNotifications();
+  renderMonthly();
+  updateGarminOnboardingBanner();
 
   if (!state._autoGpsChecked && state.settings && !state.settings.manual_city_override && state.settings.location_source === "DEFAULT") {
     state._autoGpsChecked = true;
@@ -156,6 +194,8 @@ function renderAll() {
   renderDashboard();
   renderWorkouts();
   renderWeekly();
+  renderMonthly();
+  renderNotifications();
   renderArchive();
   renderSettings();
 }
@@ -164,9 +204,9 @@ function renderTopbar() {
   const s = state.settings;
   const latest = state.biometrics[0];
   if (s) {
-    const age = new Date().getFullYear() - (s.birth_year || 1988);
+    const age = new Date().getFullYear() - (s.birth_year || 1990);
     document.getElementById("side-athlete-sub").textContent =
-      `${s.birth_year} (${age} yaş) · ${s.base_rhr} atım/dk · ${s.base_hrv_min}–${s.base_hrv_max} denge`;
+      `${s.birth_year ?? "--"} (${age} yaş) · ${s.base_rhr ?? 46} atım/dk · ${s.base_hrv_min ?? 59}–${s.base_hrv_max ?? 74} denge`;
     const srcMap = {
       LIVE_GPS: "Canlı GPS",
       GARMIN_GPS: "Garmin GPS",
@@ -175,11 +215,14 @@ function renderTopbar() {
       DEFAULT: "Varsayılan",
     };
     const srcLabel = srcMap[s.location_source] || "Varsayılan";
-    document.getElementById("pill-location").textContent = `📍 ${s.active_city} (${srcLabel})`;
+    document.getElementById("pill-location").textContent = `📍 ${s.active_city || s.default_city || "--"} (${srcLabel})`;
   }
   if (latest) {
     document.getElementById("pill-date").textContent = latest.log_date;
     document.getElementById("side-readiness-chip").textContent = `${latest.readiness_score ?? "--"}/100`;
+  } else {
+    document.getElementById("pill-date").textContent = new Date().toISOString().slice(0, 10);
+    document.getElementById("side-readiness-chip").textContent = "--/100";
   }
 }
 
@@ -273,7 +316,24 @@ function describeRedFlag(f) {
 function renderDashboard() {
   const latest = state.biometrics[0];
   const s = state.settings || {};
-  if (!latest) return;
+  if (!latest) {
+    document.getElementById("red-alert-banner")?.classList.add("hidden");
+    document.getElementById("readiness-score").textContent = "--";
+    document.getElementById("readiness-status-label").textContent = "VERİ BEKLENİYOR";
+    document.getElementById("bb-ring-label").textContent = "Enerji --";
+    document.getElementById("readiness-badge").textContent = "--";
+    document.getElementById("readiness-breakdown").innerHTML = `<p class="card-sub">İlk verinizi görmek için Ayarlar'dan Garmin API bağlayın veya "+ Günlük Veri Ekle" butonunu kullanın.</p>`;
+    document.getElementById("sleep-total-label").textContent = "--";
+    document.getElementById("sleep-hypnogram").innerHTML = "";
+    document.getElementById("sleep-legend").innerHTML = "";
+    document.getElementById("sleep-debt-box").innerHTML = "";
+    document.getElementById("ai-daily-blocks").innerHTML = `<p class="card-sub">Henüz günlük rapor oluşmadı.</p>`;
+    document.getElementById("bb-events-list").innerHTML = `<p class="card-sub">Henüz Body Battery verisi yok.</p>`;
+    document.getElementById("deep-telemetry-cards").innerHTML = "";
+    document.getElementById("active-intel-3x").innerHTML = `<p class="card-sub">Günlük veriler geldikçe özet kartlar burada görünür.</p>`;
+    document.getElementById("correlation-matrix-grid").innerHTML = `<p class="card-sub">Etki analizi için en az 3 günlük kayıt gerekir.</p>`;
+    return;
+  }
 
   // Red / Warn Alert Banner
   const banner = document.getElementById("red-alert-banner");
@@ -375,7 +435,7 @@ function renderDashboard() {
   // 180° AQI Semicircle Gauge & Hourly Strip
   const w = latest.evening_weather || {};
   const aqi = Number(w.aqi_max ?? 25);
-  document.getElementById("weather-source-label").textContent = `${w.city || "Ümraniye"} · ${w.source || "MET Norway + Open-Meteo AQI"}`;
+  document.getElementById("weather-source-label").textContent = `${w.city || s.active_city || s.default_city || "--"} · ${w.source || "MET Norway + Open-Meteo AQI"}`;
 
   // Map AQI 0..100 to -82deg..+82deg
   const clampedAqi = Math.min(100, Math.max(0, aqi));
@@ -1320,6 +1380,10 @@ function renderWorkouts() {
 
   if (!filtered.length) {
     listEl.innerHTML = `<p class="card-sub">Bu filtrede antrenman kaydı yok.</p>`;
+    document.getElementById("selected-act-title").textContent = "Henüz antrenman kaydı yok";
+    document.getElementById("selected-act-sub").textContent = "Garmin saatinizden senkronize edildiğinde veya '+ Antrenman Kaydet' ile eklendiğinde burada görünür.";
+    document.getElementById("selected-act-kpis").innerHTML = "";
+    document.getElementById("selected-act-ai").innerHTML = "";
     return;
   }
 
@@ -1327,6 +1391,7 @@ function renderWorkouts() {
     state.selectedActivityId = filtered[0].activity_id;
   }
 
+  const fallbackCity = state.settings?.default_city || state.settings?.active_city || "--";
   listEl.innerHTML = filtered
     .map((a) => {
       const selected = a.activity_id === state.selectedActivityId;
@@ -1336,7 +1401,7 @@ function renderWorkouts() {
       <div class="activity-item ${selected ? "selected" : ""}" onclick="selectActivity(${a.activity_id})">
         <div>
           <div style="font-weight:700; font-size:13.5px;">${icon} ${escapeHtml(a.activity_name)}</div>
-          <div class="card-sub">${escapeHtml(fmtIstanbulDateTime(a.start_time_local))} · ${escapeHtml(a.location_name || "Ümraniye")}</div>
+          <div class="card-sub">${escapeHtml(fmtIstanbulDateTime(a.start_time_local))} · ${escapeHtml(a.location_name || fallbackCity)}</div>
         </div>
         <div style="text-align:right;">
           <div class="mono" style="font-weight:700; color:#00e5a3;">${escapeHtml(km)}</div>
@@ -1351,7 +1416,7 @@ function renderWorkouts() {
 
   document.getElementById("selected-act-title").textContent = act.activity_name;
   document.getElementById("selected-act-sub").textContent =
-    `${fmtIstanbulDateTime(act.start_time_local)} · Aerobic TE ${act.aerobic_te ?? "-"} / Anaerobic ${act.anaerobic_te ?? "-"}`;
+    `${fmtIstanbulDateTime(act.start_time_local)} · Dayanıklılık Etkisi ${act.aerobic_te ?? "-"} / Güç ${act.anaerobic_te ?? "-"}`;
 
   const distKm = act.distance_meters && Number(act.distance_meters) > 0 ? `${(Number(act.distance_meters) / 1000).toFixed(2)} km` : "Evde Kuvvet";
   document.getElementById("selected-act-kpis").innerHTML = `
@@ -1363,11 +1428,12 @@ function renderWorkouts() {
 
   const ai = act.ai_post_workout_analysis || {};
   const cmp = act.session_comparison || {};
-  const waterInfo = cmp.water_ml ? `💧 Tahmini Ter/Su Kaybı: ${cmp.water_ml} ml` : "";
-  const bbInfo = cmp.bb_impact != null ? ` · 🔋 Body Battery: ${cmp.bb_impact}` : "";
+  const waterInfo = cmp.water_ml ? `💧 Tahmini Ter/Su Kaybı: ${cmp.water_ml} ml (Öneri: ~${Math.max(1, Math.round((cmp.water_ml * 1.5) / 200))} bardak su)` : "";
+  const bbInfo = cmp.bb_impact != null ? ` · 🔋 Enerji Etkisi: ${cmp.bb_impact}` : "";
   document.getElementById("selected-act-ai").innerHTML = `
     <div class="coach-block"><h4>Seans Değerlendirmesi</h4><p>${escapeHtml(ai.summary || "--")} ${escapeHtml(waterInfo + bbInfo)}</p></div>
-    <div class="coach-block" style="border-left-color:#38bdf8;"><h4>Geçmiş Seans Kıyaslaması</h4><p>${escapeHtml(cmp.verdict || ai.highlight || "--")}</p></div>
+    <div class="coach-block" style="border-left-color:#38bdf8;"><h4>Geçmiş Seans Kıyaslaması &amp; Öne Çıkan</h4><p>${escapeHtml(cmp.verdict || ai.highlight || "--")}</p></div>
+    ${ai.recovery_plan ? `<div class="coach-block" style="border-left-color:#00e5a3;"><h4>Toparlanma Planı</h4><p>${escapeHtml(ai.recovery_plan)}</p></div>` : ""}
     <div class="coach-block" style="border-left-color:#a78bfa;"><h4>Sonraki Adım</h4><p>${escapeHtml(ai.next_step || "--")}</p></div>
   `;
 
@@ -2127,9 +2193,31 @@ window.selectActivity = function (id) {
   renderWorkouts();
 };
 
+window.switchCeoMode = function (mode) {
+  state.ceoMode = mode === "monthly" ? "monthly" : "weekly";
+  const weeklyBtn = document.getElementById("ceo-btn-weekly");
+  const monthlyBtn = document.getElementById("ceo-btn-monthly");
+  const weeklyView = document.getElementById("ceo-weekly-view");
+  const monthlyView = document.getElementById("ceo-monthly-view");
+  if (weeklyBtn) weeklyBtn.classList.toggle("active", state.ceoMode === "weekly");
+  if (monthlyBtn) monthlyBtn.classList.toggle("active", state.ceoMode === "monthly");
+  if (weeklyView) weeklyView.classList.toggle("hidden", state.ceoMode !== "weekly");
+  if (monthlyView) monthlyView.classList.toggle("hidden", state.ceoMode !== "monthly");
+  if (state.ceoMode === "monthly") renderMonthly();
+};
+
 function renderWeekly() {
   const w = state.weekly;
-  if (!w) return;
+  if (!w) {
+    document.getElementById("weekly-date-label").textContent = "Henüz haftalık rapor oluşturulmadı";
+    document.getElementById("weekly-exec-summary").textContent = "Haftalık yönetici özetini görmek için sağ üstteki 'Bülteni Yenile' butonuna basın.";
+    document.getElementById("weekly-wow-grid").innerHTML = "";
+    document.getElementById("weekly-scorecard").innerHTML = "";
+    document.getElementById("weekly-mvp-flags").innerHTML = "";
+    document.getElementById("weekly-cardio-strength").innerHTML = "";
+    document.getElementById("weekly-schedule-cards").innerHTML = "";
+    return;
+  }
 
   document.getElementById("weekly-date-label").textContent = `Hafta başlangıcı: ${w.week_start_date}`;
   document.getElementById("weekly-exec-summary").textContent = w.ai_executive_summary || "";
@@ -2138,16 +2226,16 @@ function renderWeekly() {
   const deltaBadge = (val, unit, inverse = false) => {
     const good = inverse ? val <= 0 : val >= 0;
     const sign = val > 0 ? "+" : "";
-    return `<span class="badge ${good ? "badge-ok" : "badge-warn"}">${sign}${val} ${unit} WoW</span>`;
+    return `<span class="badge ${good ? "badge-ok" : "badge-warn"}">${sign}${val} ${unit}</span>`;
   };
 
   const kpis = [
-    { label: "Haftalık Ort. Kalp Dengesi", val: `${d.hrv_avg_ms ?? "--"} puan`, badge: deltaBadge(d.hrv_delta_ms ?? 0, "puan") },
+    { label: "Haftalık Ort. Toparlanma", val: `${d.hrv_avg_ms ?? "--"} puan`, badge: deltaBadge(d.hrv_delta_ms ?? 0, "puan") },
     { label: "Dinlenik Nabız", val: `${d.rhr_avg_bpm ?? "--"} atım/dk`, badge: deltaBadge(d.rhr_delta_bpm ?? 0, "atım/dk", true) },
     { label: "Uyku / Hazırlık", val: `${d.sleep_avg_score ?? "--"} / ${d.readiness_avg ?? "--"}`, badge: deltaBadge(d.readiness_delta ?? 0, "puan") },
     { label: "Kardiyo Mesafesi", val: `${d.distance_km ?? "--"} km`, badge: deltaBadge(d.distance_delta_km ?? 0, "km") },
-    { label: "Kuvvet Seansı (6–10 kg)", val: `${d.strength_sessions ?? "--"} seans`, badge: deltaBadge(d.strength_delta ?? 0, "seans") },
-    { label: "Toplam Dambıl Tonajı", val: `${w.cardio_vs_strength?.strength_volume_kg ?? 0} kg`, badge: `<span class="badge badge-info">4x15 Standart</span>` },
+    { label: "Kuvvet Seansı", val: `${d.strength_sessions ?? "--"} seans`, badge: deltaBadge(d.strength_delta ?? 0, "seans") },
+    { label: "Toplam Dambıl Hacmi", val: `${w.cardio_vs_strength?.strength_volume_kg ?? 0} kg`, badge: `<span class="badge badge-info">Kuvvet</span>` },
   ];
 
   document.getElementById("weekly-wow-grid").innerHTML = kpis
@@ -2172,7 +2260,7 @@ function renderWeekly() {
                 <td>${escapeHtml(g.goal)}</td>
                 <td class="mono">${escapeHtml(g.target)}</td>
                 <td class="mono">${escapeHtml(g.actual)}</td>
-                <td><span class="badge ${g.status === "PASS" ? "badge-ok" : "badge-warn"}">${escapeHtml(g.status)}</span></td>
+                <td><span class="badge ${g.status === "PASS" ? "badge-ok" : "badge-warn"}">${g.status === "PASS" ? "TAMAM" : "DİKKAT"}</span></td>
               </tr>`
             )
             .join("")}
@@ -2182,26 +2270,28 @@ function renderWeekly() {
 
   const mf = w.mvp_and_flags || {};
   document.getElementById("weekly-mvp-flags").innerHTML = `
-    <div class="coach-block"><h4>🏆 Haftanın MVP Metriği</h4><p>${escapeHtml(mf.mvp || "--")}</p></div>
-    <div class="coach-block" style="border-left-color:#f59e0b;"><h4>⚠️ Dikkat Bayrağı</h4><p>${escapeHtml(mf.attention_flag || "--")}</p></div>
+    <div class="coach-block"><h4>🏆 Haftanın En Güçlü Değeri</h4><p>${escapeHtml(mf.mvp || "--")}</p></div>
+    <div class="coach-block" style="border-left-color:#f59e0b;"><h4>⚠️ Dikkat Edilmesi Gerekenler</h4><p>${escapeHtml(mf.attention_flag || "--")}</p></div>
   `;
 
   const zList = w.zone_distribution || [];
   const zCtx = document.getElementById("weeklyZonesChart");
-  if (state.charts.weeklyZones) state.charts.weeklyZones.destroy();
-  state.charts.weeklyZones = new Chart(zCtx, {
-    type: "bar",
-    data: {
-      labels: zList.map((z) => z.zone),
-      datasets: [{ label: "Dakika", data: zList.map((z) => z.minutes), backgroundColor: ["#64748b", "#00e5a3", "#38bdf8", "#f59e0b", "#ef4444"], borderRadius: 8 }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { x: { ticks: { color: "#cbd5e1" }, grid: { display: false } }, y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } } },
-    },
-  });
+  if (zCtx) {
+    if (state.charts.weeklyZones) state.charts.weeklyZones.destroy();
+    state.charts.weeklyZones = new Chart(zCtx, {
+      type: "bar",
+      data: {
+        labels: zList.map((z) => z.zone),
+        datasets: [{ label: "Dakika", data: zList.map((z) => z.minutes), backgroundColor: ["#64748b", "#00e5a3", "#38bdf8", "#f59e0b", "#ef4444"], borderRadius: 8 }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: "#cbd5e1" }, grid: { display: false } }, y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } } },
+      },
+    });
+  }
 
   const cs = w.cardio_vs_strength || {};
   document.getElementById("weekly-cardio-strength").innerHTML = `
@@ -2232,6 +2322,198 @@ function renderWeekly() {
       </div>`;
     })
     .join("");
+}
+
+function renderMonthly() {
+  const m = state.monthly;
+  const periodEl = document.getElementById("monthly-period-label");
+  const trajBadge = document.getElementById("monthly-trajectory-badge");
+  const headlineEl = document.getElementById("monthly-ceo-headline");
+  const whereEl = document.getElementById("monthly-where-boxes");
+  const kpiGrid = document.getElementById("monthly-kpi-grid");
+  const calGrid = document.getElementById("monthly-consistency-grid");
+  const actBox = document.getElementById("monthly-actions-box");
+  if (!headlineEl || !kpiGrid) return;
+
+  if (!m) {
+    if (periodEl) periodEl.textContent = "Henüz aylık yönetici raporu üretilmedi";
+    if (trajBadge) {
+      trajBadge.textContent = "Hazır Bekliyor";
+      trajBadge.className = "badge badge-info";
+    }
+    headlineEl.textContent = "Son 30 günün özetini görmek için sağ üstteki 'Aylık CEO Raporunu Oluştur' butonuna tıklayın.";
+    if (whereEl) whereEl.innerHTML = "";
+    kpiGrid.innerHTML = "";
+    if (calGrid) calGrid.innerHTML = `<p class="card-sub" style="grid-column:1/-1;">Veri oluşturulduğunda 30 günlük takvim burada görünür.</p>`;
+    if (actBox) actBox.innerHTML = "";
+    return;
+  }
+
+  const k = m.kpis || {};
+  const mom = m.mom_deltas || {};
+  const brief = m.ceo_brief || {};
+  const traj = brief.trajectory || "Dengede";
+  if (periodEl) periodEl.textContent = `Dönem: ${m.month_key} · Son 30 günde ${k.days_recorded ?? 0} kayıtlı gün, ${k.workouts_count ?? 0} antrenman (${k.total_km ?? 0} km)`;
+  if (trajBadge) {
+    trajBadge.textContent = traj;
+    trajBadge.className = `badge ${traj === "Yükselişte" ? "badge-ok" : traj === "Dikkat Gerektiriyor" ? "badge-warn" : "badge-info"}`;
+  }
+  headlineEl.textContent = brief.verdict_headline || "--";
+
+  if (whereEl) {
+    whereEl.innerHTML = `
+      <div class="coach-block"><h4>📍 Neredeyiz?</h4><p>${escapeHtml(brief.where_we_are || "--")}</p></div>
+      <div class="coach-block" style="border-left-color:#38bdf8;"><h4>🧭 Nereye Gidiyoruz?</h4><p>${escapeHtml(brief.where_we_are_going || "--")}</p></div>
+    `;
+  }
+
+  const trendBadge = (item, unit) => {
+    if (!item || item.current == null) return `<span class="badge badge-info">Veri Bekleniyor</span>`;
+    if (item.previous == null) return `<span class="badge badge-info">İlk 30G Baz</span>`;
+    const st = item.status || "STABLE";
+    const sign = item.delta > 0 ? "+" : "";
+    const arrow = st === "IMPROVING" ? "↑ Gelişiyor" : st === "DECLINING" ? "↓ Geriliyor" : "→ Stabil";
+    const cls = st === "IMPROVING" ? "badge-ok" : st === "DECLINING" ? "badge-warn" : "badge-info";
+    return `<span class="badge ${cls}">${arrow} (${sign}${item.delta} ${unit})</span>`;
+  };
+
+  const kpiCards = [
+    { label: "Ortalama Hazırlık", val: mom.readiness?.current != null ? `${mom.readiness.current}/100` : "--", item: mom.readiness, unit: "puan" },
+    { label: "Ortalama Uyku Puanı", val: mom.sleep?.current != null ? `${mom.sleep.current}/100` : "--", item: mom.sleep, unit: "puan" },
+    { label: "Gece Toparlanması", val: mom.hrv?.current != null ? `${mom.hrv.current} puan` : "--", item: mom.hrv, unit: "puan" },
+    { label: "Dinlenik Nabız", val: mom.rhr?.current != null ? `${mom.rhr.current} atım/dk` : "--", item: mom.rhr, unit: "atım" },
+    { label: "Kondisyon (VO2 Max)", val: mom.vo2_max?.current != null ? `${mom.vo2_max.current}` : "--", item: mom.vo2_max, unit: "" },
+    { label: "Günlük Ort. Adım", val: mom.steps?.current != null ? Number(mom.steps.current).toLocaleString("tr-TR") : "--", item: mom.steps, unit: "adım" },
+  ];
+
+  kpiGrid.innerHTML = kpiCards
+    .map(
+      (c) => `
+      <div class="corridor-card">
+        <div class="corridor-top"><span class="card-sub">${escapeHtml(c.label)}</span>${trendBadge(c.item, c.unit)}</div>
+        <div class="corridor-val mono">${escapeHtml(c.val)}</div>
+        <div class="card-sub">Önceki 30 gün: ${c.item?.previous != null ? escapeHtml(String(c.item.previous)) : "--"}</div>
+      </div>`
+    )
+    .join("");
+
+  const cal = Array.isArray(m.consistency_calendar) ? m.consistency_calendar : [];
+  if (calGrid) {
+    calGrid.innerHTML = cal.length
+      ? cal
+          .map((d) => {
+            const cls = d.level === "peak" ? "hm-peak" : d.level === "good" ? "hm-good" : d.level === "moderate" ? "hm-moderate" : d.level === "low" ? "hm-low" : "hm-empty";
+            const tooltip = `${d.date}: Hazırlık ${d.readiness_score ?? "--"}, ${d.workouts_count || 0} antrenman${d.workout_names?.length ? ` (${d.workout_names.join(", ")})` : ""}`;
+            return `
+            <div class="heatmap-cell ${cls}" title="${escapeHtml(tooltip)}">
+              <strong class="mono">${d.day_num}</strong>
+              <span style="font-size:10px; opacity:0.9;">${d.workouts_count > 0 ? `🏃${d.workouts_count}` : d.readiness_score != null ? `${d.readiness_score}` : "·"}</span>
+            </div>`;
+          })
+          .join("")
+      : `<p class="card-sub" style="grid-column:1/-1;">Takvim verisi henüz yok.</p>`;
+  }
+
+  if (actBox) {
+    const actions = Array.isArray(brief.ceo_actions) ? brief.ceo_actions : [];
+    actBox.innerHTML = `
+      <div class="coach-block"><h4>🏆 Ayın En Büyük Kazanımı</h4><p>${escapeHtml(brief.biggest_win || "--")}</p></div>
+      <div class="coach-block" style="border-left-color:#f59e0b;"><h4>⚠️ En Büyük Risk</h4><p>${escapeHtml(brief.biggest_risk || "--")}</p></div>
+      <div class="coach-block" style="border-left-color:#a78bfa;">
+        <h4>🎯 Gelecek Ay İçin 3 CEO Aksiyonu</h4>
+        <ul style="margin:6px 0 0 18px; color:var(--text-secondary); font-size:13px;">
+          ${actions.map((a) => `<li>${escapeHtml(a)}</li>`).join("") || "<li>Düzenli uyku ve antrenman ritmini koru.</li>"}
+        </ul>
+      </div>
+    `;
+  }
+}
+
+function renderNotifications() {
+  const listEl = document.getElementById("notif-list");
+  const badgeEl = document.getElementById("notif-unread-badge");
+  const list = Array.isArray(state.notifications) ? state.notifications : [];
+  const unread = list.filter((n) => !n.read_at).length;
+
+  if (badgeEl) {
+    badgeEl.textContent = String(unread);
+    badgeEl.classList.toggle("hidden", unread === 0);
+  }
+  if (!listEl) return;
+
+  if (!list.length) {
+    listEl.innerHTML = `<p class="card-sub">Henüz bildirim yok. Sabah uyku raporu veya yeni Garmin antrenmanında burada görünecek.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = list
+    .map((n) => {
+      const timeStr = fmtIstanbulDateTime(n.created_at);
+      return `
+      <div class="notif-item ${n.read_at ? "" : "unread"}" onclick="openNotificationItem('${escapeHtml(n.id)}')">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
+          <strong style="font-size:12.5px;">${escapeHtml(n.title)}</strong>
+          <span class="card-sub mono" style="font-size:10px; white-space:nowrap;">${escapeHtml(timeStr)}</span>
+        </div>
+        <div class="card-sub" style="color:var(--text-secondary); line-height:1.4;">${escapeHtml(n.body)}</div>
+      </div>`;
+    })
+    .join("");
+}
+
+window.toggleNotifDrawer = function () {
+  const drawer = document.getElementById("notif-drawer");
+  if (!drawer) return;
+  drawer.classList.toggle("hidden");
+};
+
+window.markAllNotifsRead = async function () {
+  try {
+    await apiCall({ action: "markNotificationsRead" });
+    state.notifications = (state.notifications || []).map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }));
+    renderNotifications();
+  } catch (_) {}
+};
+
+window.openNotificationItem = async function (id) {
+  const n = (state.notifications || []).find((x) => x.id === id);
+  if (!n) return;
+  if (!n.read_at) {
+    n.read_at = new Date().toISOString();
+    renderNotifications();
+    apiCall({ action: "markNotificationsRead", notification_id: id }).catch(() => {});
+  }
+  document.getElementById("notif-drawer")?.classList.add("hidden");
+
+  const targetTab = n.payload?.tab || (n.type === "WORKOUT_REPORT" ? "workouts" : n.type === "WEEKLY_CEO" || n.type === "MONTHLY_CEO" ? "weekly" : "dashboard");
+  const tabBtn = document.querySelector(`[data-tab="${targetTab}"]`);
+  if (tabBtn) tabBtn.click();
+
+  if (n.activity_id) {
+    state.selectedActivityId = Number(n.activity_id);
+    renderWorkouts();
+  }
+  if (n.type === "MONTHLY_CEO" || n.payload?.mode === "monthly") {
+    switchCeoMode("monthly");
+  } else if (n.type === "WEEKLY_CEO" || n.payload?.mode === "weekly") {
+    switchCeoMode("weekly");
+  }
+};
+
+window.openGarminSetupTab = function () {
+  const settingsBtn = document.querySelector('[data-tab="settings"]');
+  if (settingsBtn) settingsBtn.click();
+  setTimeout(() => {
+    document.getElementById("garmin-integration-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 150);
+};
+
+function updateGarminOnboardingBanner() {
+  const banner = document.getElementById("garmin-setup-banner");
+  if (!banner) return;
+  const integ = state.integration;
+  const needsSetup = Boolean(integ && !integ.has_garmin_key && integ.connection_status !== "CONNECTED");
+  banner.classList.toggle("hidden", !needsSetup);
 }
 
 window.renderArchive = function () {
@@ -2285,7 +2567,7 @@ function renderSettings() {
   const s = state.settings;
   if (s) {
     document.getElementById("inp-city").value = s.manual_city_override || "";
-    document.getElementById("inp-birth").value = s.birth_year ?? 1988;
+    document.getElementById("inp-birth").value = s.birth_year ?? 1990;
     document.getElementById("inp-rhr-base").value = s.base_rhr ?? 46;
     document.getElementById("inp-rhr-warn").value = s.rhr_warn_threshold ?? 51;
     document.getElementById("inp-hrv-min").value = s.base_hrv_min ?? 59;
@@ -2295,17 +2577,15 @@ function renderSettings() {
     document.getElementById("inp-temp-warn").value = s.skin_temp_deviation_threshold ?? 0.4;
     document.getElementById("inp-spo2-warn").value = s.spo2_warn_threshold ?? 91;
 
-    const appAuth = s.weather_cache?.app_auth;
     const authUserEl = document.getElementById("inp-auth-username");
     const authBadgeEl = document.getElementById("settings-auth-badge");
-    const activeUser = appAuth?.is_custom && appAuth?.username ? appAuth.username : (state.auth.username || "ali");
+    const activeUser = s.display_name || state.auth.username || "Sporcu";
     if (authUserEl && document.activeElement !== authUserEl) {
       authUserEl.value = activeUser;
     }
     if (authBadgeEl) {
-      const isCustom = Boolean(appAuth?.is_custom || state.auth.isCustom);
-      authBadgeEl.textContent = isCustom ? `Özel Şifre Aktif (${activeUser})` : "Varsayılan Giriş";
-      authBadgeEl.className = `badge ${isCustom ? "badge-ok" : "badge-info"} mono`;
+      authBadgeEl.textContent = state.auth.email || activeUser || "Aktif Oturum";
+      authBadgeEl.className = "badge badge-ok mono";
     }
 
     const gpsReadoutEl = document.getElementById("settings-gps-readout");
@@ -2321,7 +2601,38 @@ function renderSettings() {
       const latTxt = s.active_lat != null ? Number(s.active_lat).toFixed(5) : "--";
       const lonTxt = s.active_lon != null ? Number(s.active_lon).toFixed(5) : "--";
       const liveAcc = s.weather_cache?.live_gps?.accuracy ? ` · ±${s.weather_cache.live_gps.accuracy}m` : "";
-      gpsReadoutEl.innerHTML = `<strong>Aktif Konum:</strong> ${escapeHtml(s.active_city || "Ümraniye")} · <span class="mono">${latTxt}, ${lonTxt}</span> · Kaynak: <strong>${escapeHtml(srcTxt)}</strong>${escapeHtml(liveAcc)}`;
+      gpsReadoutEl.innerHTML = `<strong>Aktif Konum:</strong> ${escapeHtml(s.active_city || s.default_city || "Belirlenmedi")} · <span class="mono">${latTxt}, ${lonTxt}</span> · Kaynak: <strong>${escapeHtml(srcTxt)}</strong>${escapeHtml(liveAcc)}`;
+    }
+  }
+
+  const integ = state.integration;
+  const baseEl = document.getElementById("inp-garmin-base");
+  const gBadge = document.getElementById("settings-garmin-status-badge");
+  const gHint = document.getElementById("settings-garmin-hint");
+  if (baseEl && document.activeElement !== baseEl) {
+    baseEl.value = integ?.garmin_api_base_url || "https://personal.connectapi.garmin.com";
+  }
+  if (gBadge && integ) {
+    const connected = integ.connection_status === "CONNECTED";
+    const hasErr = integ.connection_status === "ERROR";
+    gBadge.textContent = connected
+      ? "Bağlı & Aktif"
+      : hasErr
+      ? "Bağlantı Hatası"
+      : integ.has_garmin_key
+      ? "Anahtar Kayıtlı"
+      : "Kurulum Bekliyor";
+    gBadge.className = `badge ${connected ? "badge-ok" : hasErr ? "badge-crit" : "badge-warn"} mono`;
+  }
+  if (gHint && integ) {
+    if (integ.connection_status === "CONNECTED") {
+      gHint.innerHTML = `✅ Garmin API bağlı (<strong>${escapeHtml(integ.garmin_key_hint || "Anahtar kayıtlı")}</strong>)${integ.has_personal_gemini_key ? " · Kişisel Gemini anahtarı aktif" : " · Ortak AI koçu aktif"}.`;
+    } else if (integ.connection_status === "ERROR") {
+      gHint.innerHTML = `⚠️ Son bağlantı denemesi başarısız: <strong>${escapeHtml(integ.last_error || "API yanıt vermedi")}</strong>`;
+    } else if (integ.has_garmin_key) {
+      gHint.innerHTML = `🔑 Anahtar kayıtlı (${escapeHtml(integ.garmin_key_hint || "Kasa")}). Bağlantıyı test edip ilk veriyi çekmek için butona basın.`;
+    } else {
+      gHint.textContent = "Sabah uyku raporları, anlık nabız/enerji ve otomatik antrenman analizleri için kendi Garmin API bilgilerinizi girin.";
     }
   }
 
@@ -2342,17 +2653,49 @@ function renderSettings() {
     </table>`;
 }
 
+window.saveGarminIntegration = async function (ev) {
+  ev.preventDefault();
+  const baseUrl = document.getElementById("inp-garmin-base").value.trim();
+  const garminKey = document.getElementById("inp-garmin-key").value.trim();
+  const geminiKey = document.getElementById("inp-gemini-key").value.trim();
+  const btn = document.getElementById("btn-save-garmin");
+  if (btn) btn.disabled = true;
+
+  try {
+    showToast("Garmin API bağlantısı test ediliyor ve veriler çekiliyor...");
+    const payload = {
+      action: "saveGarminIntegration",
+      garmin_api_base_url: baseUrl,
+      sync_now: true,
+    };
+    if (garminKey) payload.garmin_api_key = garminKey;
+    if (geminiKey) payload.gemini_api_key = geminiKey;
+
+    const res = await apiCall(payload);
+    const json = await res.json();
+    if (!res.ok || json.ok === false) {
+      throw new Error(json.error || "Garmin API bağlantısı kurulamadı.");
+    }
+    document.getElementById("inp-garmin-key").value = "";
+    document.getElementById("inp-gemini-key").value = "";
+    await loadAllData();
+    showToast("Garmin API bağlandı ve ilk verileriniz çekildi!");
+  } catch (err) {
+    await loadAllData().catch(() => {});
+    showToast(`Bağlantı hatası: ${err.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
 window.triggerEngine = async function (action, force = false) {
   try {
     showToast(`Çalıştırılıyor: ${action}...`);
-    const res = await fetch(ENGINE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, force }),
-    });
+    const res = await apiCall({ action, force });
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
     await loadAllData();
+    if (action === "aylikCeoRaporu") switchCeoMode("monthly");
     showToast(`Tamamlandı: ${action}`);
   } catch (err) {
     showToast(`Hata (${action}): ${err.message}`);
@@ -2363,19 +2706,15 @@ window.useLatestGarminGps = async function (silent = false) {
   try {
     if (!silent) showToast("Son Garmin GPS koordinatı alınıyor...");
     document.getElementById("inp-city").value = "";
-    const res = await fetch(ENGINE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "update_settings",
-        manual_city_override: null,
-        use_garmin_gps: true,
-      }),
+    const res = await apiCall({
+      action: "update_settings",
+      manual_city_override: null,
+      use_garmin_gps: true,
     });
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.error || "Garmin GPS hatası");
     await loadAllData();
-    if (!silent) showToast(`Garmin GPS konumu: ${json.loc?.active_city || "Ümraniye"}`);
+    if (!silent) showToast(`Garmin GPS konumu: ${json.loc?.active_city || "Güncellendi"}`);
   } catch (err) {
     if (!silent) showToast(`Konum hatası: ${err.message}`);
   }
@@ -2429,17 +2768,13 @@ window.detectLiveBrowserGps = async function (silent = false) {
       try {
         document.getElementById("inp-city").value = "";
         const live_city = await reverseGeocodeClientTr(pos.coords.latitude, pos.coords.longitude);
-        const res = await fetch(ENGINE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "update_settings",
-            manual_city_override: null,
-            live_lat: pos.coords.latitude,
-            live_lon: pos.coords.longitude,
-            live_city,
-            live_accuracy: Math.round(pos.coords.accuracy || 0),
-          }),
+        const res = await apiCall({
+          action: "update_settings",
+          manual_city_override: null,
+          live_lat: pos.coords.latitude,
+          live_lon: pos.coords.longitude,
+          live_city,
+          live_accuracy: Math.round(pos.coords.accuracy || 0),
         });
         const json = await res.json();
         if (!res.ok || json.ok === false) throw new Error(json.error || "Konum güncellenemedi");
@@ -2483,15 +2818,11 @@ window.saveSettings = async function (ev) {
   };
   try {
     showToast("Ayarlar ve konum güncelleniyor...");
-    const res = await fetch(ENGINE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiCall(payload);
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.error || "Kayıt hatası");
     await loadAllData();
-    showToast(`Konum: ${json.loc?.active_city || "Ümraniye"} güncellendi`);
+    showToast(`Ayarlar kaydedildi · Konum: ${json.loc?.active_city || payload.manual_city_override || "Güncellendi"}`);
   } catch (err) {
     showToast(`Ayar hatası: ${err.message}`);
   }
@@ -2517,11 +2848,7 @@ window.submitCoachChat = async function (ev) {
   replyBox.style.display = "block";
   replyBox.innerHTML = `<span class="card-sub">Gemini AI verilerini analiz ediyor...</span>`;
   try {
-    const res = await fetch(ENGINE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "askCoach", question: q }),
-    });
+    const res = await apiCall({ action: "askCoach", question: q });
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.error || "Yanıt alınamadı");
     const r = json.reply || {};
@@ -2574,11 +2901,7 @@ window.submitWorkoutModal = async (ev) => {
   };
   closeModals();
   showToast("Antrenman kaydediliyor...");
-  const res = await fetch(ENGINE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const res = await apiCall(payload);
   const json = await res.json();
   if (json.ok) {
     state.selectedActivityId = json.activity.activity_id;
@@ -2602,11 +2925,7 @@ window.submitBiometricModal = async (ev) => {
   };
   closeModals();
   showToast("Biyometri kaydediliyor...");
-  const res = await fetch(ENGINE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const res = await apiCall(payload);
   const json = await res.json();
   if (json.ok) {
     await loadAllData();
@@ -2633,7 +2952,9 @@ function getSavedAuthSession() {
       const raw = store.getItem(AUTH_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?.token) return { ...parsed, remembered: store === localStorage };
+        if (parsed?.access_token && parsed?.refresh_token) {
+          return { ...parsed, remembered: store === localStorage };
+        }
       }
     } catch (_) {}
   }
@@ -2667,82 +2988,155 @@ function setAuthError(msg) {
 
 function updateAuthUiLabels() {
   const pillUser = document.getElementById("pill-auth-user");
-  if (pillUser) pillUser.textContent = state.auth.username || "ali";
+  if (pillUser) pillUser.textContent = state.auth.username || "Sporcu";
 }
 
-async function completeAuthSuccess(authData, remember) {
+async function initNativePushIfAvailable() {
+  if (state._pushInitialized) return;
+  const push = window.Capacitor?.Plugins?.PushNotifications;
+  if (!push || !state.auth.authenticated) return;
+  state._pushInitialized = true;
+  try {
+    let perm = await push.checkPermissions();
+    if (perm.receive === "prompt") {
+      perm = await push.requestPermissions();
+    }
+    if (perm.receive !== "granted") return;
+
+    push.addListener("registration", async (token) => {
+      if (!token?.value) return;
+      try {
+        await apiCall({
+          action: "registerPushToken",
+          fcm_token: token.value,
+          platform: window.Capacitor?.getPlatform?.() || "android",
+          device_name: navigator.userAgent.slice(0, 80),
+        });
+      } catch (_) {}
+    });
+
+    push.addListener("pushNotificationReceived", () => {
+      loadAllData().catch(() => {});
+    });
+
+    push.addListener("pushNotificationActionPerformed", (action) => {
+      const data = action?.notification?.data || {};
+      loadAllData()
+        .then(() => {
+          if (data.tab) {
+            document.querySelector(`[data-tab="${data.tab}"]`)?.click();
+          }
+          if (data.activity_id) {
+            state.selectedActivityId = Number(data.activity_id);
+            renderWorkouts();
+          }
+          if (data.mode === "monthly" || data.type === "MONTHLY_CEO") {
+            switchCeoMode("monthly");
+          } else if (data.mode === "weekly" || data.type === "WEEKLY_CEO") {
+            switchCeoMode("weekly");
+          }
+        })
+        .catch(() => {});
+    });
+
+    await push.register();
+  } catch (_) {}
+}
+
+async function completeAuthSuccess(sessionData, remember) {
+  const rawSess = sessionData?.session || sessionData;
+  if (!rawSess?.access_token || !rawSess?.refresh_token) {
+    throw new Error("Geçersiz oturum yanıtı.");
+  }
+
+  const { data: sbData, error: sbErr } = await sb.auth.setSession({
+    access_token: rawSess.access_token,
+    refresh_token: rawSess.refresh_token,
+  });
+  if (sbErr || !sbData?.session) {
+    throw new Error(sbErr?.message || "Oturum doğrulanamadı.");
+  }
+
+  const activeSess = sbData.session;
+  const u = sessionData?.user || activeSess.user || {};
+  const displayName =
+    u.display_name ||
+    u.user_metadata?.display_name ||
+    (u.email ? String(u.email).split("@")[0] : "Sporcu");
+
   state.auth = {
     authenticated: true,
-    username: authData.username || "ali",
-    token: authData.token,
-    isCustom: Boolean(authData.is_custom),
+    userId: u.id || activeSess.user?.id || null,
+    email: u.email || activeSess.user?.email || null,
+    username: displayName,
+    accessToken: activeSess.access_token,
+    refreshToken: activeSess.refresh_token,
   };
-  saveAuthSession(state.auth, remember);
+
+  saveAuthSession(
+    {
+      access_token: activeSess.access_token,
+      refresh_token: activeSess.refresh_token,
+      user: {
+        id: state.auth.userId,
+        email: state.auth.email,
+        display_name: displayName,
+      },
+    },
+    remember
+  );
+
   updateAuthUiLabels();
   setAuthError("");
   const overlay = document.getElementById("auth-gate-overlay");
   if (overlay) overlay.classList.add("hidden");
   await loadAllData();
+  initNativePushIfAvailable();
 }
 
-async function initAuthGate() {
+window.switchAuthMode = function (mode) {
+  const isReg = mode === "register";
+  const tabLogin = document.getElementById("auth-tab-login");
+  const tabReg = document.getElementById("auth-tab-register");
+  const formLogin = document.getElementById("auth-login-form");
+  const formReg = document.getElementById("auth-register-form");
   const hintEl = document.getElementById("auth-default-hint");
-  const userInp = document.getElementById("login-username");
-  const curSetupInp = document.getElementById("setup-current-pass");
+
+  if (tabLogin) tabLogin.classList.toggle("active", !isReg);
+  if (tabReg) tabReg.classList.toggle("active", isReg);
+  if (formLogin) formLogin.classList.toggle("hidden", isReg);
+  if (formReg) formReg.classList.toggle("hidden", !isReg);
+  setAuthError("");
+
+  if (hintEl) {
+    hintEl.innerHTML = isReg
+      ? "Kendi ücretsiz hesabınızı açın, ardından <strong>Ayarlar &rarr; Garmin API</strong> kısmından kendi saatinizin verilerini bağlayın."
+      : "Hesabınızla giriş yapın (mevcut sahipseniz e-posta veya kullanıcı adınızı girebilirsiniz).";
+  }
+};
+
+async function initAuthGate() {
   const overlay = document.getElementById("auth-gate-overlay");
   if (overlay) overlay.classList.remove("hidden");
-
-  try {
-    const statusRes = await fetch(ENGINE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "authStatus" }),
-    });
-    const statusJson = await statusRes.json();
-    const isCustom = Boolean(statusJson?.is_custom);
-    state.auth.isCustom = isCustom;
-    state.auth.username = statusJson?.active_username || "ali";
-
-    if (hintEl) {
-      if (isCustom) {
-        hintEl.innerHTML = `Özel şifre koruması aktif (<strong class="mono">${escapeHtml(state.auth.username)}</strong>). Kokpite girmek için kullanıcı adı ve şifrenizi girin.`;
-      } else {
-        hintEl.innerHTML = `İlk kurulum varsayılanı: Kullanıcı adı <strong class="mono">ali</strong> · Şifre <strong class="mono">garmin2026</strong>. Aşağıdan hemen kendi kullanıcı adı ve şifrenizi tanımlayabilirsiniz.`;
-      }
-    }
-    if (userInp && !userInp.value && !isCustom) userInp.value = "ali";
-    if (curSetupInp) {
-      curSetupInp.placeholder = isCustom
-        ? "Mevcut şifrenizi girin"
-        : "İlk kurulumda boş bırakabilirsiniz";
-    }
-  } catch (_) {
-    if (hintEl) {
-      hintEl.textContent = "Giriş durumu kontrol edildi. Lütfen kullanıcı adı ve şifrenizi girin.";
-    }
-  }
+  switchAuthMode("login");
 
   const saved = getSavedAuthSession();
-  if (saved?.token) {
+  if (saved?.access_token && saved?.refresh_token) {
+    const hintEl = document.getElementById("auth-default-hint");
+    if (hintEl) hintEl.textContent = "Kayıtlı oturum doğrulanıyor...";
     try {
-      const verifyRes = await fetch(ENGINE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verifyAppLogin", token: saved.token }),
-      });
-      const verifyJson = await verifyRes.json();
-      if (verifyRes.ok && verifyJson.authenticated) {
-        await completeAuthSuccess(verifyJson, Boolean(saved.remembered));
-        return;
-      }
-    } catch (_) {}
-    clearAuthSession();
+      await completeAuthSuccess(saved, Boolean(saved.remembered));
+      return;
+    } catch (_) {
+      clearAuthSession();
+      switchAuthMode("login");
+    }
   }
 }
 
 window.submitAppLogin = async function (ev) {
   ev.preventDefault();
-  const username = document.getElementById("login-username").value.trim();
+  const identifier = document.getElementById("login-username").value.trim();
   const password = document.getElementById("login-password").value;
   const remember = Boolean(document.getElementById("login-remember")?.checked);
   const btn = document.getElementById("auth-login-btn");
@@ -2752,16 +3146,19 @@ window.submitAppLogin = async function (ev) {
   try {
     const res = await fetch(ENGINE_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "verifyAppLogin", username, password }),
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ action: "loginUser", identifier, password }),
     });
     const json = await res.json();
-    if (!res.ok || !json.authenticated) {
-      throw new Error(json.error || "Kullanıcı adı veya şifre hatalı.");
+    if (!res.ok || !json.authenticated || !json.session) {
+      throw new Error(json.error || "E-posta/kullanıcı adı veya şifre hatalı.");
     }
     document.getElementById("login-password").value = "";
     await completeAuthSuccess(json, remember);
-    showToast(`Hoş geldin, ${json.username}!`);
+    showToast(`Hoş geldin, ${json.user?.display_name || identifier}!`);
   } catch (err) {
     setAuthError(err.message);
   } finally {
@@ -2769,70 +3166,68 @@ window.submitAppLogin = async function (ev) {
   }
 };
 
-window.toggleLoginSetupPanel = function () {
-  const panel = document.getElementById("auth-inline-setup");
-  if (!panel) return;
-  panel.classList.toggle("hidden");
-  setAuthError("");
-};
-
-window.submitInlineCredentialSetup = async function (ev) {
+window.submitUserRegister = async function (ev) {
   ev.preventDefault();
-  const current_password = document.getElementById("setup-current-pass").value;
-  const new_username = document.getElementById("setup-new-user").value.trim();
-  const new_password = document.getElementById("setup-new-pass").value;
-  const remember = Boolean(document.getElementById("login-remember")?.checked);
+  const display_name = document.getElementById("reg-name").value.trim();
+  const email = document.getElementById("reg-email").value.trim();
+  const password = document.getElementById("reg-password").value;
+  const birthVal = document.getElementById("reg-birth").value;
+  const default_city = document.getElementById("reg-city").value.trim() || "İstanbul";
+  const remember = Boolean(document.getElementById("reg-remember")?.checked);
+  const btn = document.getElementById("auth-reg-btn");
   setAuthError("");
+  if (btn) btn.disabled = true;
 
   try {
     const res = await fetch(ENGINE_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+      },
       body: JSON.stringify({
-        action: "updateAppCredentials",
-        current_password,
-        new_username,
-        new_password,
+        action: "registerUser",
+        display_name,
+        email,
+        password,
+        birth_year: birthVal ? Number(birthVal) : 1990,
+        default_city,
       }),
     });
     const json = await res.json();
-    if (!res.ok || json.ok === false) {
-      throw new Error(json.error || "Giriş bilgileri kaydedilemedi.");
+    if (!res.ok || !json.ok || !json.session) {
+      throw new Error(json.error || "Hesap oluşturulamadı.");
     }
-    document.getElementById("setup-current-pass").value = "";
-    document.getElementById("setup-new-pass").value = "";
-    document.getElementById("auth-inline-setup")?.classList.add("hidden");
-    await completeAuthSuccess({ ...json, authenticated: true }, remember);
-    showToast(`Giriş bilgileriniz güncellendi (${json.username})!`);
+    document.getElementById("reg-password").value = "";
+    await completeAuthSuccess(json, remember);
+    showToast("Hesabınız oluşturuldu! Şimdi Garmin API bilgilerinizi bağlayabilirsiniz.");
+    openGarminSetupTab();
   } catch (err) {
     setAuthError(err.message);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 };
 
 window.saveAppCredentials = async function (ev) {
   ev.preventDefault();
-  const new_username = document.getElementById("inp-auth-username").value.trim();
+  const display_name = document.getElementById("inp-auth-username").value.trim();
   const current_password = document.getElementById("inp-auth-current-pass").value;
   const new_password = document.getElementById("inp-auth-new-pass").value;
   const confirmPass = document.getElementById("inp-auth-confirm-pass").value;
 
-  if (new_password !== confirmPass) {
+  if (new_password && new_password !== confirmPass) {
     showToast("Yeni şifreler eşleşmiyor!");
     return;
   }
 
   try {
-    showToast("Giriş bilgileri güncelleniyor...");
-    const res = await fetch(ENGINE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "updateAppCredentials",
-        current_password,
-        token: state.auth.token,
-        new_username,
-        new_password,
-      }),
+    showToast("Hesap bilgileri güncelleniyor...");
+    const res = await apiCall({
+      action: "updateAppCredentials",
+      display_name,
+      current_password,
+      new_password,
     });
     const json = await res.json();
     if (!res.ok || json.ok === false) {
@@ -2840,31 +3235,81 @@ window.saveAppCredentials = async function (ev) {
     }
 
     const wasRemembered = Boolean(localStorage.getItem(AUTH_STORAGE_KEY));
-    state.auth = {
-      authenticated: true,
-      username: json.username,
-      token: json.token,
-      isCustom: true,
-    };
-    saveAuthSession(state.auth, wasRemembered);
+    if (json.session?.access_token && json.session?.refresh_token) {
+      await sb.auth.setSession({
+        access_token: json.session.access_token,
+        refresh_token: json.session.refresh_token,
+      });
+      state.auth.accessToken = json.session.access_token;
+      state.auth.refreshToken = json.session.refresh_token;
+    }
+    if (json.display_name || display_name) {
+      state.auth.username = json.display_name || display_name;
+    }
+    saveAuthSession(
+      {
+        access_token: state.auth.accessToken,
+        refresh_token: state.auth.refreshToken,
+        user: {
+          id: state.auth.userId,
+          email: state.auth.email,
+          display_name: state.auth.username,
+        },
+      },
+      wasRemembered
+    );
     updateAuthUiLabels();
     document.getElementById("inp-auth-current-pass").value = "";
     document.getElementById("inp-auth-new-pass").value = "";
     document.getElementById("inp-auth-confirm-pass").value = "";
     await loadAllData();
-    showToast(`Giriş bilgileri güncellendi: ${json.username}`);
+    showToast(`Hesap bilgileri güncellendi: ${state.auth.username}`);
   } catch (err) {
-    showToast(`Giriş güncelleme hatası: ${err.message}`);
+    showToast(`Güncelleme hatası: ${err.message}`);
   }
 };
 
-window.logoutApp = function () {
+window.logoutApp = async function () {
+  try {
+    await sb.auth.signOut();
+  } catch (_) {}
   clearAuthSession();
-  state.auth.authenticated = false;
-  state.auth.token = null;
+  state.auth = {
+    authenticated: false,
+    userId: null,
+    email: null,
+    username: "Sporcu",
+    accessToken: null,
+    refreshToken: null,
+  };
+  state.settings = null;
+  state.biometrics = [];
+  state.activities = [];
+  state.weekly = null;
+  state.monthly = null;
+  state.notifications = [];
+  state.integration = null;
+  state.syncLogs = [];
+  state.selectedActivityId = null;
+  state._autoGpsChecked = false;
+  state._pushInitialized = false;
+
+  document.getElementById("notif-drawer")?.classList.add("hidden");
+  document.getElementById("garmin-setup-banner")?.classList.add("hidden");
+  document.getElementById("red-alert-banner")?.classList.add("hidden");
+  const subEl = document.getElementById("side-athlete-sub");
+  if (subEl) subEl.textContent = "--";
+  const locEl = document.getElementById("pill-location");
+  if (locEl) locEl.textContent = "📍 Yükleniyor...";
+  const chipEl = document.getElementById("side-readiness-chip");
+  if (chipEl) chipEl.textContent = "--/100";
+
+  renderNotifications();
+  renderAll();
+  updateAuthUiLabels();
+
   const pwEl = document.getElementById("login-password");
   if (pwEl) pwEl.value = "";
-  document.getElementById("auth-inline-setup")?.classList.add("hidden");
   setAuthError("");
   initAuthGate();
 };
@@ -2874,6 +3319,12 @@ document.addEventListener("DOMContentLoaded", () => {
   startIstanbulClock();
   renderLiveWorkoutUI();
   initAuthGate();
+  document.addEventListener("click", (e) => {
+    const drawer = document.getElementById("notif-drawer");
+    if (drawer && !drawer.classList.contains("hidden") && !e.target.closest(".notif-wrap")) {
+      drawer.classList.add("hidden");
+    }
+  });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }

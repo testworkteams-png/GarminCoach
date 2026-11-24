@@ -14,15 +14,20 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- AUTHENTICATION GATE OVERLAY -->
+  <!-- MULTI-USER AUTHENTICATION GATE OVERLAY -->
   <div id="auth-gate-overlay" class="auth-gate-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-gate-title">
     <div class="auth-card">
       <div class="auth-brand-row">
         <div class="brand-mark">GC</div>
         <div>
           <div id="auth-gate-title" class="brand-name" style="font-size:20px;">GarminCoach Elite</div>
-          <div class="brand-tag">garmin.alidincerozdemir.com · Güvenli Sporcu Girişi</div>
+          <div class="brand-tag">Kişisel Sağlık, Antrenman &amp; CEO Performans Kokpiti</div>
         </div>
+      </div>
+
+      <div class="auth-tabs">
+        <button type="button" id="auth-tab-login" class="auth-tab active" onclick="switchAuthMode('login')">🔐 Giriş Yap</button>
+        <button type="button" id="auth-tab-register" class="auth-tab" onclick="switchAuthMode('register')">✨ Yeni Hesap Aç</button>
       </div>
 
       <div id="auth-default-hint" class="auth-hint-box">Oturum durumu kontrol ediliyor...</div>
@@ -30,8 +35,8 @@
 
       <form id="auth-login-form" onsubmit="submitAppLogin(event)">
         <div class="field" style="margin-bottom:10px;">
-          <label for="login-username">Kullanıcı Adı</label>
-          <input id="login-username" type="text" required autocomplete="username" placeholder="Kullanıcı adınız" />
+          <label for="login-username">E-posta veya Kullanıcı Adı</label>
+          <input id="login-username" type="text" required autocomplete="username" placeholder="E-posta adresiniz veya kullanıcı adınız (örn. ali)" />
         </div>
         <div class="field" style="margin-bottom:10px;">
           <label for="login-password">Şifre</label>
@@ -44,23 +49,28 @@
         <button type="submit" id="auth-login-btn" class="btn btn-primary" style="width:100%; justify-content:center; padding:11px 14px;">🔐 Giriş Yap ve Kokpiti Aç</button>
       </form>
 
-      <button type="button" class="btn btn-sm" style="width:100%; justify-content:center; margin-top:10px;" onclick="toggleLoginSetupPanel()">⚙️ Kullanıcı Adı &amp; Şifre Belirle / Değiştir</button>
-
-      <form id="auth-inline-setup" class="auth-setup-panel hidden" onsubmit="submitInlineCredentialSetup(event)">
-        <div style="font-size:12px; font-weight:700; color:var(--cyan); margin-bottom:8px;">Yeni Giriş Bilgileri Tanımla (Tüm Cihazlar)</div>
+      <form id="auth-register-form" class="hidden" onsubmit="submitUserRegister(event)">
         <div class="field" style="margin-bottom:8px;">
-          <label for="setup-current-pass">Mevcut Şifre</label>
-          <input id="setup-current-pass" type="password" autocomplete="current-password" placeholder="İlk kurulumda boş bırakabilirsiniz" />
+          <label for="reg-name">Ad Soyad</label>
+          <input id="reg-name" type="text" required placeholder="Örn. Ahmet Yılmaz" />
         </div>
         <div class="field" style="margin-bottom:8px;">
-          <label for="setup-new-user">Yeni Kullanıcı Adı</label>
-          <input id="setup-new-user" type="text" required minlength="2" autocomplete="username" placeholder="Örn. ali" />
+          <label for="reg-email">E-posta Adresi</label>
+          <input id="reg-email" type="email" required autocomplete="email" placeholder="ornek@email.com" />
         </div>
-        <div class="field" style="margin-bottom:10px;">
-          <label for="setup-new-pass">Yeni Şifre (En az 4 karakter)</label>
-          <input id="setup-new-pass" type="password" required minlength="4" autocomplete="new-password" placeholder="En az 4 karakter" />
+        <div class="field" style="margin-bottom:8px;">
+          <label for="reg-password">Şifre (En az 6 karakter)</label>
+          <input id="reg-password" type="password" required minlength="6" autocomplete="new-password" placeholder="En az 6 karakter" />
         </div>
-        <button type="submit" class="btn btn-cyan" style="width:100%; justify-content:center;">💾 Bilgileri Kaydet ve Giriş Yap</button>
+        <div class="form-grid" style="margin-bottom:10px;">
+          <div class="field"><label for="reg-birth">Doğum Yılı</label><input id="reg-birth" type="number" value="1990" min="1940" max="2015" /></div>
+          <div class="field"><label for="reg-city">Şehir</label><input id="reg-city" type="text" value="İstanbul" /></div>
+        </div>
+        <label class="auth-remember-row">
+          <input id="reg-remember" type="checkbox" checked />
+          <span>Hesap sonrası oturumu açık tut</span>
+        </label>
+        <button type="submit" id="auth-reg-btn" class="btn btn-cyan" style="width:100%; justify-content:center; padding:11px 14px;">🚀 Hesap Oluştur ve Garmin'i Bağla</button>
       </form>
     </div>
   </div>
@@ -87,7 +97,7 @@
       <nav class="side-nav" aria-label="Ana Navigasyon">
         <button class="nav-btn active" data-tab="dashboard">⚡ Sabah Kokpiti</button>
         <button class="nav-btn" data-tab="workouts">🏋️ Antrenman & Kas</button>
-        <button class="nav-btn" data-tab="weekly">📊 Haftalık Strateji</button>
+        <button class="nav-btn" data-tab="weekly">📊 CEO Kokpiti (Hafta/Ay)</button>
         <button class="nav-btn" data-tab="archive">🗂️ 30G Doküman & Arşiv</button>
         <button class="nav-btn" data-tab="settings">⚙️ Komuta & Ayarlar</button>
       </nav>
@@ -110,10 +120,34 @@
           <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
           <span class="pill mono" id="pill-date">--</span>
           <span class="pill mono" id="pill-clock">--:-- TRT</span>
+          <div class="notif-wrap">
+            <button type="button" class="btn btn-sm notif-bell-btn" id="btn-notif-bell" onclick="toggleNotifDrawer()" title="Bildirim Gelen Kutusu">🔔 <span id="notif-unread-badge" class="badge badge-crit hidden" style="padding:1px 6px; font-size:10px;">0</span></button>
+            <div id="notif-drawer" class="notif-drawer hidden">
+              <div class="notif-drawer-head">
+                <strong>🔔 Bildirim Gelen Kutusu</strong>
+                <button type="button" class="btn btn-sm" onclick="markAllNotifsRead()">✓ Tümünü Oku</button>
+              </div>
+              <div id="notif-list" class="notif-list">
+                <p class="card-sub">Henüz bildirim yok.</p>
+              </div>
+            </div>
+          </div>
           <button class="btn btn-primary btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">↻ Senkronize Et</button>
-          <button class="btn btn-sm" onclick="logoutApp()" title="Ekranı Kilitle / Çıkış Yap">🔒 <span id="pill-auth-user">ali</span> · Kilitle</button>
+          <button class="btn btn-sm" onclick="logoutApp()" title="Oturumu Kapat / Çıkış Yap">🔒 <span id="pill-auth-user">ali</span> · Çıkış</button>
         </div>
       </header>
+
+      <!-- GARMIN SETUP ONBOARDING BANNER -->
+      <div id="garmin-setup-banner" class="alert-banner hidden" style="border-color:rgba(56,189,248,0.45); background:rgba(56,189,248,0.09);">
+        <div style="display:flex; align-items:flex-start; gap:12px; flex:1; min-width:240px;">
+          <span style="font-size:22px; flex-shrink:0;">🔌</span>
+          <div>
+            <div style="font-weight:800; color:var(--text);">Garmin Saat Bağlantısı Bekleniyor</div>
+            <div class="card-sub" style="color:var(--text-secondary);">Kendi Garmin API anahtarınızı bağladığınızda sabah uyku özetiniz, antrenman sonrası raporunuz ve aylık CEO bilançonuz otomatik akmaya başlar.</div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-cyan btn-sm" style="flex-shrink:0;" onclick="openGarminSetupTab()">⚙️ Şimdi Bağla</button>
+      </div>
 
       <!-- RED ALERT BANNER -->
       <div id="red-alert-banner" class="alert-banner hidden">
@@ -594,48 +628,101 @@
         </div>
       </section>
 
-      <!-- TAB 3: WEEKLY EXECUTIVE COCKPIT -->
+      <!-- TAB 3: WEEKLY & MONTHLY CEO COCKPIT -->
       <section id="tab-weekly" class="tab-panel">
-        <div class="card card-glow">
-          <div class="card-header">
-            <div>
-              <div class="card-title">Pazar Yönetici Kokpiti & Haftalık Strateji Bülteni</div>
-              <div class="card-sub" id="weekly-date-label">Hafta başlangıcı: --</div>
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="triggerEngine('haftalikStratejiBulteni')">📊 Bülteni Yenile</button>
-          </div>
-          <p id="weekly-exec-summary" style="font-size:13.5px; color:var(--text-secondary);"></p>
-          <div class="grid-3 mt-16" id="weekly-wow-grid"></div>
+        <div class="chip-group" style="margin-bottom:14px;">
+          <button type="button" class="chip active" id="ceo-btn-weekly" onclick="switchCeoMode('weekly')">📅 Haftalık Strateji Bülteni</button>
+          <button type="button" class="chip" id="ceo-btn-monthly" onclick="switchCeoMode('monthly')">📈 Aylık CEO Bilançosu (Neredeyiz? Nereye Gidiyoruz?)</button>
         </div>
 
-        <div class="grid-2 mt-18">
-          <div class="card">
+        <div id="ceo-weekly-view">
+          <div class="card card-glow">
             <div class="card-header">
-              <div class="card-title">Hedef Karnesi, MVP & Dikkat Bayrağı</div>
+              <div>
+                <div class="card-title">Haftalık Yönetici Kokpiti &amp; Strateji Bülteni</div>
+                <div class="card-sub" id="weekly-date-label">Hafta başlangıcı: --</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="triggerEngine('haftalikStratejiBulteni')">📊 Bülteni Yenile</button>
             </div>
-            <div id="weekly-scorecard"></div>
-            <div id="weekly-mvp-flags" class="mt-16"></div>
+            <p id="weekly-exec-summary" style="font-size:13.5px; color:var(--text-secondary);"></p>
+            <div class="grid-3 mt-16" id="weekly-wow-grid"></div>
           </div>
 
-          <div class="card">
+          <div class="grid-2 mt-18">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Hedef Karnesi, MVP &amp; Dikkat Bayrağı</div>
+              </div>
+              <div id="weekly-scorecard"></div>
+              <div id="weekly-mvp-flags" class="mt-16"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Haftalık Z1–Z5 Dağılımı &amp; Kardiyo/Kuvvet Dengesi</div>
+              </div>
+              <div class="chart-wrap">
+                <canvas id="weeklyZonesChart"></canvas>
+              </div>
+              <div id="weekly-cardio-strength" class="mt-12"></div>
+            </div>
+          </div>
+
+          <div class="card mt-18">
             <div class="card-header">
-              <div class="card-title">Haftalık Z1–Z5 Dağılımı & Kardiyo/Kuvvet Dengesi</div>
+              <div>
+                <div class="card-title">Gelecek 7 Gün Hava Reçeteli Pazartesi–Pazar Takvimi</div>
+                <div class="card-sub">Hava durumuna göre günlük antrenman ve yürüyüş planı</div>
+              </div>
             </div>
-            <div class="chart-wrap">
-              <canvas id="weeklyZonesChart"></canvas>
-            </div>
-            <div id="weekly-cardio-strength" class="mt-12"></div>
+            <div class="grid-7" id="weekly-schedule-cards"></div>
           </div>
         </div>
 
-        <div class="card mt-18">
-          <div class="card-header">
-            <div>
-              <div class="card-title">Gelecek 7 Gün Hava Reçeteli Pazartesi–Pazar Takvimi</div>
-              <div class="card-sub">Gemini AI (0.25 temp) & yerelHaftalikProgramOlustur</div>
+        <div id="ceo-monthly-view" class="hidden">
+          <div class="card card-glow">
+            <div class="card-header">
+              <div>
+                <div class="card-title">📊 Aylık Yönetici (CEO) Performans Bilançosu</div>
+                <div class="card-sub" id="monthly-period-label">Son 30 gün ile önceki 30 gün kıyaslaması</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span class="badge badge-info" id="monthly-trajectory-badge">--</span>
+                <button type="button" class="btn btn-primary btn-sm" onclick="triggerEngine('aylikCeoRaporu', true)">🔄 Aylık CEO Raporunu Oluştur</button>
+              </div>
+            </div>
+            <p id="monthly-ceo-headline" style="font-size:14.5px; font-weight:700; color:var(--text); margin-bottom:14px;"></p>
+            <div class="grid-2" id="monthly-where-boxes"></div>
+            <div class="grid-3 mt-16" id="monthly-kpi-grid"></div>
+          </div>
+
+          <div class="grid-2 mt-18">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">🗓️ Son 30 Günlük Tutarlılık Takvimi</div>
+                  <div class="card-sub">Hangi günler aktif kalıp nasıl toparlandığının aylık haritası</div>
+                </div>
+              </div>
+              <div id="monthly-consistency-grid" class="heatmap-grid"></div>
+              <div class="heatmap-legend">
+                <span><i class="hm-dot hm-peak"></i>Çok İyi / Çift Aktivite</span>
+                <span><i class="hm-dot hm-good"></i>İyi / Antrenman</span>
+                <span><i class="hm-dot hm-moderate"></i>Orta</span>
+                <span><i class="hm-dot hm-low"></i>Dinlenme İhtiyacı</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">💡 Ayın Kazanımı, Riski &amp; 3 Yönetici Aksiyonu</div>
+                  <div class="card-sub">Neredeyiz? Nereye gidiyoruz? Önümüzdeki 30 gün için net plan</div>
+                </div>
+              </div>
+              <div id="monthly-actions-box"></div>
             </div>
           </div>
-          <div class="grid-7" id="weekly-schedule-cards"></div>
         </div>
       </section>
 
@@ -725,32 +812,51 @@
               </div>
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
-              <button class="btn btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">gunlukGarminAnalizi()</button>
-              <button class="btn btn-sm" onclick="triggerEngine('dokumaniSessizGuncelle', false)">dokumaniSessizGuncelle()</button>
-              <button class="btn btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">havaVeKonumGuncelle()</button>
-              <button class="btn btn-sm" onclick="triggerEngine('haftalikStratejiBulteni')">haftalikStratejiBulteni()</button>
-              <button class="btn btn-sm" onclick="triggerEngine('sonAntrenmaniManuelAnalizEt')">sonAntrenmaniManuelAnalizEt()</button>
+              <button class="btn btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">☀️ Sabah Raporu &amp; Sync</button>
+              <button class="btn btn-sm" onclick="triggerEngine('yeniAntrenmanKontrol', true)">🏃 Yeni Antrenman Kontrol</button>
+              <button class="btn btn-sm" onclick="triggerEngine('haftalikStratejiBulteni')">📅 Haftalık Rapor</button>
+              <button class="btn btn-sm" onclick="triggerEngine('aylikCeoRaporu', true)">📈 Aylık CEO Raporu</button>
+              <button class="btn btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">🌤️ Hava Yenile</button>
             </div>
             <div class="table-wrap" style="max-height:310px; overflow-y:auto;" id="sync-logs-table"></div>
           </div>
         </div>
 
+        <div class="card mt-18" id="garmin-integration-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔌 Kişisel Garmin API &amp; AI Koç Bağlantım</div>
+              <div class="card-sub">Her kullanıcı kendi Garmin API anahtarını bağlayarak verilerini ve otomatik bildirimlerini bağımsız yönetir</div>
+            </div>
+            <span class="badge badge-warn mono" id="settings-garmin-status-badge">Kurulum Bekliyor</span>
+          </div>
+          <div id="settings-garmin-hint" class="auth-hint-box" style="margin-bottom:12px;">Bağlantı durumu kontrol ediliyor...</div>
+          <form id="garmin-integration-form" class="form-grid" onsubmit="saveGarminIntegration(event)">
+            <div class="field"><label for="inp-garmin-base">Garmin API Adresi (Base URL)</label><input id="inp-garmin-base" type="url" required placeholder="https://personal.connectapi.garmin.com" /></div>
+            <div class="field"><label for="inp-garmin-key">Garmin API Anahtarı</label><input id="inp-garmin-key" type="password" placeholder="GCDC_... (mevcut anahtarı korumak için boş bırakın)" /></div>
+            <div class="field" style="grid-column:1 / -1;"><label for="inp-gemini-key">Kişisel Gemini AI Anahtarı (Opsiyonel)</label><input id="inp-gemini-key" type="password" placeholder="Boş bırakılırsa uygulamanın ortak yapay zeka koçu kullanılır" /></div>
+            <div style="grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;">
+              <button type="submit" id="btn-save-garmin" class="btn btn-primary">🔌 Bağlantıyı Test Et, Kaydet &amp; Veriyi Çek</button>
+            </div>
+          </form>
+        </div>
+
         <div class="card mt-18">
           <div class="card-header">
             <div>
-              <div class="card-title">🔐 Uygulama Giriş Bilgileri &amp; Alan Adı (garmin.alidincerozdemir.com)</div>
-              <div class="card-sub">Tüm cihazlarda geçerli SHA-256 korumalı kullanıcı adı ve şifre yönetimi</div>
+              <div class="card-title">🔐 Hesap &amp; Şifre Ayarları</div>
+              <div class="card-sub">Çoklu kullanıcı oturum yönetimi ve güvenli şifre güncelleme</div>
             </div>
-            <span class="badge badge-info mono" id="settings-auth-badge">Varsayılan Giriş</span>
+            <span class="badge badge-info mono" id="settings-auth-badge">Aktif Oturum</span>
           </div>
           <form id="auth-settings-form" class="form-grid" onsubmit="saveAppCredentials(event)">
-            <div class="field"><label for="inp-auth-username">Yeni Kullanıcı Adı</label><input id="inp-auth-username" type="text" required minlength="2" autocomplete="username" placeholder="Örn. ali" /></div>
-            <div class="field"><label for="inp-auth-current-pass">Mevcut Şifre</label><input id="inp-auth-current-pass" type="password" autocomplete="current-password" placeholder="Özel şifre varsa mevcut şifreniz" /></div>
-            <div class="field"><label for="inp-auth-new-pass">Yeni Şifre</label><input id="inp-auth-new-pass" type="password" required minlength="4" autocomplete="new-password" placeholder="En az 4 karakter" /></div>
-            <div class="field"><label for="inp-auth-confirm-pass">Yeni Şifre (Tekrar)</label><input id="inp-auth-confirm-pass" type="password" required minlength="4" autocomplete="new-password" placeholder="Yeni şifreyi tekrar girin" /></div>
+            <div class="field"><label for="inp-auth-username">Görünen Ad</label><input id="inp-auth-username" type="text" required minlength="2" autocomplete="name" placeholder="Adınız" /></div>
+            <div class="field"><label for="inp-auth-current-pass">Mevcut Şifre</label><input id="inp-auth-current-pass" type="password" autocomplete="current-password" placeholder="Şifre değiştirmek için mevcut şifreniz" /></div>
+            <div class="field"><label for="inp-auth-new-pass">Yeni Şifre (En az 6 karakter)</label><input id="inp-auth-new-pass" type="password" required minlength="6" autocomplete="new-password" placeholder="En az 6 karakter" /></div>
+            <div class="field"><label for="inp-auth-confirm-pass">Yeni Şifre (Tekrar)</label><input id="inp-auth-confirm-pass" type="password" required minlength="6" autocomplete="new-password" placeholder="Yeni şifreyi tekrar girin" /></div>
             <div style="grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;">
-              <button type="submit" class="btn btn-primary">🔐 Kullanıcı Adı ve Şifreyi Güncelle</button>
-              <button type="button" class="btn" onclick="logoutApp()">🔒 Oturumu Kapat (Giriş Ekranını Test Et)</button>
+              <button type="submit" class="btn btn-primary">🔐 Bilgileri ve Şifreyi Güncelle</button>
+              <button type="button" class="btn" onclick="logoutApp()">🔒 Oturumu Kapat</button>
             </div>
           </form>
         </div>
@@ -762,7 +868,7 @@
   <nav class="mobile-nav" aria-label="Mobil Menü">
     <button class="active" data-tab="dashboard">⚡<span>Kokpit</span></button>
     <button data-tab="workouts">🏋️<span>Antrenman</span></button>
-    <button data-tab="weekly">📊<span>Strateji</span></button>
+    <button data-tab="weekly">📊<span>CEO Rapor</span></button>
     <button data-tab="archive">🗂️<span>Arşiv</span></button>
     <button data-tab="settings">⚙️<span>Ayarlar</span></button>
   </nav>
