@@ -81,7 +81,7 @@
           <span>Sporcu Profili</span>
           <span class="badge badge-ok" id="side-readiness-chip">--/100</span>
         </div>
-        <div class="athlete-chip-sub" id="side-athlete-sub">1988 · Baz 46 bpm · 59–74 ms HRV</div>
+        <div class="athlete-chip-sub" id="side-athlete-sub">1988 · Normal 46 atım/dk · 59–74 denge</div>
       </div>
 
       <nav class="side-nav" aria-label="Ana Navigasyon">
@@ -276,7 +276,7 @@
                 <div class="card-title">Gece 5-Dk HRV Dalgası & Sinir Sistemi Stres Dağılımı</div>
                 <div class="card-sub">Garmin 5 dakikalık HRV okumaları ve gün içi stres yüzdeleri</div>
               </div>
-              <span class="badge badge-ok" id="hrv-peak-badge">Tepe -- ms</span>
+              <span class="badge badge-ok" id="hrv-peak-badge">Tepe -- puan</span>
             </div>
             <div class="chart-wrap" style="height:200px;">
               <canvas id="hrvNightChart"></canvas>
@@ -360,14 +360,14 @@
             <div class="builder-field">
               <label for="custom-x1">Sol Eksen (X1)</label>
               <select id="custom-x1" class="builder-select" onchange="renderCustomCompareChart()">
-                <option value="hrv_nightly_avg" selected>Gece HRV (ms)</option>
+                <option value="hrv_nightly_avg" selected>Kalp Dengesi · HRV (puan)</option>
                 <option value="readiness_score">Sabah Hazırlık Skoru</option>
                 <option value="body_battery_max">Body Battery Maks</option>
                 <option value="sleep_score">Uyku Skoru</option>
                 <option value="sleep_hours">Uyku Süresi (saat)</option>
                 <option value="steps">Günlük Adım</option>
                 <option value="active_kilocalories">Aktif Kalori (kcal)</option>
-                <option value="rhr">Dinlenik Nabız (bpm)</option>
+                <option value="rhr">Dinlenik Nabız (atım/dk)</option>
                 <option value="sleep_stress_avg">Uyku Stresi</option>
                 <option value="vo2_max">VO2 Max</option>
               </select>
@@ -376,14 +376,14 @@
               <label for="custom-x2">Sağ Eksen (X2)</label>
               <select id="custom-x2" class="builder-select" onchange="renderCustomCompareChart()">
                 <option value="sleep_stress_avg" selected>Uyku Stresi</option>
-                <option value="hrv_nightly_avg">Gece HRV (ms)</option>
+                <option value="hrv_nightly_avg">Kalp Dengesi · HRV (puan)</option>
                 <option value="readiness_score">Sabah Hazırlık Skoru</option>
                 <option value="body_battery_max">Body Battery Maks</option>
                 <option value="sleep_score">Uyku Skoru</option>
                 <option value="sleep_hours">Uyku Süresi (saat)</option>
                 <option value="steps">Günlük Adım</option>
                 <option value="active_kilocalories">Aktif Kalori (kcal)</option>
-                <option value="rhr">Dinlenik Nabız (bpm)</option>
+                <option value="rhr">Dinlenik Nabız (atım/dk)</option>
                 <option value="vo2_max">VO2 Max</option>
               </select>
             </div>
@@ -525,7 +525,7 @@
             </div>
             <div id="activity-map"></div>
             <div class="hr-legend-strip" id="map-hr-legend">
-              <span><i class="hr-dot" style="background:#38bdf8;"></i>Z1 (&lt;115 bpm)</span>
+              <span><i class="hr-dot" style="background:#38bdf8;"></i>Z1 (&lt;115 atım/dk)</span>
               <span><i class="hr-dot" style="background:#00e5a3;"></i>Z2 (115–134)</span>
               <span><i class="hr-dot" style="background:#f59e0b;"></i>Z3 (135–151)</span>
               <span><i class="hr-dot" style="background:#ef4444;"></i>Z4+ (&ge;152)</span>
@@ -703,10 +703,10 @@
             <form id="settings-form" class="form-grid" onsubmit="saveSettings(event)">
               <div class="field"><label for="inp-city">Manuel Şehir Override</label><input id="inp-city" placeholder="Boş = GPS >15km veya Ümraniye" /></div>
               <div class="field"><label for="inp-birth">Doğum Yılı</label><input id="inp-birth" type="number" /></div>
-              <div class="field"><label for="inp-rhr-base">Baz RHR (bpm)</label><input id="inp-rhr-base" type="number" /></div>
-              <div class="field"><label for="inp-rhr-warn">Nabız Uyarı Eşiği (bpm)</label><input id="inp-rhr-warn" type="number" /></div>
-              <div class="field"><label for="inp-hrv-min">Baz HRV Alt (ms)</label><input id="inp-hrv-min" type="number" /></div>
-              <div class="field"><label for="inp-hrv-warn">HRV Uyarı Eşiği (ms)</label><input id="inp-hrv-warn" type="number" /></div>
+              <div class="field"><label for="inp-rhr-base">Normal Nabız (atım/dk)</label><input id="inp-rhr-base" type="number" /></div>
+              <div class="field"><label for="inp-rhr-warn">Nabız Uyarı Eşiği (atım/dk)</label><input id="inp-rhr-warn" type="number" /></div>
+              <div class="field"><label for="inp-hrv-min">Normal Kalp Dengesi Alt (puan)</label><input id="inp-hrv-min" type="number" /></div>
+              <div class="field"><label for="inp-hrv-warn">Kalp Dengesi Uyarı Eşiği (puan)</label><input id="inp-hrv-warn" type="number" /></div>
               <div class="field"><label for="inp-resp-warn">Gece Solunum Eşiği</label><input id="inp-resp-warn" type="number" step="0.1" /></div>
               <div class="field"><label for="inp-stress-warn">Uyku Stresi Eşiği</label><input id="inp-stress-warn" type="number" /></div>
               <div class="field"><label for="inp-temp-warn">Deri Sıcaklığı (+°C)</label><input id="inp-temp-warn" type="number" step="0.1" /></div>
@@ -790,7 +790,7 @@
         <div class="field strength-only"><label>Dambıl Ağırlığı (kg)</label><input id="w-weight" type="number" value="6" min="2" max="20" /></div>
         <div class="field strength-only"><label>Set x Tekrar</label><div style="display:flex; gap:6px;"><input id="w-sets" type="number" value="4" /><input id="w-reps" type="number" value="15" /></div></div>
         <div class="field cardio-only" style="display:none;"><label>Mesafe (km)</label><input id="w-dist" type="number" step="0.1" value="5.5" /></div>
-        <div class="field"><label>Ort. Nabız (bpm)</label><input id="w-hr" type="number" value="112" /></div>
+        <div class="field"><label>Ort. Nabız (atım/dk)</label><input id="w-hr" type="number" value="112" /></div>
         <div style="grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
           <button type="button" class="btn" onclick="closeModals()">İptal</button>
           <button type="submit" class="btn btn-primary">Kaydet & Analiz Et</button>
@@ -813,8 +813,8 @@
         <div class="field"><label>Tarih</label><input id="b-date" type="date" required /></div>
         <div class="field"><label>Body Battery Maks</label><input id="b-bb" type="number" value="90" min="0" max="100" /></div>
         <div class="field"><label>Uyku Skoru</label><input id="b-sleep" type="number" value="84" min="0" max="100" /></div>
-        <div class="field"><label>Gece HRV (ms)</label><input id="b-hrv" type="number" value="65" /></div>
-        <div class="field"><label>Dinlenik Nabız (bpm)</label><input id="b-rhr" type="number" value="46" /></div>
+        <div class="field"><label>Gece Kalp Dengesi · HRV (puan)</label><input id="b-hrv" type="number" value="65" /></div>
+        <div class="field"><label>Dinlenik Nabız (atım/dk)</label><input id="b-rhr" type="number" value="46" /></div>
         <div class="field"><label>Adım</label><input id="b-steps" type="number" value="9800" /></div>
         <div style="grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
           <button type="button" class="btn" onclick="closeModals()">İptal</button>

@@ -166,7 +166,7 @@ function renderTopbar() {
   if (s) {
     const age = new Date().getFullYear() - (s.birth_year || 1988);
     document.getElementById("side-athlete-sub").textContent =
-      `${s.birth_year} (${age} yaş) · ${s.base_rhr} bpm · ${s.base_hrv_min}–${s.base_hrv_max} ms`;
+      `${s.birth_year} (${age} yaş) · ${s.base_rhr} atım/dk · ${s.base_hrv_min}–${s.base_hrv_max} denge`;
     const srcMap = {
       LIVE_GPS: "Canlı GPS",
       GARMIN_GPS: "Garmin GPS",
@@ -214,8 +214,8 @@ function computeClientReadinessComponents(bio) {
   return [
     { label: "Body Battery Maks (%30)", raw: `${bb}/100`, score: bb, color: "#00e5a3" },
     { label: "Uyku Skoru (%30)", raw: `${slp}/100`, score: slp, color: "#38bdf8" },
-    { label: "Gece HRV (%25)", raw: `${hrvVal} ms`, score: hrvScore, color: "#a78bfa" },
-    { label: "Dinlenik Nabız (%15)", raw: `${rhrVal} bpm`, score: rhrScore, color: "#f59e0b" },
+    { label: "Kalp Dengesi · HRV (%25)", raw: `${hrvVal} puan`, score: hrvScore, color: "#a78bfa" },
+    { label: "Dinlenik Nabız (%15)", raw: `${rhrVal} atım/dk`, score: rhrScore, color: "#f59e0b" },
   ];
 }
 
@@ -253,13 +253,13 @@ function describeRedFlag(f) {
     return `Uyku Stresi ${val} (Eşik ≥${thr}): Gece sinir sistemi tam gevşeyememiş (geç akşam yemeği, kafein veya birikmiş yorgunluk etkisi olabilir). Bugün zorlayıcı setlerden kaçınıp Z2 yürüyüş ve erken uyku hedefle.`;
   }
   if (m === "RHR") {
-    return `Dinlenik Nabız ${val} bpm (Eşik ≥${thr} bpm): Kalp normal bazın üzerinde çalışıyor; yorgunluk veya başlangıç aşamasında stres/enfeksiyon göstergesi olabilir. Yüksek nabızlı yüklenmeyi ertele.`;
+    return `Dinlenik Nabız ${val} atım/dk (Sınır ≥${thr} atım/dk): Kalp normal seviyesinin üzerinde çalışıyor; yorgunluk veya başlangıç aşamasında stres/enfeksiyon göstergesi olabilir. Yüksek nabızlı yüklenmeyi ertele.`;
   }
   if (m === "HRV") {
-    return `Gece HRV ${val} ms (Eşik ≤${thr} ms): Parasempatik toparlanma baskılanmış. Ağırlık/sprint yükünü düşürüp hafif mobilite, esneme ve ek dinlenmeye odaklan.`;
+    return `Kalp Dengesi ${val} puan (Sınır ≤${thr} puan): Vücut tam dinlenememiş ve stres altında. Ağırlık/sprint yükünü düşürüp hafif esneme ve ek dinlenmeye odaklan.`;
   }
   if (m === "RESP") {
-    return `Gece Solunumu ${val} brpm (Eşik ≥${thr} brpm): Solunum hızı bazın üstünde seyretmiş; uyku kalitesi ve toparlanma verimi düşmüş olabilir. Kontrollü tempoda kal.`;
+    return `Gece Solunumu ${val} nefes/dk (Sınır ≥${thr} nefes/dk): Solunum hızı normalin üstünde seyretmiş; uyku kalitesi ve toparlanma verimi düşmüş olabilir. Kontrollü tempoda kal.`;
   }
   if (m === "SKIN_TEMP") {
     return `Deri Sıcaklığı +${val}°C (Eşik ≥+${thr}°C): Vücut ısısı sapması normalden yüksek; olası inflamasyon veya hastalık sinyali olabilir. Ağırlık yükünü hafifletip sıvı alımını artır.`;
@@ -448,43 +448,43 @@ function renderDashboard() {
   const corridors = [
     {
       title: "Dinlenik Nabız",
-      val: `${latest.rhr ?? "--"} bpm`,
-      meta: `Baz ${s.base_rhr ?? 46} · Uyarı ≥${rhrWarn}`,
+      val: `${latest.rhr ?? "--"} atım/dk`,
+      meta: `Normal ${s.base_rhr ?? 46} · Sınır ≥${rhrWarn}`,
       pos: pctClamp((((latest.rhr ?? 46) - 40) / 20) * 100),
       ok: (latest.rhr ?? 46) < rhrWarn,
     },
     {
-      title: "Gece HRV",
-      val: `${latest.hrv_nightly_avg ?? "--"} ms`,
-      meta: `Baz ${s.base_hrv_min ?? 59}–${s.base_hrv_max ?? 74} · ≤${hrvWarn}`,
+      title: "Kalp Dengesi (HRV)",
+      val: `${latest.hrv_nightly_avg ?? "--"} puan`,
+      meta: `Normal ${s.base_hrv_min ?? 59}–${s.base_hrv_max ?? 74} · Sınır ≤${hrvWarn}`,
       pos: pctClamp(((80 - (latest.hrv_nightly_avg ?? 62)) / 45) * 100),
       ok: (latest.hrv_nightly_avg ?? 62) > hrvWarn,
     },
     {
       title: "Solunum Hızı",
-      val: `${latest.sleep_respiration_avg ?? "--"} brpm`,
-      meta: `Normal <${respWarn} brpm`,
+      val: `${latest.sleep_respiration_avg ?? "--"} nefes/dk`,
+      meta: `Normal <${respWarn} nefes/dk`,
       pos: pctClamp((((latest.sleep_respiration_avg ?? 15.5) - 12) / 8) * 100),
       ok: Number(latest.sleep_respiration_avg ?? 15.5) < respWarn,
     },
     {
       title: "Uyku Stresi",
-      val: `${latest.sleep_stress_avg ?? "--"}`,
-      meta: `Hedef eşiği <${stressWarn}`,
+      val: `${latest.sleep_stress_avg ?? "--"} puan`,
+      meta: `Normal <${stressWarn} puan`,
       pos: pctClamp((((latest.sleep_stress_avg ?? 17) - 10) / 20) * 100),
       ok: Number(latest.sleep_stress_avg ?? 17) < stressWarn,
     },
     {
       title: "Deri Sıcaklığı",
       val: `${Number(latest.skin_temp_deviation ?? 0) >= 0 ? "+" : ""}${latest.skin_temp_deviation ?? "0.0"}°C`,
-      meta: `Sapma eşiği ≥+${tempWarn}°C`,
+      meta: `Normal <+${tempWarn}°C`,
       pos: pctClamp((((Number(latest.skin_temp_deviation ?? 0) + 0.3) / 1.0)) * 100),
       ok: Number(latest.skin_temp_deviation ?? 0) < tempWarn,
     },
     {
-      title: "SpO2 · VO2 Max",
+      title: "Oksijen · Kondisyon",
       val: `%${latest.spo2_avg ?? "--"} · ${latest.vo2_max ?? "--"}`,
-      meta: `Min %${latest.spo2_min ?? "--"} · Yaş ${latest.fitness_age ?? "--"}`,
+      meta: `En Düşük %${latest.spo2_min ?? "--"} · Yaş ${latest.fitness_age ?? "--"}`,
       pos: pctClamp(((100 - Number(latest.spo2_avg ?? 96)) / 12) * 100),
       ok: Number(latest.spo2_avg ?? 96) > spo2Warn,
     },
@@ -496,7 +496,7 @@ function renderDashboard() {
       <div class="corridor-card">
         <div class="corridor-top">
           <span class="corridor-title">${escapeHtml(c.title)}</span>
-          <span class="badge ${c.ok ? "badge-ok" : "badge-warn"}">${c.ok ? "Baz İçi" : "Uyarı"}</span>
+          <span class="badge ${c.ok ? "badge-ok" : "badge-warn"}">${c.ok ? "Normal" : "Uyarı"}</span>
         </div>
         <div class="corridor-val mono">${escapeHtml(c.val)}</div>
         <div class="corridor-track">
@@ -571,7 +571,7 @@ function renderActiveIntelligence3x(latest) {
 
   const morningMsg = flags.length
     ? `⚠️ ${flags[0].message}. Hazırlık skoru ${latest.readiness_score ?? "--"}/100 olsa da yoğun dambıl yüklemesi yerine Z1–Z2 yürüyüş ve hidrasyon öncelikli.`
-    : `HRV ${latest.hrv_nightly_avg ?? "--"} ms (${hrvDelta != null ? (Number(hrvDelta) >= 0 ? "+" : "") + hrvDelta + " vs 7G" : "baz"}), RHR ${latest.rhr ?? "--"} bpm (${rhrDelta != null ? (Number(rhrDelta) >= 0 ? "+" : "") + rhrDelta : "--"}). ${Number(latest.readiness_score) >= 80 ? "Yüksek yoğunluk veya 6 kg dambıl blokları için yeşil ışık." : "Kontrollü tempo önerilir."}`;
+    : `Kalp Dengesi (HRV) ${latest.hrv_nightly_avg ?? "--"} puan (${hrvDelta != null ? (Number(hrvDelta) >= 0 ? "+" : "") + hrvDelta + " vs 7G" : "normal"}), Dinlenik Nabız ${latest.rhr ?? "--"} atım/dk (${rhrDelta != null ? (Number(rhrDelta) >= 0 ? "+" : "") + rhrDelta : "--"}). ${Number(latest.readiness_score) >= 80 ? "Yüksek yoğunluk veya 6 kg dambıl blokları için yeşil ışık." : "Kontrollü tempo önerilir."}`;
 
   const lastAct = state.activities[0];
   let workoutMsg = "Henüz kaydedilmiş antrenman bulunamadı.";
@@ -583,7 +583,7 @@ function renderActiveIntelligence3x(latest) {
     const durMin = Math.max(1, Number(lastAct.duration_seconds || 0) / 60);
     const ef = dist > 500 && lastAct.avg_hr ? ((dist / durMin) / Number(lastAct.avg_hr)).toFixed(2) : null;
     workoutBadge = String(lastAct.start_time_local || "").slice(5, 16).replace("T", " ");
-    workoutMsg = `${lastAct.activity_name} (${fmtDuration(lastAct.duration_seconds)}, ${lastAct.avg_hr ?? "--"} bpm). Ter kaybı ${waterMl} ml → %150 rehidrasyon hedefi ${rehydMl} ml.${ef ? ` Aerobik Verimlilik (Ef): ${ef}.` : ` Yük: ${lastAct.training_load ?? "--"}.`}`;
+    workoutMsg = `${lastAct.activity_name} (${fmtDuration(lastAct.duration_seconds)}, ${lastAct.avg_hr ?? "--"} atım/dk). Ter kaybı ${waterMl} ml → %150 rehidrasyon hedefi ${rehydMl} ml.${ef ? ` Aerobik Verimlilik (Ef): ${ef}.` : ` Yük: ${lastAct.training_load ?? "--"}.`}`;
   }
 
   const te = latest.raw_payload?.telemetry_extra || {};
@@ -770,7 +770,7 @@ function renderAcwrAndEf() {
       <div class="kpi-value mono" style="color:#38bdf8;">${curEf != null ? curEf.toFixed(2) : "--"}</div>
       <div class="card-sub">${
         cardioActs[0]
-          ? `Son: ${escapeHtml(cardioActs[0].activity_name)} (${cardioActs[0].avg_hr} bpm)`
+          ? `Son: ${escapeHtml(cardioActs[0].activity_name)} (${cardioActs[0].avg_hr} atım/dk)`
           : "Kardiyo yürüyüş/koşu verisi bekleniyor"
       }</div>
       <div class="card-sub mono" style="margin-top:8px; color:${efDelta != null && efDelta >= 0 ? "#00e5a3" : "#f59e0b"};">
@@ -787,14 +787,14 @@ function renderAcwrAndEf() {
 }
 
 const CUSTOM_METRIC_META = {
-  hrv_nightly_avg: { label: "Gece HRV (ms)", color: "#00e5a3", get: (d) => d.hrv_nightly_avg },
+  hrv_nightly_avg: { label: "Kalp Dengesi · HRV (puan)", color: "#00e5a3", get: (d) => d.hrv_nightly_avg },
   readiness_score: { label: "Sabah Hazırlık Skoru", color: "#38bdf8", get: (d) => d.readiness_score },
   body_battery_max: { label: "Body Battery Maks", color: "#22d3ee", get: (d) => d.body_battery_max },
   sleep_score: { label: "Uyku Skoru", color: "#a78bfa", get: (d) => d.sleep_score },
   sleep_hours: { label: "Uyku Süresi (saat)", color: "#818cf8", get: (d) => (d.sleep_seconds != null ? Number((d.sleep_seconds / 3600).toFixed(2)) : null) },
   steps: { label: "Günlük Adım", color: "#0ea5e9", get: (d) => d.steps },
   active_kilocalories: { label: "Aktif Kalori (kcal)", color: "#f97316", get: (d) => d.active_kilocalories },
-  rhr: { label: "Dinlenik Nabız (bpm)", color: "#f43f5e", get: (d) => d.rhr },
+  rhr: { label: "Dinlenik Nabız (atım/dk)", color: "#f43f5e", get: (d) => d.rhr },
   sleep_stress_avg: { label: "Uyku Stresi", color: "#f59e0b", get: (d) => d.sleep_stress_avg },
   vo2_max: { label: "VO2 Max", color: "#10b981", get: (d) => d.vo2_max },
 };
@@ -924,7 +924,7 @@ function renderDeepTelemetry(latest) {
   // 2. Night 5-Min HRV Wave & Stress Breakdown
   const baseHrv = te.hrv_baseline;
   document.getElementById("hrv-peak-badge").textContent =
-    `5-Dk Tepe: ${te.hrv_5min_high ?? "--"} ms${baseHrv ? ` · Baz ${baseHrv.balancedLow}–${baseHrv.balancedUpper}` : ""}`;
+    `5-Dk Tepe: ${te.hrv_5min_high ?? "--"} puan${baseHrv ? ` · Normal ${baseHrv.balancedLow}–${baseHrv.balancedUpper}` : ""}`;
 
   const hrvReadings = Array.isArray(te.hrv_readings) ? te.hrv_readings : [];
   const hrvNCtx = document.getElementById("hrvNightChart");
@@ -935,7 +935,7 @@ function renderDeepTelemetry(latest) {
       data: {
         labels: hrvReadings.map((r) => r.time),
         datasets: [{
-          label: "5-Dk HRV (ms)",
+          label: "5-Dk Kalp Dengesi (puan)",
           data: hrvReadings.map((r) => r.val),
           borderColor: "#00e5a3",
           backgroundColor: "rgba(0,229,163,0.14)",
@@ -979,7 +979,7 @@ function renderDeepTelemetry(latest) {
   `;
 
   // 3. Intraday 2-min HR Chart
-  document.getElementById("intraday-rhr-badge").textContent = `7G Ort RHR: ${te.rhr_7d_avg ?? "--"} bpm`;
+  document.getElementById("intraday-rhr-badge").textContent = `7G Ort Nabız: ${te.rhr_7d_avg ?? "--"} atım/dk`;
   const hrPts = Array.isArray(te.intraday_hr) ? te.intraday_hr : [];
   const hrCtx = document.getElementById("intradayHrChart");
   if (hrCtx) {
@@ -989,7 +989,7 @@ function renderDeepTelemetry(latest) {
       data: {
         labels: hrPts.map((p) => p.time),
         datasets: [{
-          label: "Nabız (bpm)",
+          label: "Nabız (atım/dk)",
           data: hrPts.map((p) => p.hr),
           borderColor: "#f43f5e",
           backgroundColor: "rgba(244,63,94,0.12)",
@@ -1034,7 +1034,7 @@ function renderDeepTelemetry(latest) {
     </div>
     <div class="mini-box">
       <div class="mini-box-lbl">Gündüz Solunum & Uyku İçgörüsü</div>
-      <div class="mini-box-val mono">${wr.avg ?? "--"} brpm (${wr.min ?? "--"}–${wr.max ?? "--"})</div>
+      <div class="mini-box-val mono">${wr.avg ?? "--"} nefes/dk (${wr.min ?? "--"}–${wr.max ?? "--"})</div>
       <div class="card-sub">${escapeHtml((si.feedback || "BALANCED").replace(/_/g, " "))}</div>
     </div>
   `;
@@ -1057,7 +1057,7 @@ function renderTrendChart() {
   if (state.trendMode === "hrv") {
     datasets = [
       {
-        label: "Gece HRV (ms)",
+        label: "Kalp Dengesi · HRV (puan)",
         data: last14.map((d) => d.hrv_nightly_avg),
         borderColor: "#00e5a3",
         backgroundColor: "rgba(0,229,163,0.14)",
@@ -1066,7 +1066,7 @@ function renderTrendChart() {
         yAxisID: "y",
       },
       {
-        label: "Dinlenik Nabız (bpm)",
+        label: "Dinlenik Nabız (atım/dk)",
         data: last14.map((d) => d.rhr),
         borderColor: "#38bdf8",
         tension: 0.35,
@@ -1209,7 +1209,7 @@ function renderWorkouts() {
         </div>
         <div style="text-align:right;">
           <div class="mono" style="font-weight:700; color:#00e5a3;">${escapeHtml(km)}</div>
-          <div class="card-sub">${fmtDuration(a.duration_seconds)} · ${a.avg_hr ?? "--"} bpm</div>
+          <div class="card-sub">${fmtDuration(a.duration_seconds)} · ${a.avg_hr ?? "--"} atım/dk</div>
         </div>
       </div>`;
     })
@@ -1334,7 +1334,7 @@ function renderWorkouts() {
         if (peakVal > 0) {
           const rIdx = Math.min(totalPts - 1, Math.round((peakIdx / Math.max(1, hrSeries.length - 1)) * (totalPts - 1)));
           L.circleMarker(route[rIdx], { radius: 7, color: "#fff", weight: 2, fillColor: "#ef4444", fillOpacity: 1 })
-            .bindTooltip(`🔥 Tepe Nabız: ${peakVal} bpm`)
+            .bindTooltip(`🔥 Tepe Nabız: ${peakVal} atım/dk`)
             .addTo(fg);
         }
       }
@@ -1355,7 +1355,7 @@ function renderWorkouts() {
   const sCtx = document.getElementById("activitySeriesChart");
   if (state.charts.activitySeries) state.charts.activitySeries.destroy();
   const datasets = [];
-  if (Array.isArray(ts.hr) && ts.hr.length) datasets.push({ label: "Nabız (bpm)", data: ts.hr, borderColor: "#ef4444", tension: 0.35 });
+  if (Array.isArray(ts.hr) && ts.hr.length) datasets.push({ label: "Nabız (atım/dk)", data: ts.hr, borderColor: "#ef4444", tension: 0.35 });
   if (Array.isArray(ts.cadence) && ts.cadence.length) datasets.push({ label: "Kadans (spm)", data: ts.cadence, borderColor: "#38bdf8", tension: 0.35 });
 
   state.charts.activitySeries = new Chart(sCtx, {
@@ -1403,7 +1403,7 @@ function renderWorkouts() {
       ];
       if (hrSeries.length) {
         elevDatasets.push({
-          label: "Nabız (bpm)",
+          label: "Nabız (atım/dk)",
           data: hrSeries,
           borderColor: "#f43f5e",
           borderDash: [4, 3],
@@ -1504,12 +1504,12 @@ function renderCardiacDriftAndClimb(act, hrSeries, elevArr, gainM) {
     <div class="mini-box">
       <div class="mini-box-lbl">Kardiyak Sürüklenme</div>
       <div class="mini-box-val mono" style="color:${driftGood ? "#00e5a3" : "#f59e0b"};">${driftPct >= 0 ? "+" : ""}${driftPct.toFixed(1)}%</div>
-      <div class="card-sub">İlk ${Math.round(avg1)} → Son ${Math.round(avg2)} bpm (${driftGood ? "Dayanıklılık İyi" : "Yorgunluk/Isı"})</div>
+      <div class="card-sub">İlk ${Math.round(avg1)} → Son ${Math.round(avg2)} atım/dk (${driftGood ? "Dayanıklılık İyi" : "Yorgunluk/Isı"})</div>
     </div>
     <div class="mini-box">
       <div class="mini-box-lbl">Yokuş Nabız Maliyeti</div>
-      <div class="mini-box-val mono" style="color:#38bdf8;">${climbDelta != null ? `${climbDelta >= 0 ? "+" : ""}${Math.round(climbDelta)} bpm` : "--"}</div>
-      <div class="card-sub">Yokuş ${avgClimb ? Math.round(avgClimb) : "--"} · Düz ${avgFlat ? Math.round(avgFlat) : "--"} bpm</div>
+      <div class="mini-box-val mono" style="color:#38bdf8;">${climbDelta != null ? `${climbDelta >= 0 ? "+" : ""}${Math.round(climbDelta)} atım/dk` : "--"}</div>
+      <div class="card-sub">Yokuş ${avgClimb ? Math.round(avgClimb) : "--"} · Düz ${avgFlat ? Math.round(avgFlat) : "--"} atım/dk</div>
     </div>
     <div class="mini-box">
       <div class="mini-box-lbl">Tempo & Tırmanış</div>
@@ -2011,8 +2011,8 @@ function renderWeekly() {
   };
 
   const kpis = [
-    { label: "Haftalık Ort. HRV", val: `${d.hrv_avg_ms ?? "--"} ms`, badge: deltaBadge(d.hrv_delta_ms ?? 0, "ms") },
-    { label: "Dinlenik Nabız", val: `${d.rhr_avg_bpm ?? "--"} bpm`, badge: deltaBadge(d.rhr_delta_bpm ?? 0, "bpm", true) },
+    { label: "Haftalık Ort. Kalp Dengesi", val: `${d.hrv_avg_ms ?? "--"} puan`, badge: deltaBadge(d.hrv_delta_ms ?? 0, "puan") },
+    { label: "Dinlenik Nabız", val: `${d.rhr_avg_bpm ?? "--"} atım/dk`, badge: deltaBadge(d.rhr_delta_bpm ?? 0, "atım/dk", true) },
     { label: "Uyku / Hazırlık", val: `${d.sleep_avg_score ?? "--"} / ${d.readiness_avg ?? "--"}`, badge: deltaBadge(d.readiness_delta ?? 0, "puan") },
     { label: "Kardiyo Mesafesi", val: `${d.distance_km ?? "--"} km`, badge: deltaBadge(d.distance_delta_km ?? 0, "km") },
     { label: "Kuvvet Seansı (6–10 kg)", val: `${d.strength_sessions ?? "--"} seans`, badge: deltaBadge(d.strength_delta ?? 0, "seans") },
@@ -2119,7 +2119,7 @@ window.renderArchive = function () {
           <span class="badge ${b.readiness_score >= 80 ? "badge-ok" : b.readiness_score >= 60 ? "badge-info" : "badge-warn"}">Hazırlık ${b.readiness_score}/100</span>
         </div>
         <div class="card-sub" style="margin-top:4px;">
-          BB ${b.body_battery_max ?? "--"} · Uyku ${b.sleep_score ?? "--"} · HRV ${b.hrv_nightly_avg ?? "--"} ms · RHR ${b.rhr ?? "--"} bpm · Solunum ${b.sleep_respiration_avg ?? "--"} · Stres ${b.sleep_stress_avg ?? "--"}
+          BB ${b.body_battery_max ?? "--"} · Uyku ${b.sleep_score ?? "--"} · Kalp Dengesi ${b.hrv_nightly_avg ?? "--"} puan · Nabız ${b.rhr ?? "--"} atım/dk · Solunum ${b.sleep_respiration_avg ?? "--"} · Stres ${b.sleep_stress_avg ?? "--"}
         </div>
         <div style="font-size:12.5px; margin-top:4px; color:#cbd5e1;">${escapeHtml(b.ai_daily_brief?.headline || "")}</div>
       </div>`
@@ -2137,8 +2137,8 @@ window.renderArchive = function () {
               <td class="mono"><strong>${b.readiness_score ?? "--"}</strong></td>
               <td class="mono">${b.body_battery_max ?? "--"}</td>
               <td class="mono">${b.sleep_score ?? "--"}</td>
-              <td class="mono">${b.hrv_nightly_avg ?? "--"} ms</td>
-              <td class="mono">${b.rhr ?? "--"} bpm</td>
+              <td class="mono">${b.hrv_nightly_avg ?? "--"} puan</td>
+              <td class="mono">${b.rhr ?? "--"} atım/dk</td>
               <td class="mono">${b.sleep_respiration_avg ?? "--"}</td>
               <td class="mono">${b.sleep_stress_avg ?? "--"}</td>
               <td class="mono">%${b.spo2_avg ?? "--"}</td>
