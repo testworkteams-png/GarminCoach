@@ -564,14 +564,12 @@ function renderActiveIntelligence3x(latest) {
 
   const recent7 = state.biometrics.slice(0, 7);
   const hrv7 = computeAvg(recent7.map((d) => d.hrv_nightly_avg));
-  const rhr7 = computeAvg(recent7.map((d) => d.rhr));
   const hrvDelta = hrv7 != null && latest.hrv_nightly_avg != null ? (latest.hrv_nightly_avg - hrv7).toFixed(1) : null;
-  const rhrDelta = rhr7 != null && latest.rhr != null ? (latest.rhr - rhr7).toFixed(1) : null;
   const flags = Array.isArray(latest.red_flags) ? latest.red_flags : [];
 
   const morningMsg = flags.length
-    ? `⚠️ ${flags[0].message}. Hazırlık skoru ${latest.readiness_score ?? "--"}/100 olsa da yoğun dambıl yüklemesi yerine Z1–Z2 yürüyüş ve hidrasyon öncelikli.`
-    : `Kalp Dengesi (HRV) ${latest.hrv_nightly_avg ?? "--"} puan (${hrvDelta != null ? (Number(hrvDelta) >= 0 ? "+" : "") + hrvDelta + " vs 7G" : "normal"}), Dinlenik Nabız ${latest.rhr ?? "--"} atım/dk (${rhrDelta != null ? (Number(rhrDelta) >= 0 ? "+" : "") + rhrDelta : "--"}). ${Number(latest.readiness_score) >= 80 ? "Yüksek yoğunluk veya 6 kg dambıl blokları için yeşil ışık." : "Kontrollü tempo önerilir."}`;
+    ? `⚠️ ${flags[0].message}. Hazırlık puanın ${latest.readiness_score ?? "--"}/100; bugün ağır ağırlık yerine hafif tempolu yürüyüş ve bol su tüketimi daha uygun.`
+    : `Gece toparlanman (kalp dengesi) ${latest.hrv_nightly_avg ?? "--"} puan${hrvDelta != null ? ` (son 7 güne göre ${Number(hrvDelta) >= 0 ? "+" : ""}${hrvDelta})` : ""}, dinlenik nabzın ${latest.rhr ?? "--"} atım/dk. ${Number(latest.readiness_score) >= 80 ? "Bugün güçlü bir antrenman için hazırsın." : "Bugün orta ve kontrollü tempoda kalman iyi olur."}`;
 
   const lastAct = state.activities[0];
   let workoutMsg = "Henüz kaydedilmiş antrenman bulunamadı.";
@@ -579,11 +577,17 @@ function renderActiveIntelligence3x(latest) {
   if (lastAct) {
     const waterMl = Number(lastAct.session_comparison?.water_ml || 260);
     const rehydMl = Math.round(waterMl * 1.5);
+    const waterCups = Math.max(1, Math.round(rehydMl / 200));
     const dist = Number(lastAct.distance_meters || 0);
     const durMin = Math.max(1, Number(lastAct.duration_seconds || 0) / 60);
     const ef = dist > 500 && lastAct.avg_hr ? ((dist / durMin) / Number(lastAct.avg_hr)).toFixed(2) : null;
+    const efNote = ef
+      ? ` Kalp-tempo uyumu: ${ef} (${Number(ef) >= 0.85 ? "iyi" : "normal"}).`
+      : lastAct.training_load != null
+        ? ` Antrenman yükü: ${lastAct.training_load}.`
+        : "";
     workoutBadge = String(lastAct.start_time_local || "").slice(5, 16).replace("T", " ");
-    workoutMsg = `${lastAct.activity_name} (${fmtDuration(lastAct.duration_seconds)}, ${lastAct.avg_hr ?? "--"} atım/dk). Ter kaybı ${waterMl} ml → %150 rehidrasyon hedefi ${rehydMl} ml.${ef ? ` Aerobik Verimlilik (Ef): ${ef}.` : ` Yük: ${lastAct.training_load ?? "--"}.`}`;
+    workoutMsg = `${lastAct.activity_name} (${fmtDuration(lastAct.duration_seconds)}, ort. ${lastAct.avg_hr ?? "--"} atım/dk). Yaklaşık ${waterMl} ml ter kaybettin → yerine koymak için ${rehydMl} ml (~${waterCups} bardak) su iç.${efNote}`;
   }
 
   const te = latest.raw_payload?.telemetry_extra || {};
@@ -592,32 +596,39 @@ function renderActiveIntelligence3x(latest) {
   const highStressPct = Math.round((te.stress_breakdown?.high_pct || 0) + (te.stress_breakdown?.med_pct || 0));
   const targetSteps = 10000;
   const remSteps = Math.max(0, targetSteps - Number(latest.steps || 0));
-  const nightMsg = `Güncel Body Battery ${bbCur}/100 · Gün içi orta/yüksek stres oranı %${highStressPct}. ${remSteps > 0 ? `10K adım için ${remSteps} adım kaldı (${w.temp_c ?? "--"}°C · ${w.dial_level || "SARI"}). ` : "Günlük adım hedefi tamamlandı! "}22:30 öncesi ekran kesip 7.5+ saat uykuya hazırlan.`;
+  const dialMapTr = {
+    "YEŞİL": "hava temiz",
+    "SARI": "hava orta",
+    "TURUNCU": "hava biraz kirli",
+    "KIRMIZI": "hava sağlıksız",
+  };
+  const aqiPlainTr = dialMapTr[String(w.dial_level || "").toLocaleUpperCase("tr-TR")] || "hava orta";
+  const nightMsg = `Kalan enerjin ${bbCur}/100 · Bugün zamanının %${highStressPct}'i stresli geçti. ${remSteps > 0 ? `10.000 adım hedefine ${remSteps.toLocaleString("tr-TR")} adım kaldı (dışarısı ${w.temp_c ?? "--"}°C, ${aqiPlainTr}). ` : "Günlük 10.000 adım hedefini tamamladın! "}22:30 öncesi ekranı bırakıp 7,5+ saat uykuya hazırlan.`;
 
   box.innerHTML = `
     <div class="intel-card" style="border-top:3px solid #00e5a3;">
       <div class="intel-card-head">
-        <div class="intel-card-title">🌅 Sabah Uyanış Analizi</div>
-        <span class="badge badge-ok mono">Hazırlık ${latest.readiness_score ?? "--"}</span>
+        <div class="intel-card-title">🌅 Sabah Durumu</div>
+        <span class="badge badge-ok mono">Hazırlık ${latest.readiness_score ?? "--"}/100</span>
       </div>
       <p class="card-sub" style="color:var(--text); line-height:1.5;">${escapeHtml(morningMsg)}</p>
-      <div class="card-sub mono">BB Maks ${latest.body_battery_max ?? "--"} · Uyku ${latest.sleep_score ?? "--"}/100</div>
+      <div class="card-sub mono">En Yüksek Enerji: ${latest.body_battery_max ?? "--"}/100 · Uyku Puanı: ${latest.sleep_score ?? "--"}/100</div>
     </div>
     <div class="intel-card" style="border-top:3px solid #38bdf8;">
       <div class="intel-card-head">
-        <div class="intel-card-title">🏃 Antrenman Sonrası İçgörü</div>
+        <div class="intel-card-title">🏃 Son Antrenman Özeti</div>
         <span class="badge badge-info mono">${escapeHtml(workoutBadge)}</span>
       </div>
       <p class="card-sub" style="color:var(--text); line-height:1.5;">${escapeHtml(workoutMsg)}</p>
-      <div class="card-sub mono">TE ${lastAct?.aerobic_te ?? "-"} Aer / ${lastAct?.anaerobic_te ?? "-"} Ana · BB ${lastAct?.session_comparison?.bb_impact ?? "--"}</div>
+      <div class="card-sub mono">Dayanıklılık etkisi: ${lastAct?.aerobic_te ?? "-"} · Güç etkisi: ${lastAct?.anaerobic_te ?? "-"} · Harcanan enerji: ${lastAct?.session_comparison?.bb_impact ?? "--"} puan</div>
     </div>
     <div class="intel-card" style="border-top:3px solid #a78bfa;">
       <div class="intel-card-head">
-        <div class="intel-card-title">🌙 Gece & Uyku Öncesi</div>
-        <span class="badge badge-warn mono">21:00+ Protokol</span>
+        <div class="intel-card-title">🌙 Akşam &amp; Uyku Hazırlığı</div>
+        <span class="badge badge-warn mono">Akşam Planı</span>
       </div>
       <p class="card-sub" style="color:var(--text); line-height:1.5;">${escapeHtml(nightMsg)}</p>
-      <div class="card-sub mono">Adım: ${(latest.steps || 0).toLocaleString("tr-TR")} · Uyku Stresi ${latest.sleep_stress_avg ?? "--"}</div>
+      <div class="card-sub mono">Bugünkü Adım: ${(latest.steps || 0).toLocaleString("tr-TR")} · Gece Uyku Stresi: ${latest.sleep_stress_avg ?? "--"}</div>
     </div>
   `;
 }
@@ -628,34 +639,51 @@ function renderCorrelationMatrix() {
   if (!grid || !state.biometrics.length) return;
 
   const rows = [...state.biometrics].reverse(); // oldest -> newest
-  if (badge) badge.textContent = `${rows.length} gün örneklem`;
+  if (badge) badge.textContent = `${rows.length} günlük veri`;
 
   const pairsList = [
     {
-      title: "Uyku Stresi ↔ Gece HRV",
-      desc: "Düşük uyku stresi daha yüksek toparlayıcı HRV ile eşleşiyor mu?",
+      title: "Gece Stresi → Gece Toparlanması",
       res: computePearsonCorr(rows.map((d) => [Number(d.sleep_stress_avg), Number(d.hrv_nightly_avg)])),
       goodSign: -1,
+      getInsight: (r) => {
+        if (r <= -0.35) return "Gece stresin düştükçe vücudun gece daha iyi toparlanıyor. Akşam sakinliği doğrudan fayda sağlıyor.";
+        if (r >= 0.35) return "Stresli gecelerde toparlanma puanın beklenmedik şekilde yüksek kalmış veya veri karışık görünüyor.";
+        return "Gece stresi ile uyku toparlanması arasında şu an belirgin bir bağ görünmüyor.";
+      },
     },
     {
-      title: "Body Battery Şarjı ↔ Sabah Hazırlık",
-      desc: "Gece kazanılan BB enerjisi sabah skorunu ne kadar belirliyor?",
+      title: "Gece Enerji Şarjı → Sabah Zindeliği",
       res: computePearsonCorr(rows.map((d) => [Number(d.body_battery_charged ?? d.body_battery_max), Number(d.readiness_score)])),
       goodSign: 1,
+      getInsight: (r) => {
+        if (r >= 0.35) return "Gece enerjin ne kadar iyi dolarsa sabah zindeliğin de o kadar yüksek oluyor.";
+        if (r <= -0.35) return "Gece enerji şarjın artmasına rağmen sabah zindeliğin düşmüş görünüyor; uyku kalitesi etkili olabilir.";
+        return "Gece enerji şarjı ile sabah zindeliği arasında şu an net bir bağ görünmüyor.";
+      },
     },
     {
-      title: "Uyku Süresi (Saat) ↔ Sabah Hazırlık",
-      desc: "Toplam uyku süresi hazırlık puanına nasıl yansıyor?",
+      title: "Uyku Süresi → Sabah Zindeliği",
       res: computePearsonCorr(rows.map((d) => [d.sleep_seconds != null ? d.sleep_seconds / 3600 : NaN, Number(d.readiness_score)])),
       goodSign: 1,
+      getInsight: (r) => {
+        if (r >= 0.35) return "Uyku süren uzadıkça sabah kendini daha zinde ve hazır hissediyorsun.";
+        if (r <= -0.35) return "Uzun uyuduğun günlerde bile sabah yorgun kalkabiliyorsun; uyku kalitesi süreden daha önemli olabilir.";
+        return "Uyku süresi tek başına sabah zindeliğini belirgin şekilde değiştirmiyor.";
+      },
     },
     {
-      title: "Günlük Adım ↔ Ertesi Gün RHR",
-      desc: "Adım hacmi arttığında ertesi sabah dinlenik nabız nasıl tepki veriyor?",
+      title: "Günlük Adım → Ertesi Sabah Nabzı",
       res: computePearsonCorr(
         rows.slice(0, -1).map((d, i) => [Number(d.steps), Number(rows[i + 1]?.rhr)])
       ),
       goodSign: -1,
+      getInsight: (r) => {
+        if (r <= -0.35) return "Daha çok yürüdüğün günlerin ertesi sabahı nabzın düşüyor; hareket vücudunu iyi destekliyor.";
+        if (r >= 0.35) return "Yoğun adım attığın günlerin ertesi sabahı nabzın biraz yükseliyor; vücut ekstra dinlenme istiyor olabilir.";
+        if (r >= 0.2) return "Adım arttığında ertesi sabah nabzın hafif yükselebiliyor ama belirgin bir yorgunluk işareti yok.";
+        return "Günlük adım sayısı ertesi sabah dinlenik nabzını belirgin şekilde değiştirmiyor.";
+      },
     },
   ];
 
@@ -663,27 +691,26 @@ function renderCorrelationMatrix() {
     .map((item) => {
       const r = item.res.r;
       if (r == null) {
-        return `<div class="corr-card"><div class="corr-head"><strong>${escapeHtml(item.title)}</strong><span class="mono">--</span></div><p class="card-sub">Yeterli veri yok (min 3 gün).</p></div>`;
+        return `<div class="corr-card"><div class="corr-head"><strong>${escapeHtml(item.title)}</strong><span class="mono">--</span></div><p class="card-sub">Yeterli veri yok (en az 3 günlük kayıt gerekir).</p></div>`;
       }
       const absR = Math.abs(r);
-      const strength = absR >= 0.6 ? "Güçlü" : absR >= 0.35 ? "Orta" : "Zayıf";
-      const dir = r >= 0 ? "Pozitif İlişki" : "Ters İlişki";
+      const strength = absR >= 0.6 ? "Güçlü Etki" : absR >= 0.35 ? "Orta Etki" : absR >= 0.2 ? "Zayıf Etki" : "Belirgin Etki Yok";
       const aligned = r * item.goodSign > 0;
       const color = absR < 0.2 ? "#94a3b8" : aligned ? "#00e5a3" : "#f59e0b";
       return `
         <div class="corr-card">
           <div class="corr-head">
             <strong style="font-size:13px;">${escapeHtml(item.title)}</strong>
-            <span class="corr-r mono" style="color:${color};">r = ${r >= 0 ? "+" : ""}${r.toFixed(2)}</span>
+            <span class="corr-r mono" style="color:${color}; white-space:nowrap;">Etki: %${Math.round(absR * 100)}</span>
           </div>
           <div class="bar-track" style="margin-bottom:6px;">
             <div class="bar-fill" style="width:${Math.round(absR * 100)}%; background:${color};"></div>
           </div>
           <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
-            <span style="color:${color}; font-weight:600;">${strength} · ${dir}</span>
-            <span class="card-sub mono">n = ${item.res.n} gün</span>
+            <span style="color:${color}; font-weight:600;">${strength}</span>
+            <span class="card-sub mono">${item.res.n} günlük veri</span>
           </div>
-          <p class="card-sub">${escapeHtml(item.desc)}</p>
+          <p class="card-sub" style="color:var(--text-secondary); line-height:1.45;">${escapeHtml(item.getInsight(r))}</p>
         </div>
       `;
     })
