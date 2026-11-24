@@ -117,14 +117,14 @@
 
       <!-- RED ALERT BANNER -->
       <div id="red-alert-banner" class="alert-banner hidden">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <span style="font-size:22px;">🚨</span>
+        <div style="display:flex; align-items:flex-start; gap:12px; flex:1; min-width:240px;">
+          <span id="red-alert-icon" style="font-size:22px; flex-shrink:0;">⚠️</span>
           <div>
-            <div style="font-weight:800; color:#fca5a5;">Kırmızı Alarm: Kişisel Fizyolojik Eşikler Aşıldı</div>
-            <div id="red-alert-text" style="font-size:13px; color:#fecaca;"></div>
+            <div id="red-alert-title" style="font-weight:800;">Fizyolojik Dikkat Uyarısı</div>
+            <div id="red-alert-text" class="alert-flag-list"></div>
           </div>
         </div>
-        <span class="badge badge-crit">Yüksek Yük Pas</span>
+        <span id="red-alert-badge" class="badge badge-warn" style="flex-shrink:0;">Kontrollü Tempo</span>
       </div>
 
       <!-- TAB 1: DASHBOARD -->

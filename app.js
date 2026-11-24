@@ -245,19 +245,76 @@ function renderSleepDebtAndBedtime() {
   `;
 }
 
+function describeRedFlag(f) {
+  const val = f?.value != null ? f.value : "--";
+  const thr = f?.threshold != null ? f.threshold : "--";
+  const m = String(f?.metric || "").toUpperCase();
+  if (m === "SLEEP_STRESS") {
+    return `Uyku Stresi ${val} (Eşik ≥${thr}): Gece sinir sistemi tam gevşeyememiş (geç akşam yemeği, kafein veya birikmiş yorgunluk etkisi olabilir). Bugün zorlayıcı setlerden kaçınıp Z2 yürüyüş ve erken uyku hedefle.`;
+  }
+  if (m === "RHR") {
+    return `Dinlenik Nabız ${val} bpm (Eşik ≥${thr} bpm): Kalp normal bazın üzerinde çalışıyor; yorgunluk veya başlangıç aşamasında stres/enfeksiyon göstergesi olabilir. Yüksek nabızlı yüklenmeyi ertele.`;
+  }
+  if (m === "HRV") {
+    return `Gece HRV ${val} ms (Eşik ≤${thr} ms): Parasempatik toparlanma baskılanmış. Ağırlık/sprint yükünü düşürüp hafif mobilite, esneme ve ek dinlenmeye odaklan.`;
+  }
+  if (m === "RESP") {
+    return `Gece Solunumu ${val} brpm (Eşik ≥${thr} brpm): Solunum hızı bazın üstünde seyretmiş; uyku kalitesi ve toparlanma verimi düşmüş olabilir. Kontrollü tempoda kal.`;
+  }
+  if (m === "SKIN_TEMP") {
+    return `Deri Sıcaklığı +${val}°C (Eşik ≥+${thr}°C): Vücut ısısı sapması normalden yüksek; olası inflamasyon veya hastalık sinyali olabilir. Ağırlık yükünü hafifletip sıvı alımını artır.`;
+  }
+  if (m === "SPO2") {
+    return `Gece SpO2 %${val} (Eşik ≤%${thr}): Oksijen satürasyonu kişisel eşiğin altında kalmış; oda havalandırması veya yorgunluk etkili olabilir. Açık havada Z2 tempoyu aşma.`;
+  }
+  return `${f?.message || "Fizyolojik eşik aşıldı"}: Bugün antrenman şiddetini vücut sinyaline göre bir kademe düşür.`;
+}
+
 function renderDashboard() {
   const latest = state.biometrics[0];
   const s = state.settings || {};
   if (!latest) return;
 
-  // Red Alert Banner
+  // Red / Warn Alert Banner
   const banner = document.getElementById("red-alert-banner");
+  const iconEl = document.getElementById("red-alert-icon");
+  const titleEl = document.getElementById("red-alert-title");
+  const textEl = document.getElementById("red-alert-text");
+  const badgeEl = document.getElementById("red-alert-badge");
   const flags = Array.isArray(latest.red_flags) ? latest.red_flags : [];
+
   if (flags.length > 0) {
+    const isCritical = flags.some((f) => f.severity === "CRITICAL") || flags.length >= 3;
     banner.classList.remove("hidden");
-    document.getElementById("red-alert-text").textContent = flags.map((f) => f.message).join(" · ");
+    banner.classList.toggle("alert-warn", !isCritical);
+    if (iconEl) iconEl.textContent = isCritical ? "🚨" : "⚠️";
+    if (titleEl) {
+      titleEl.textContent = isCritical
+        ? `Kritik Toparlanma Alarmı · ${flags.length} Eşik Aşıldı`
+        : `Fizyolojik Dikkat Uyarısı · ${flags.length} Metrik Eşik Dışında`;
+    }
+    if (badgeEl) {
+      badgeEl.className = `badge ${isCritical ? "badge-crit" : "badge-warn"}`;
+      badgeEl.textContent = isCritical
+        ? "Aktif Dinlenme Günü"
+        : flags.length === 1
+          ? "Kontrollü Tempo"
+          : "Hafif Antrenman";
+    }
+    if (textEl) {
+      textEl.innerHTML = flags
+        .map((f) => {
+          const full = describeRedFlag(f);
+          const idx = full.indexOf(":");
+          const head = idx > 0 ? full.slice(0, idx + 1) : "";
+          const body = idx > 0 ? full.slice(idx + 1) : full;
+          return `<div class="alert-flag-item">${head ? `<strong>${escapeHtml(head)}</strong>` : ""}${escapeHtml(body)}</div>`;
+        })
+        .join("");
+    }
   } else {
     banner.classList.add("hidden");
+    banner.classList.remove("alert-warn");
   }
 
   // Dual Ring Readiness & Body Battery
