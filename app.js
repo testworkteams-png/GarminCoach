@@ -111,6 +111,20 @@ function fmtIstanbulDateTime(isoStr) {
     .replace(",", "");
 }
 
+function fmtDateDmy(val) {
+  if (!val) return "--.--.----";
+  if (val instanceof Date) {
+    return new Intl.DateTimeFormat("tr-TR", {
+      timeZone: "Europe/Istanbul",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(val);
+  }
+  const m = String(val).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : String(val);
+}
+
 function startIstanbulClock() {
   const tick = () => {
     const t = new Intl.DateTimeFormat("tr-TR", {
@@ -119,7 +133,7 @@ function startIstanbulClock() {
       minute: "2-digit",
     }).format(new Date());
     const el = document.getElementById("pill-clock");
-    if (el) el.textContent = `${t} TRT`;
+    if (el) el.textContent = t;
   };
   tick();
   setInterval(tick, 15000);
@@ -268,13 +282,17 @@ function renderTopbar() {
       DEFAULT: "Varsayılan",
     };
     const srcLabel = srcMap[s.location_source] || "Varsayılan";
-    document.getElementById("pill-location").textContent = `📍 ${s.active_city || s.default_city || "--"} (${srcLabel})`;
+    const locEl = document.getElementById("pill-location");
+    if (locEl) {
+      locEl.textContent = `📍 ${s.active_city || s.default_city || "--"}`;
+      locEl.title = `Konum Kaynağı: ${srcLabel} · Yenilemek için tıklayın`;
+    }
   }
   if (latest) {
-    document.getElementById("pill-date").textContent = latest.log_date;
+    document.getElementById("pill-date").textContent = fmtDateDmy(latest.log_date);
     document.getElementById("side-readiness-chip").textContent = `${latest.readiness_score ?? "--"}/100`;
   } else {
-    document.getElementById("pill-date").textContent = new Date().toISOString().slice(0, 10);
+    document.getElementById("pill-date").textContent = fmtDateDmy(new Date());
     document.getElementById("side-readiness-chip").textContent = "--/100";
   }
 }

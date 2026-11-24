@@ -236,7 +236,10 @@
       catBadge.textContent = `${meta.icon} ${meta.text}`;
       catBadge.className = `badge ${meta.cls}`;
     }
-    if (dateBadge) dateBadge.textContent = ins.date || "--";
+    if (dateBadge) {
+      const m = String(ins.date || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+      dateBadge.textContent = m ? `${m[3]}.${m[2]}.${m[1]}` : (ins.date || "--.--.----");
+    }
     titleEl.textContent = ins.title || "Günlük AI Özeti";
     summaryEl.textContent = ins.summary || "--";
 

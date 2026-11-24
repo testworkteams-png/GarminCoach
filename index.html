@@ -121,30 +121,36 @@
     <main class="main-area">
       <!-- TOP TELEMETRY RIBBON -->
       <header class="telemetry-ribbon">
-        <div class="ribbon-left">
-          <div class="ribbon-title" id="page-title">Sabah Biyometri & Akşam Hava Kokpiti</div>
-          <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
-          <span class="pill" id="mobile-watch-pill" onclick="openWatchSettings()" style="cursor:pointer;" title="Saat modelini düzenlemek için tıklayın">⌚ Garmin Saat</span>
-        </div>
-        <div class="ribbon-right">
-          <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
-          <span class="pill" id="pill-theme" onclick="openThemeSettings()" style="cursor:pointer;" title="Aktif Tema (Özel Gün & Canlı Hava) · Değiştirmek için tıklayın">🎨 Otomatik</span>
-          <span class="pill mono" id="pill-date">--</span>
-          <span class="pill mono" id="pill-clock">--:-- TRT</span>
-          <div class="notif-wrap">
-            <button type="button" class="btn btn-sm notif-bell-btn" id="btn-notif-bell" onclick="toggleNotifDrawer()" title="Bildirim Gelen Kutusu">🔔 <span id="notif-unread-badge" class="badge badge-crit hidden" style="padding:1px 6px; font-size:10px;">0</span></button>
-            <div id="notif-drawer" class="notif-drawer hidden">
-              <div class="notif-drawer-head">
-                <strong>🔔 Bildirim Gelen Kutusu</strong>
-                <button type="button" class="btn btn-sm" onclick="markAllNotifsRead()">✓ Tümünü Oku</button>
-              </div>
-              <div id="notif-list" class="notif-list">
-                <p class="card-sub">Henüz bildirim yok.</p>
-              </div>
+        <div class="ribbon-top">
+          <div class="ribbon-heading">
+            <div class="ribbon-title" id="page-title">Sabah Biyometri & Akşam Hava Kokpiti</div>
+            <div class="ribbon-sub-meta">
+              <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
+              <span class="pill" id="mobile-watch-pill" onclick="openWatchSettings()" style="cursor:pointer;" title="Saat modelini düzenlemek için tıklayın">⌚ Garmin Saat</span>
+              <span class="pill mono" id="pill-date">--.--.----</span>
+              <span class="pill mono" id="pill-clock">--:--</span>
             </div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">↻ Senkronize Et</button>
-          <button class="btn btn-sm" onclick="logoutApp()" title="Oturumu Kapat / Çıkış Yap">🔒 <span id="pill-auth-user">Hesabım</span> · Çıkış</button>
+          <div class="ribbon-actions">
+            <div class="notif-wrap">
+              <button type="button" class="btn btn-sm notif-bell-btn" id="btn-notif-bell" onclick="toggleNotifDrawer()" title="Bildirim Gelen Kutusu">🔔 <span id="notif-unread-badge" class="badge badge-crit hidden" style="padding:1px 6px; font-size:10px;">0</span></button>
+              <div id="notif-drawer" class="notif-drawer hidden">
+                <div class="notif-drawer-head">
+                  <strong>🔔 Bildirim Gelen Kutusu</strong>
+                  <button type="button" class="btn btn-sm" onclick="markAllNotifsRead()">✓ Tümünü Oku</button>
+                </div>
+                <div id="notif-list" class="notif-list">
+                  <p class="card-sub">Henüz bildirim yok.</p>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)" title="Senkronize Et">↻ <span class="hide-sm">Senkronize Et</span></button>
+            <button type="button" class="btn btn-sm" onclick="logoutApp()" title="Oturumu Kapat / Çıkış Yap">🔒<span class="hide-sm"> <span id="pill-auth-user">Hesabım</span> · Çıkış</span></button>
+          </div>
+        </div>
+        <div class="ribbon-context">
+          <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
+          <span class="pill" id="pill-theme" onclick="openThemeSettings()" style="cursor:pointer;" title="Aktif Tema (Özel Gün & Canlı Hava) · Değiştirmek için tıklayın">🎨 Otomatik</span>
         </div>
       </header>
 
