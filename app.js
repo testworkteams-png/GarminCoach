@@ -250,40 +250,6 @@ function renderTopbar() {
   const mobileWatchEl = document.getElementById("mobile-watch-pill");
   if (mobileWatchEl) mobileWatchEl.textContent = watchTxt;
 
-  const bbRaw = latest?.raw_payload?.telemetry_extra?.bb_current ?? latest?.body_battery_min ?? latest?.body_battery_max;
-  let batText = "🔋 Pil: --";
-  let mobBatText = "🔋 --";
-  let batClass = "";
-
-  if (dev?.battery_level != null && Number.isFinite(Number(dev.battery_level))) {
-    const lvl = Math.round(Number(dev.battery_level));
-    batClass = lvl >= 50 ? "bat-ok" : lvl >= 20 ? "bat-warn" : "bat-low";
-    batText = `${lvl < 20 ? "🪫" : "🔋"} Saat %${lvl}`;
-    mobBatText = batText;
-  } else if (dev?.battery_status) {
-    const stUp = String(dev.battery_status).toUpperCase();
-    const isLow = stUp === "LOW" || stUp === "CRITICAL";
-    batClass = isLow ? "bat-low" : "bat-ok";
-    batText = isLow ? "🪫 Saat: Düşük" : "🔋 Saat: İyi";
-    mobBatText = batText;
-  } else if (bbRaw != null && Number.isFinite(Number(bbRaw))) {
-    const bb = Math.round(Number(bbRaw));
-    batClass = bb >= 50 ? "bat-ok" : bb >= 25 ? "bat-warn" : "bat-low";
-    batText = `🔋 Vücut Pili %${bb}`;
-    mobBatText = batText;
-  }
-
-  const brandBatEl = document.getElementById("brand-watch-battery");
-  if (brandBatEl) {
-    brandBatEl.textContent = batText;
-    brandBatEl.className = `brand-battery mono${batClass ? ` ${batClass}` : ""}`;
-  }
-  const mobBatEl = document.getElementById("mobile-battery-pill");
-  if (mobBatEl) {
-    mobBatEl.textContent = mobBatText;
-    mobBatEl.className = `pill mono${batClass ? ` ${batClass}` : ""}`;
-  }
-
   const dashPanel = document.getElementById("tab-dashboard");
   const titleEl = document.getElementById("page-title");
   if (titleEl && dashPanel?.classList.contains("active") && firstName) {
@@ -3184,18 +3150,8 @@ window.logoutApp = async function () {
   window.__GC_FIRST_NAME = "";
   const brandEl = document.getElementById("brand-watch-label");
   if (brandEl) brandEl.textContent = "⌚ Garmin Saat Bağlanıyor";
-  const brandBatEl = document.getElementById("brand-watch-battery");
-  if (brandBatEl) {
-    brandBatEl.textContent = "🔋 Pil: --";
-    brandBatEl.className = "brand-battery mono";
-  }
   const mWatchEl = document.getElementById("mobile-watch-pill");
   if (mWatchEl) mWatchEl.textContent = "⌚ Garmin Saat";
-  const mBatEl = document.getElementById("mobile-battery-pill");
-  if (mBatEl) {
-    mBatEl.textContent = "🔋 --";
-    mBatEl.className = "pill mono";
-  }
   const sideNameEl = document.getElementById("side-athlete-name");
   if (sideNameEl) sideNameEl.textContent = "Sporcu Profili";
   const titleEl = document.getElementById("page-title");
