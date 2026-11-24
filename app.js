@@ -2983,23 +2983,32 @@ window.switchAuthMode = function (mode) {
   }
 };
 
+function hideBootSplash() {
+  const splash = document.getElementById("app-boot-splash");
+  if (!splash || splash.classList.contains("hidden")) return;
+  splash.classList.add("fade-out");
+  setTimeout(() => splash.classList.add("hidden"), 260);
+}
+
 async function initAuthGate() {
   const overlay = document.getElementById("auth-gate-overlay");
-  if (overlay) overlay.classList.remove("hidden");
-  switchAuthMode("login");
-
+  const bootSub = document.getElementById("boot-splash-text");
   const saved = getSavedAuthSession();
+
   if (saved?.access_token && saved?.refresh_token) {
-    const hintEl = document.getElementById("auth-default-hint");
-    if (hintEl) hintEl.textContent = "Kayıtlı oturum doğrulanıyor...";
+    if (bootSub) bootSub.textContent = "Oturum doğrulanıyor...";
     try {
       await completeAuthSuccess(saved, Boolean(saved.remembered));
+      hideBootSplash();
       return;
     } catch (_) {
       clearAuthSession();
-      switchAuthMode("login");
     }
   }
+
+  if (overlay) overlay.classList.remove("hidden");
+  switchAuthMode("login");
+  hideBootSplash();
 }
 
 window.submitAppLogin = async function (ev) {
@@ -3261,21 +3270,37 @@ function initPullToRefresh() {
     { passive: true }
   );
 
-  const onEnd = () => {
+  const onEnd = async () => {
     if (!pulling || reloading) return;
     const shouldRefresh = ready;
-    if (shouldRefresh) {
-      reloading = true;
-      pulling = false;
-      ready = false;
-      ind.classList.remove("ptr-ready");
-      ind.classList.add("ptr-refreshing");
-      ind.style.opacity = "1";
-      ind.style.transform = "translate(-50%, 16px)";
-      ind.textContent = "↻ Yenileniyor...";
-      window.__GC_SW_REG?.update?.().catch(() => {});
+    if (!shouldRefresh) {
+      resetIndicator();
+      return;
+    }
+
+    reloading = true;
+    pulling = false;
+    ready = false;
+    ind.classList.remove("ptr-ready");
+    ind.classList.add("ptr-refreshing");
+    ind.style.opacity = "1";
+    ind.style.transform = "translate(-50%, 16px)";
+    ind.textContent = "↻ Yenileniyor...";
+    window.__GC_SW_REG?.update?.().catch(() => {});
+
+    if (!state.auth?.authenticated) {
       setTimeout(() => window.location.reload(), 180);
-    } else {
+      return;
+    }
+
+    try {
+      await loadAllData();
+      showToast("✓ Veriler güncellendi");
+    } catch (_) {
+      showToast("Yenileme tamamlanamadı.");
+    } finally {
+      reloading = false;
+      ind.classList.remove("ptr-refreshing");
       resetIndicator();
     }
   };
@@ -3333,6 +3358,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initPullToRefresh();
   initCapacitorBackButton();
   initAuthGate();
+  setTimeout(hideBootSplash, 10000);
   document.addEventListener("click", (e) => {
     const drawer = document.getElementById("notif-drawer");
     if (drawer && !drawer.classList.contains("hidden") && !e.target.closest(".notif-wrap")) {

@@ -2306,3 +2306,66 @@ html[data-theme="weather_sunny"] .ptr-indicator {
   border-color: rgba(15, 23, 42, 0.2);
 }
 
+/* Native-Style Boot Splash Screen */
+.app-boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: opacity 0.25s ease;
+}
+
+.app-boot-splash.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-logo-wrap {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boot-spinner {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(148, 163, 184, 0.16);
+  border-top-color: var(--emerald);
+  border-right-color: var(--cyan);
+  animation: bootSpin 0.85s linear infinite;
+}
+
+@keyframes bootSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.boot-mark {
+  width: 52px;
+  height: 52px;
+  font-size: 18px;
+}
+
+.boot-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.boot-sub {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
