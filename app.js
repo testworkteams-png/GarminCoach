@@ -144,6 +144,11 @@ async function loadAllData() {
   if (logsRes.data) state.syncLogs = logsRes.data;
 
   renderAll();
+
+  if (!state._autoGpsChecked && state.settings && !state.settings.manual_city_override && state.settings.location_source === "DEFAULT") {
+    state._autoGpsChecked = true;
+    detectLiveBrowserGps(true);
+  }
 }
 
 function renderAll() {
@@ -162,7 +167,14 @@ function renderTopbar() {
     const age = new Date().getFullYear() - (s.birth_year || 1988);
     document.getElementById("side-athlete-sub").textContent =
       `${s.birth_year} (${age} yaş) · ${s.base_rhr} bpm · ${s.base_hrv_min}–${s.base_hrv_max} ms`;
-    const srcLabel = s.location_source === "MANUAL" ? "Manuel" : s.location_source === "GPS_ACTIVITY" ? "GPS >15km" : "Varsayılan";
+    const srcMap = {
+      LIVE_GPS: "Canlı GPS",
+      GARMIN_GPS: "Garmin GPS",
+      GPS_ACTIVITY: "Garmin GPS",
+      MANUAL: "Manuel",
+      DEFAULT: "Varsayılan",
+    };
+    const srcLabel = srcMap[s.location_source] || "Varsayılan";
     document.getElementById("pill-location").textContent = `📍 ${s.active_city} (${srcLabel})`;
   }
   if (latest) {
@@ -2107,6 +2119,22 @@ function renderSettings() {
       authBadgeEl.textContent = isCustom ? `Özel Şifre Aktif (${activeUser})` : "Varsayılan Giriş";
       authBadgeEl.className = `badge ${isCustom ? "badge-ok" : "badge-info"} mono`;
     }
+
+    const gpsReadoutEl = document.getElementById("settings-gps-readout");
+    if (gpsReadoutEl) {
+      const srcMap = {
+        LIVE_GPS: "Canlı Cihaz GPS",
+        GARMIN_GPS: "Son Garmin Saat GPS",
+        GPS_ACTIVITY: "Garmin GPS",
+        MANUAL: "Manuel Şehir",
+        DEFAULT: "Varsayılan",
+      };
+      const srcTxt = srcMap[s.location_source] || s.location_source || "Varsayılan";
+      const latTxt = s.active_lat != null ? Number(s.active_lat).toFixed(5) : "--";
+      const lonTxt = s.active_lon != null ? Number(s.active_lon).toFixed(5) : "--";
+      const liveAcc = s.weather_cache?.live_gps?.accuracy ? ` · ±${s.weather_cache.live_gps.accuracy}m` : "";
+      gpsReadoutEl.innerHTML = `<strong>Aktif Konum:</strong> ${escapeHtml(s.active_city || "Ümraniye")} · <span class="mono">${latTxt}, ${lonTxt}</span> · Kaynak: <strong>${escapeHtml(srcTxt)}</strong>${escapeHtml(liveAcc)}`;
+    }
   }
 
   document.getElementById("sync-logs-table").innerHTML = `
@@ -2143,7 +2171,109 @@ window.triggerEngine = async function (action, force = false) {
   }
 };
 
+window.useLatestGarminGps = async function (silent = false) {
+  try {
+    if (!silent) showToast("Son Garmin GPS koordinatı alınıyor...");
+    document.getElementById("inp-city").value = "";
+    const res = await fetch(ENGINE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "update_settings",
+        manual_city_override: null,
+        use_garmin_gps: true,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.error || "Garmin GPS hatası");
+    await loadAllData();
+    if (!silent) showToast(`Garmin GPS konumu: ${json.loc?.active_city || "Ümraniye"}`);
+  } catch (err) {
+    if (!silent) showToast(`Konum hatası: ${err.message}`);
+  }
+};
+
+async function reverseGeocodeClientTr(lat, lon) {
+  try {
+    const r = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=tr`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (r.ok) {
+      const g = await r.json();
+      const admins = g?.localityInfo?.administrative || [];
+      const district = admins.find((x) => x?.adminLevel === 6)?.name || "";
+      const city = admins.find((x) => x?.adminLevel === 4)?.name || g?.city || g?.principalSubdivision || "";
+      const locality = g?.locality || "";
+      if (locality && district && locality !== district) return `${locality}, ${district}`;
+      if (district && city && district !== city) return `${district}, ${city}`;
+      if (district || locality || city) return String(district || locality || city);
+    }
+  } catch (_) {}
+
+  try {
+    const pr = await fetch(
+      `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (pr.ok) {
+      const ph = await pr.json();
+      const p = ph?.features?.[0]?.properties || {};
+      const sub = p.district || p.locality || "";
+      const dist = p.city || p.county || p.state || "";
+      if (sub && dist && sub !== dist) return `${sub}, ${dist}`;
+      if (dist || sub) return String(dist || sub);
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+window.detectLiveBrowserGps = async function (silent = false) {
+  if (!("geolocation" in navigator)) {
+    if (!silent) showToast("Tarayıcı GPS desteklemiyor; son Garmin GPS kullanılıyor.");
+    await useLatestGarminGps(silent);
+    return;
+  }
+  if (!silent) showToast("Cihazın canlı GPS konumu alınıyor...");
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      try {
+        document.getElementById("inp-city").value = "";
+        const live_city = await reverseGeocodeClientTr(pos.coords.latitude, pos.coords.longitude);
+        const res = await fetch(ENGINE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update_settings",
+            manual_city_override: null,
+            live_lat: pos.coords.latitude,
+            live_lon: pos.coords.longitude,
+            live_city,
+            live_accuracy: Math.round(pos.coords.accuracy || 0),
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || json.ok === false) throw new Error(json.error || "Konum güncellenemedi");
+        await loadAllData();
+        if (!silent) showToast(`Canlı GPS konumu: ${json.loc?.active_city || "Güncellendi"}`);
+      } catch (err) {
+        if (!silent) showToast(`Canlı konum hatası: ${err.message}`);
+      }
+    },
+    async () => {
+      if (!silent) showToast("Tarayıcı konum izni verilmedi; son Garmin GPS konumuna geçildi.");
+      await useLatestGarminGps(silent);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
+};
+
 window.quickSetCity = async function (city) {
+  if (!city) {
+    await detectLiveBrowserGps(false);
+    return;
+  }
   document.getElementById("inp-city").value = city;
   await saveSettings(new Event("submit"));
 };

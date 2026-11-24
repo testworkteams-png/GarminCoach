@@ -107,7 +107,7 @@
           <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
         </div>
         <div class="ribbon-right">
-          <span class="pill" id="pill-location">📍 Yükleniyor...</span>
+          <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
           <span class="pill mono" id="pill-date">--</span>
           <span class="pill mono" id="pill-clock">--:-- TRT</span>
           <button class="btn btn-primary btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)">↻ Senkronize Et</button>
@@ -687,16 +687,18 @@
             <div class="card-header">
               <div>
                 <div class="card-title">Hibrit Konum & Kişisel Eşikler (Ayarlar!B2)</div>
-                <div class="card-sub">1. Manuel Şehir → 2. Son 5G GPS &gt;15 km → 3. Varsayılan Ümraniye</div>
+                <div class="card-sub">1. Canlı Cihaz GPS (Tarayıcı/Telefon) → 2. Son Garmin GPS Koordinatı → 3. Manuel Şehir</div>
               </div>
             </div>
+            <div id="settings-gps-readout" class="best-slot-banner" style="margin-top:0; margin-bottom:12px;">Konum bilgisi yükleniyor...</div>
             <div class="chip-group" style="margin-bottom:12px;">
-              <button class="chip" onclick="quickSetCity('')">Otomatik (Ümraniye/GPS)</button>
-              <button class="chip" onclick="quickSetCity('Kadıköy')">Kadıköy</button>
-              <button class="chip" onclick="quickSetCity('Beşiktaş')">Beşiktaş</button>
-              <button class="chip" onclick="quickSetCity('Ankara')">Ankara</button>
-              <button class="chip" onclick="quickSetCity('İzmir')">İzmir</button>
-              <button class="chip" onclick="quickSetCity('Antalya')">Antalya</button>
+              <button type="button" class="chip" onclick="detectLiveBrowserGps()">📡 Canlı Cihaz GPS (Otomatik)</button>
+              <button type="button" class="chip" onclick="useLatestGarminGps()">⌚ Son Garmin Saat GPS</button>
+              <button type="button" class="chip" onclick="quickSetCity('Kadıköy')">Kadıköy</button>
+              <button type="button" class="chip" onclick="quickSetCity('Beşiktaş')">Beşiktaş</button>
+              <button type="button" class="chip" onclick="quickSetCity('Ankara')">Ankara</button>
+              <button type="button" class="chip" onclick="quickSetCity('İzmir')">İzmir</button>
+              <button type="button" class="chip" onclick="quickSetCity('Antalya')">Antalya</button>
             </div>
             <form id="settings-form" class="form-grid" onsubmit="saveSettings(event)">
               <div class="field"><label for="inp-city">Manuel Şehir Override</label><input id="inp-city" placeholder="Boş = GPS >15km veya Ümraniye" /></div>
