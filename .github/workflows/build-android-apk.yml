@@ -2,23 +2,9 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'index.html'
-      - 'styles.css'
-      - 'app.js'
-      - 'ai-insights.js'
-      - 'theme-engine.js'
-      - 'sw.js'
-      - 'manifest.json'
-      - 'icon.svg'
-      - 'package.json'
-      - 'capacitor.config.json'
-      - '.github/workflows/build-android-apk.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-apk:
@@ -96,15 +82,4 @@ jobs:
         with:
           name: GarminCoach-Pro-APK
           path: GarminCoach-Pro.apk
-
-      - name: Publish GitHub Release (latest-apk)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if gh release view latest-apk >/dev/null 2>&1; then
-            gh release upload latest-apk GarminCoach-Pro.apk --clobber
-          else
-            gh release create latest-apk GarminCoach-Pro.apk \
-              --title "GarminCoach Pro Android APK" \
-              --notes "Otomatik derlenen GarminCoach Pro Android APK (Active Intelligence AI + Yerel Bildirimler)."
-          fi
+          retention-days: 14
