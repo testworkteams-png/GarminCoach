@@ -3175,10 +3175,145 @@ window.logoutApp = async function () {
   initAuthGate();
 };
 
+function initPullToRefresh() {
+  const ind = document.getElementById("ptr-indicator");
+  if (!ind) return;
+
+  let startX = 0;
+  let startY = 0;
+  let pulling = false;
+  let ready = false;
+  let reloading = false;
+
+  const getScrollTop = () => window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+  const resetIndicator = () => {
+    pulling = false;
+    ready = false;
+    ind.classList.remove("ptr-ready");
+    if (!reloading) {
+      ind.style.opacity = "0";
+      ind.style.transform = "translate(-50%, -60px)";
+      ind.textContent = "↓ Yenilemek için çek";
+    }
+  };
+
+  document.addEventListener(
+    "touchstart",
+    (e) => {
+      if (reloading || e.touches.length !== 1 || getScrollTop() > 2) {
+        pulling = false;
+        return;
+      }
+      if (e.target.closest("#activity-map, .leaflet-container, .modal-backdrop.open, #notif-drawer, .hourly-strip, .table-wrap, input, textarea, select")) {
+        pulling = false;
+        return;
+      }
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      pulling = true;
+      ready = false;
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!pulling || reloading || e.touches.length !== 1) return;
+      if (getScrollTop() > 2) {
+        resetIndicator();
+        return;
+      }
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (dy <= 14 || dy <= Math.abs(dx) * 1.4) {
+        if (dy < -10) resetIndicator();
+        return;
+      }
+
+      const clamped = Math.min(80, Math.round(dy * 0.55));
+      const opacity = Math.min(1, Number((dy / 65).toFixed(2)));
+      ready = dy >= 72;
+      ind.style.opacity = String(opacity);
+      ind.style.transform = `translate(-50%, ${clamped - 24}px)`;
+      ind.classList.toggle("ptr-ready", ready);
+      ind.textContent = ready ? "↻ Bırak, yenilensin" : "↓ Yenilemek için çek";
+    },
+    { passive: true }
+  );
+
+  const onEnd = () => {
+    if (!pulling || reloading) return;
+    const shouldRefresh = ready;
+    if (shouldRefresh) {
+      reloading = true;
+      pulling = false;
+      ready = false;
+      ind.classList.remove("ptr-ready");
+      ind.classList.add("ptr-refreshing");
+      ind.style.opacity = "1";
+      ind.style.transform = "translate(-50%, 16px)";
+      ind.textContent = "↻ Yenileniyor...";
+      window.__GC_SW_REG?.update?.().catch(() => {});
+      setTimeout(() => window.location.reload(), 180);
+    } else {
+      resetIndicator();
+    }
+  };
+
+  document.addEventListener("touchend", onEnd, { passive: true });
+  document.addEventListener("touchcancel", onEnd, { passive: true });
+}
+
+function initCapacitorBackButton() {
+  const capApp = window.Capacitor?.Plugins?.App;
+  if (!capApp || typeof capApp.addListener !== "function") return;
+
+  try {
+    capApp.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) {
+        window.__GC_SW_REG?.update?.().catch(() => {});
+      }
+    });
+  } catch (_) {}
+
+  try {
+    capApp.addListener("backButton", () => {
+      const hasOpenModal =
+        document.getElementById("workout-modal")?.classList.contains("open") ||
+        document.getElementById("biometric-modal")?.classList.contains("open");
+      if (hasOpenModal) {
+        window.closeModals?.();
+        return;
+      }
+
+      const drawer = document.getElementById("notif-drawer");
+      if (drawer && !drawer.classList.contains("hidden")) {
+        drawer.classList.add("hidden");
+        return;
+      }
+
+      const authOverlay = document.getElementById("auth-gate-overlay");
+      const onAuthGate = authOverlay && !authOverlay.classList.contains("hidden");
+      const dashActive = document.getElementById("tab-dashboard")?.classList.contains("active");
+
+      if (!onAuthGate && !dashActive) {
+        document.querySelector('.nav-btn[data-tab="dashboard"]')?.click();
+        return;
+      }
+
+      capApp.exitApp?.();
+    });
+  } catch (_) {}
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   window.GarminThemeEngine?.init();
   setupTabs();
   startIstanbulClock();
+  initPullToRefresh();
+  initCapacitorBackButton();
   initAuthGate();
   document.addEventListener("click", (e) => {
     const drawer = document.getElementById("notif-drawer");
@@ -3187,6 +3322,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    let swReloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || swReloading) return;
+      swReloading = true;
+      window.location.reload();
+    });
+    navigator.serviceWorker
+      .register("./sw.js", { updateViaCache: "none" })
+      .then((reg) => {
+        window.__GC_SW_REG = reg;
+        reg.update().catch(() => {});
+      })
+      .catch(() => {});
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        window.__GC_SW_REG?.update?.().catch(() => {});
+      }
+    });
   }
 });

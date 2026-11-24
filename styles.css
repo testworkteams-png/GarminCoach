@@ -2194,5 +2194,43 @@ html[data-theme="weather_sunny"] .time-input-compact {
   border-color: rgba(15, 23, 42, 0.22);
 }
 
+/* Pull-to-Refresh Indicator (APK / Mobile) */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  z-index: 3000;
+  pointer-events: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(13, 19, 36, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translate(-50%, -60px);
+  transition: transform 0.16s ease, opacity 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  white-space: nowrap;
+}
 
+.ptr-indicator.ptr-ready {
+  border-color: rgba(0, 229, 163, 0.72);
+  color: var(--emerald);
+}
+
+.ptr-indicator.ptr-refreshing {
+  border-color: rgba(56, 189, 248, 0.75);
+  color: var(--cyan);
+  opacity: 1;
+  transform: translate(-50%, 16px);
+}
+
+html[data-theme="weather_sunny"] .ptr-indicator {
+  background: rgba(255, 255, 255, 0.95);
+  color: #1e293b;
+  border-color: rgba(15, 23, 42, 0.2);
+}
 
