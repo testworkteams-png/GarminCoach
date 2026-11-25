@@ -27,7 +27,7 @@ jobs:
       - name: Prepare web bundle (www)
         run: |
           mkdir -p www
-          cp index.html styles.css theme-engine.js ai-insights.js app.js manifest.json icon.svg sw.js www/
+          cp index.html styles.css theme-engine.js ai-insights.js body-scale.js app.js manifest.json icon.svg sw.js www/
 
       - name: Install npm dependencies
         run: npm install
@@ -35,7 +35,7 @@ jobs:
       - name: Add Android Capacitor platform
         run: npx cap add android
 
-      - name: Add Android permissions to AndroidManifest.xml
+      - name: Add Android permissions and Share Intent to AndroidManifest.xml
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -59,9 +59,137 @@ jobs:
                   xml = xml.replace("    <application", block, 1)
               else:
                   xml = xml.replace("<application", "\n".join(missing) + "\n<application", 1)
-              manifest_path.write_text(xml, encoding="utf-8")
+
+          if "android.intent.action.SEND" not in xml and "</activity>" in xml:
+              share_filter = """            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>"""
+              xml = xml.replace("</activity>", share_filter, 1)
+
+          manifest_path.write_text(xml, encoding="utf-8")
           print(manifest_path.read_text(encoding="utf-8"))
           PY
+
+      - name: Configure MainActivity for native image share
+        run: |
+          cat <<'JAVA' > android/app/src/main/java/com/testworkteams/garmincoach/MainActivity.java
+          package com.testworkteams.garmincoach;
+
+          import android.content.ClipData;
+          import android.content.Intent;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.util.Base64;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebView;
+          import com.getcapacitor.BridgeActivity;
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.util.concurrent.Executors;
+
+          public class MainActivity extends BridgeActivity {
+              private volatile String pendingSharedBase64 = null;
+
+              public class ShareBridge {
+                  @JavascriptInterface
+                  public String consumeSharedImage() {
+                      String val = pendingSharedBase64;
+                      pendingSharedBase64 = null;
+                      return val;
+                  }
+              }
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  if (getBridge() != null && getBridge().getWebView() != null) {
+                      getBridge().getWebView().addJavascriptInterface(new ShareBridge(), "GarminNativeShare");
+                  }
+                  handleShareIntent(getIntent());
+              }
+
+              @Override
+              protected void onNewIntent(Intent intent) {
+                  super.onNewIntent(intent);
+                  setIntent(intent);
+                  handleShareIntent(intent);
+              }
+
+              @SuppressWarnings("deprecation")
+              private void handleShareIntent(Intent intent) {
+                  if (intent == null) return;
+                  String action = intent.getAction();
+                  String type = intent.getType();
+                  if (!Intent.ACTION_SEND.equals(action) || type == null || !type.startsWith("image/")) {
+                      return;
+                  }
+
+                  Uri imageUri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                  if (imageUri == null && intent.getClipData() != null && intent.getClipData().getItemCount() > 0) {
+                      ClipData.Item item = intent.getClipData().getItemAt(0);
+                      if (item != null) imageUri = item.getUri();
+                  }
+                  if (imageUri == null) return;
+
+                  final Uri targetUri = imageUri;
+                  Executors.newSingleThreadExecutor().execute(() -> {
+                      try {
+                          BitmapFactory.Options boundsOpts = new BitmapFactory.Options();
+                          boundsOpts.inJustDecodeBounds = true;
+                          try (InputStream is1 = getContentResolver().openInputStream(targetUri)) {
+                              if (is1 != null) BitmapFactory.decodeStream(is1, null, boundsOpts);
+                          }
+
+                          int maxOrig = Math.max(boundsOpts.outWidth, boundsOpts.outHeight);
+                          int sample = 1;
+                          while (maxOrig / sample > 2400) {
+                              sample *= 2;
+                          }
+
+                          BitmapFactory.Options decodeOpts = new BitmapFactory.Options();
+                          decodeOpts.inSampleSize = sample;
+                          Bitmap bmp;
+                          try (InputStream is2 = getContentResolver().openInputStream(targetUri)) {
+                              if (is2 == null) return;
+                              bmp = BitmapFactory.decodeStream(is2, null, decodeOpts);
+                          }
+                          if (bmp == null) return;
+
+                          int w = bmp.getWidth();
+                          int h = bmp.getHeight();
+                          int maxDim = 1400;
+                          if (w > maxDim || h > maxDim) {
+                              float ratio = Math.min((float) maxDim / w, (float) maxDim / h);
+                              int nw = Math.max(1, Math.round(w * ratio));
+                              int nh = Math.max(1, Math.round(h * ratio));
+                              Bitmap scaled = Bitmap.createScaledBitmap(bmp, nw, nh, true);
+                              if (scaled != bmp) bmp.recycle();
+                              bmp = scaled;
+                          }
+
+                          ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                          bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+                          bmp.recycle();
+
+                          pendingSharedBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+                          if (getBridge() != null && getBridge().getWebView() != null) {
+                              final WebView wv = getBridge().getWebView();
+                              wv.post(() -> wv.evaluateJavascript(
+                                  "window.GarminBodyScale && window.GarminBodyScale.checkNativeSharedImage && window.GarminBodyScale.checkNativeSharedImage();",
+                                  null
+                              ));
+                          }
+                      } catch (Exception ignored) {
+                      }
+                  });
+              }
+          }
+          JAVA
 
       - name: Sync Capacitor Android
         run: npx cap sync android
