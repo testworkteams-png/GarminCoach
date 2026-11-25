@@ -3,6 +3,7 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5_1RDXV8unnW9ttkHEA_HQ_n8fJrt4I
 const ENGINE_URL = `${SUPABASE_URL}/functions/v1/garmin-coach-engine`;
 const AUTH_STORAGE_KEY = "garmincoach_sb_session_v1";
 const PUBLIC_REGISTRATION_ENABLED = false;
+const ALERT_ACK_STORAGE_KEY = "garmincoach_ack_alerts_v1";
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -27,6 +28,8 @@ const state = {
   activityFilter: "ALL",
   trendMode: "hrv",
   ceoMode: "weekly",
+  _activeAlertSig: null,
+  _labSlideIndex: 0,
   charts: {
     trend: null,
     activitySeries: null,
@@ -385,11 +388,27 @@ function describeRedFlag(f) {
   return `${f?.message || "Fizyolojik eşik aşıldı"}: Bugün antrenman şiddetini vücut sinyaline göre bir kademe düşür.`;
 }
 
+function getRedFlagsSignature(logDate, flags) {
+  const parts = (flags || [])
+    .map((f) => `${f?.metric || ""}:${f?.value ?? ""}:${f?.severity || ""}`)
+    .sort()
+    .join(",");
+  return `${logDate || ""}|${parts}`;
+}
+
+function clearRedAlertUi() {
+  state._activeAlertSig = null;
+  document.getElementById("red-alert-banner")?.classList.add("hidden");
+  document.getElementById("red-alert-banner")?.classList.remove("alert-warn");
+  document.getElementById("btn-alerts-toggle")?.classList.add("hidden");
+  document.getElementById("alerts-drawer")?.classList.add("hidden");
+}
+
 function renderDashboard() {
   const latest = state.biometrics[0];
   const s = state.settings || {};
   if (!latest) {
-    document.getElementById("red-alert-banner")?.classList.add("hidden");
+    clearRedAlertUi();
     document.getElementById("readiness-score").textContent = "--";
     document.getElementById("readiness-status-label").textContent = "VERİ BEKLENİYOR";
     document.getElementById("bb-ring-label").textContent = "Enerji --";
@@ -407,18 +426,42 @@ function renderDashboard() {
     return;
   }
 
-  // Red / Warn Alert Banner
+  // Red / Warn Alert Banner + Header "İkazlar" Drawer
   const banner = document.getElementById("red-alert-banner");
   const iconEl = document.getElementById("red-alert-icon");
   const titleEl = document.getElementById("red-alert-title");
   const textEl = document.getElementById("red-alert-text");
   const badgeEl = document.getElementById("red-alert-badge");
+  const alertsBtn = document.getElementById("btn-alerts-toggle");
+  const alertsBtnIcon = document.getElementById("alerts-btn-icon");
+  const alertsCountBadge = document.getElementById("alerts-count-badge");
+  const alertsDrawerTitle = document.getElementById("alerts-drawer-title");
+  const alertsDrawerList = document.getElementById("alerts-drawer-list");
+  const alertsDrawerAckBtn = document.getElementById("btn-alerts-drawer-ack");
   const flags = Array.isArray(latest.red_flags) ? latest.red_flags : [];
 
   if (flags.length > 0) {
     const isCritical = flags.some((f) => f.severity === "CRITICAL") || flags.length >= 3;
-    banner.classList.remove("hidden");
-    banner.classList.toggle("alert-warn", !isCritical);
+    const sig = getRedFlagsSignature(latest.log_date, flags);
+    state._activeAlertSig = sig;
+    let isAcked = false;
+    try {
+      isAcked = localStorage.getItem(ALERT_ACK_STORAGE_KEY) === sig;
+    } catch (_) {}
+
+    const itemsHtml = flags
+      .map((f) => {
+        const full = describeRedFlag(f);
+        const idx = full.indexOf(":");
+        const head = idx > 0 ? full.slice(0, idx + 1) : "";
+        const body = idx > 0 ? full.slice(idx + 1) : full;
+        return { head, body, itemCrit: f?.severity === "CRITICAL" };
+      });
+
+    if (banner) {
+      banner.classList.toggle("hidden", isAcked);
+      banner.classList.toggle("alert-warn", !isCritical);
+    }
     if (iconEl) iconEl.textContent = isCritical ? "🚨" : "⚠️";
     if (titleEl) {
       titleEl.textContent = isCritical
@@ -434,19 +477,41 @@ function renderDashboard() {
           : "Hafif Antrenman";
     }
     if (textEl) {
-      textEl.innerHTML = flags
-        .map((f) => {
-          const full = describeRedFlag(f);
-          const idx = full.indexOf(":");
-          const head = idx > 0 ? full.slice(0, idx + 1) : "";
-          const body = idx > 0 ? full.slice(idx + 1) : full;
-          return `<div class="alert-flag-item">${head ? `<strong>${escapeHtml(head)}</strong>` : ""}${escapeHtml(body)}</div>`;
-        })
+      textEl.innerHTML = itemsHtml
+        .map(({ head, body }) => `<div class="alert-flag-item">${head ? `<strong>${escapeHtml(head)}</strong>` : ""}${escapeHtml(body)}</div>`)
         .join("");
     }
+
+    if (alertsBtn) {
+      alertsBtn.classList.remove("hidden");
+      alertsBtn.classList.toggle("alerts-critical", isCritical);
+      alertsBtn.classList.toggle("alerts-acked", isAcked);
+    }
+    if (alertsBtnIcon) alertsBtnIcon.textContent = isCritical ? "🚨" : "⚠️";
+    if (alertsCountBadge) {
+      alertsCountBadge.className = `badge ${isCritical ? "badge-crit" : "badge-warn"}`;
+      alertsCountBadge.textContent = String(flags.length);
+    }
+    if (alertsDrawerTitle) {
+      alertsDrawerTitle.textContent = isCritical ? "🚨 Kritik İkazlar" : "⚠️ İkazlar";
+    }
+    if (alertsDrawerAckBtn) {
+      alertsDrawerAckBtn.classList.toggle("hidden", isAcked);
+    }
+    if (alertsDrawerList) {
+      alertsDrawerList.innerHTML =
+        itemsHtml
+          .map(
+            ({ head, body, itemCrit }) =>
+              `<div class="alerts-drawer-item${itemCrit || isCritical ? " critical" : ""}">${head ? `<strong>${escapeHtml(head)}</strong>` : ""}${escapeHtml(body)}</div>`
+          )
+          .join("") +
+        (isAcked
+          ? `<div class="card-sub" style="padding:2px 4px;">✓ Bu uyarıları inceledin; gün içinde buradan tekrar bakabilirsin.</div>`
+          : "");
+    }
   } else {
-    banner.classList.add("hidden");
-    banner.classList.remove("alert-warn");
+    clearRedAlertUi();
   }
 
   // Dual Ring Readiness & Body Battery
@@ -2295,9 +2360,38 @@ function renderNotifications() {
 }
 
 window.toggleNotifDrawer = function () {
+  document.getElementById("alerts-drawer")?.classList.add("hidden");
   const drawer = document.getElementById("notif-drawer");
   if (!drawer) return;
   drawer.classList.toggle("hidden");
+};
+
+window.toggleAlertsDrawer = function () {
+  document.getElementById("notif-drawer")?.classList.add("hidden");
+  const drawer = document.getElementById("alerts-drawer");
+  if (!drawer) return;
+  drawer.classList.toggle("hidden");
+};
+
+window.acknowledgeRedFlags = function () {
+  if (state._activeAlertSig) {
+    try {
+      localStorage.setItem(ALERT_ACK_STORAGE_KEY, state._activeAlertSig);
+    } catch (_) {}
+  }
+  document.getElementById("red-alert-banner")?.classList.add("hidden");
+  document.getElementById("alerts-drawer")?.classList.add("hidden");
+  document.getElementById("btn-alerts-toggle")?.classList.add("alerts-acked");
+  document.getElementById("btn-alerts-drawer-ack")?.classList.add("hidden");
+  const listEl = document.getElementById("alerts-drawer-list");
+  if (listEl && !listEl.querySelector(".ack-note-done")) {
+    const note = document.createElement("div");
+    note.className = "card-sub ack-note-done";
+    note.style.padding = "2px 4px";
+    note.textContent = "✓ Bu uyarıları inceledin; gün içinde buradan tekrar bakabilirsin.";
+    listEl.appendChild(note);
+  }
+  showToast("İkaz onaylandı — üstteki İkazlar menüsünden tekrar inceleyebilirsin.");
 };
 
 window.markAllNotifsRead = async function () {
@@ -3182,7 +3276,7 @@ window.logoutApp = async function () {
 
   document.getElementById("notif-drawer")?.classList.add("hidden");
   document.getElementById("garmin-setup-banner")?.classList.add("hidden");
-  document.getElementById("red-alert-banner")?.classList.add("hidden");
+  clearRedAlertUi();
   window.__GC_FIRST_NAME = "";
   const brandEl = document.getElementById("brand-watch-label");
   if (brandEl) brandEl.textContent = "⌚ Garmin Saat Bağlanıyor";
@@ -3241,7 +3335,7 @@ function initPullToRefresh() {
         pulling = false;
         return;
       }
-      if (e.target.closest("#activity-map, .leaflet-container, .modal-backdrop.open, #notif-drawer, .hourly-strip, .table-wrap, input, textarea, select")) {
+      if (e.target.closest("#activity-map, .leaflet-container, .modal-backdrop.open, #notif-drawer, #alerts-drawer, .lab-carousel-track, .lab-carousel-nav, .hourly-strip, .table-wrap, input, textarea, select")) {
         pulling = false;
         return;
       }
@@ -3340,9 +3434,15 @@ function initCapacitorBackButton() {
         return;
       }
 
-      const drawer = document.getElementById("notif-drawer");
-      if (drawer && !drawer.classList.contains("hidden")) {
-        drawer.classList.add("hidden");
+      const notifDrawer = document.getElementById("notif-drawer");
+      if (notifDrawer && !notifDrawer.classList.contains("hidden")) {
+        notifDrawer.classList.add("hidden");
+        return;
+      }
+
+      const alertsDrawer = document.getElementById("alerts-drawer");
+      if (alertsDrawer && !alertsDrawer.classList.contains("hidden")) {
+        alertsDrawer.classList.add("hidden");
         return;
       }
 
@@ -3360,18 +3460,111 @@ function initCapacitorBackButton() {
   } catch (_) {}
 }
 
+function updateLabCarouselUi(idx) {
+  const track = document.getElementById("lab-carousel-track");
+  if (!track) return;
+  const slides = track.querySelectorAll(".lab-carousel-slide");
+  const total = slides.length;
+  if (!total) return;
+
+  const clamped = Math.max(0, Math.min(total - 1, Number(idx) || 0));
+  state._labSlideIndex = clamped;
+
+  const counter = document.getElementById("lab-carousel-counter");
+  if (counter) counter.textContent = `${clamped + 1} / ${total}`;
+
+  const nav = document.getElementById("lab-carousel-nav");
+  if (nav) {
+    nav.querySelectorAll(".lab-carousel-tab").forEach((btn, i) => {
+      btn.classList.toggle("active", i === clamped);
+    });
+    const activeTab = nav.querySelector(`.lab-carousel-tab[data-slide="${clamped}"]`);
+    if (activeTab) {
+      const targetLeft = Math.max(0, activeTab.offsetLeft - (nav.clientWidth - activeTab.offsetWidth) / 2);
+      nav.scrollTo({ left: targetLeft, behavior: "smooth" });
+    }
+  }
+
+  document.querySelectorAll("#lab-carousel-dots .lab-carousel-dot").forEach((dot, i) => {
+    dot.classList.toggle("active", i === clamped);
+  });
+}
+
+window.goToLabSlide = function (idx) {
+  const track = document.getElementById("lab-carousel-track");
+  if (!track) return;
+  const slides = track.querySelectorAll(".lab-carousel-slide");
+  if (!slides.length) return;
+  const clamped = Math.max(0, Math.min(slides.length - 1, Number(idx) || 0));
+  const left = Math.max(0, slides[clamped].offsetLeft - slides[0].offsetLeft);
+  track.scrollTo({ left, behavior: "smooth" });
+  updateLabCarouselUi(clamped);
+  try {
+    Object.values(state.charts || {}).forEach((c) => c?.resize?.());
+  } catch (_) {}
+};
+
+window.moveLabCarousel = function (delta) {
+  const track = document.getElementById("lab-carousel-track");
+  if (!track) return;
+  const total = track.querySelectorAll(".lab-carousel-slide").length;
+  if (!total) return;
+  const next = ((state._labSlideIndex || 0) + Number(delta || 0) + total) % total;
+  window.goToLabSlide(next);
+};
+
+function initLabCarousel() {
+  const track = document.getElementById("lab-carousel-track");
+  if (!track || track.dataset.bound === "1") return;
+  track.dataset.bound = "1";
+
+  let rafId = 0;
+  track.addEventListener(
+    "scroll",
+    () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const slides = track.querySelectorAll(".lab-carousel-slide");
+        if (!slides.length) return;
+        const baseOffset = slides[0].offsetLeft;
+        const curScroll = track.scrollLeft;
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < slides.length; i++) {
+          const dist = Math.abs(slides[i].offsetLeft - baseOffset - curScroll);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+        if (bestIdx !== state._labSlideIndex) {
+          updateLabCarouselUi(bestIdx);
+        }
+      });
+    },
+    { passive: true }
+  );
+
+  updateLabCarouselUi(0);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   window.GarminThemeEngine?.init();
   setupTabs();
+  initLabCarousel();
   startIstanbulClock();
   initPullToRefresh();
   initCapacitorBackButton();
   initAuthGate();
   setTimeout(hideBootSplash, 10000);
   document.addEventListener("click", (e) => {
-    const drawer = document.getElementById("notif-drawer");
-    if (drawer && !drawer.classList.contains("hidden") && !e.target.closest(".notif-wrap")) {
-      drawer.classList.add("hidden");
+    const notifDrawer = document.getElementById("notif-drawer");
+    if (notifDrawer && !notifDrawer.classList.contains("hidden") && !notifDrawer.parentElement?.contains(e.target)) {
+      notifDrawer.classList.add("hidden");
+    }
+    const alertsDrawer = document.getElementById("alerts-drawer");
+    if (alertsDrawer && !alertsDrawer.classList.contains("hidden") && !alertsDrawer.parentElement?.contains(e.target)) {
+      alertsDrawer.classList.add("hidden");
     }
   });
   if ("serviceWorker" in navigator) {

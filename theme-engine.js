@@ -167,7 +167,7 @@
       name: "Güneşli · Gün Işığı Modu",
       shortLabel: "Güneşli (Yüksek Kontrast)",
       icon: "☀️",
-      themeColor: "#e2e8f0",
+      themeColor: "#cbd5e1",
       particles: "none",
     },
     weather_night: {
