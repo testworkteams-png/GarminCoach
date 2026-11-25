@@ -1,0 +1,31 @@
+name: Garmin Scale Sync (Honor Scale 2)
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [scale-sync]
+  schedule:
+    - cron: '0 6,18 * * *'
+
+jobs:
+  sync-body-composition:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r scripts/requirements.txt
+
+      - name: Sync scale measurements to Garmin Connect
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+        run: python scripts/sync_scale_to_garmin.py
