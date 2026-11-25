@@ -602,6 +602,20 @@
     } catch (_) {}
   }
 
+  async function checkNativeSharedImage() {
+    try {
+      if (!moduleState.auth?.authenticated) return false;
+      const bridge = window.GarminNativeShare;
+      if (!bridge || typeof bridge.consumeSharedImage !== "function") return false;
+      const b64 = bridge.consumeSharedImage();
+      if (!b64 || String(b64).length < 100) return false;
+      await processScaleBase64(String(b64), "image/jpeg");
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function initForUser(auth, sbClient) {
     moduleState.auth = auth || null;
     moduleState.sbClient = sbClient || null;
@@ -609,6 +623,7 @@
     if (!auth?.authenticated || !auth?.userId || !sbClient) return;
     await refresh();
     await consumeSharedScaleImageIfAny();
+    await checkNativeSharedImage();
   }
 
   function reset() {
@@ -678,8 +693,8 @@
     if (input) input.click();
   }
 
-  async function handleScreenshotSelected(file) {
-    if (!file) return;
+  async function processScaleBase64(base64, mimeType = "image/jpeg") {
+    if (!base64) return;
     openScaleModal({}, "screenshot_ai");
     const loadingEl = document.getElementById("scale-ai-loading");
     const saveBtn = document.getElementById("btn-scale-save");
@@ -690,7 +705,6 @@
     if (saveBtn) saveBtn.disabled = true;
 
     try {
-      const { base64, mimeType } = await fileToResizedJpegBase64(file);
       const token = await getAccessToken();
       if (!token) throw new Error("Oturum bulunamadı. Lütfen yeniden giriş yapın.");
 
@@ -715,6 +729,27 @@
       toast(`Okuma hatası: ${err.message} · Değerleri elle girebilirsiniz.`);
     } finally {
       if (saveBtn) saveBtn.disabled = false;
+    }
+  }
+
+  async function handleScreenshotSelected(file) {
+    if (!file) return;
+    openScaleModal({}, "screenshot_ai");
+    const loadingEl = document.getElementById("scale-ai-loading");
+    const saveBtn = document.getElementById("btn-scale-save");
+    if (loadingEl) {
+      loadingEl.textContent = "⏳ Görsel hazırlanıyor...";
+      loadingEl.classList.remove("hidden");
+    }
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+      const { base64, mimeType } = await fileToResizedJpegBase64(file);
+      await processScaleBase64(base64, mimeType);
+    } catch (err) {
+      if (loadingEl) loadingEl.classList.add("hidden");
+      if (saveBtn) saveBtn.disabled = false;
+      toast(`Okuma hatası: ${err.message} · Değerleri elle girebilirsiniz.`);
     }
   }
 
@@ -891,5 +926,6 @@
     openManualModal,
     triggerScreenshotUpload,
     closeScaleModal,
+    checkNativeSharedImage,
   };
 })();
