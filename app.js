@@ -2,6 +2,7 @@ const SUPABASE_URL = "https://htooqswstuuzslvrgxsx.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5_1RDXV8unnW9ttkHEA_HQ_n8fJrt4I";
 const ENGINE_URL = `${SUPABASE_URL}/functions/v1/garmin-coach-engine`;
 const AUTH_STORAGE_KEY = "garmincoach_sb_session_v1";
+const PUBLIC_REGISTRATION_ENABLED = false;
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -2963,13 +2964,17 @@ async function completeAuthSuccess(sessionData, remember) {
 }
 
 window.switchAuthMode = function (mode) {
-  const isReg = mode === "register";
+  const isReg = PUBLIC_REGISTRATION_ENABLED && mode === "register";
   const tabLogin = document.getElementById("auth-tab-login");
   const tabReg = document.getElementById("auth-tab-register");
   const formLogin = document.getElementById("auth-login-form");
   const formReg = document.getElementById("auth-register-form");
   const hintEl = document.getElementById("auth-default-hint");
 
+  if (tabReg) tabReg.classList.toggle("hidden", !PUBLIC_REGISTRATION_ENABLED);
+  if (tabLogin?.parentElement) {
+    tabLogin.parentElement.style.gridTemplateColumns = PUBLIC_REGISTRATION_ENABLED ? "" : "1fr";
+  }
   if (tabLogin) tabLogin.classList.toggle("active", !isReg);
   if (tabReg) tabReg.classList.toggle("active", isReg);
   if (formLogin) formLogin.classList.toggle("hidden", isReg);
@@ -3045,6 +3050,10 @@ window.submitAppLogin = async function (ev) {
 
 window.submitUserRegister = async function (ev) {
   ev.preventDefault();
+  if (!PUBLIC_REGISTRATION_ENABLED) {
+    setAuthError("Yeni hesap kayıtları geliştirme aşamasında geçici olarak kapalıdır.");
+    return;
+  }
   const display_name = document.getElementById("reg-name").value.trim();
   const email = document.getElementById("reg-email").value.trim();
   const password = document.getElementById("reg-password").value;
