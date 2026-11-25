@@ -1139,18 +1139,30 @@
           <div class="card-header">
             <div>
               <div class="card-title">🩺 Sağlık Merkezi &amp; Laboratuvar Takibi</div>
-              <div class="card-sub">İlaç/vitamin takibi aktif · kan tahlili analizi yakında</div>
+              <div class="card-sub">İlaç/vitamin takibi ve kan tahlili analizi aktif</div>
             </div>
-            <span class="badge badge-ok">Faz 2 · İlaç Aktif</span>
+            <span class="badge badge-ok">Faz 2 · Aktif</span>
           </div>
-          <div class="health-soon-grid">
-            <div class="health-soon-card">
-              <div class="health-soon-icon">📄</div>
-              <div class="health-soon-title">Kan Tahlili &amp; PDF Analizi</div>
-              <div class="health-soon-desc">E-Nabız veya laboratuvar PDF/fotoğraf sonuçlarını yapay zeka ile ayrıştırıp biyometrik verilerinle kıyaslama.</div>
-              <span class="badge badge-warn">Faz 2'de Açılacak</span>
+          <div class="lab-actions">
+            <button type="button" class="btn btn-primary" onclick="triggerLabUpload()">📄 PDF / Fotoğraf Yükle (AI)</button>
+            <button type="button" class="btn" onclick="openLabModal()">✏️ Elle Ekle</button>
+            <span class="badge badge-info mono" id="lab-badge">--</span>
+          </div>
+          <div id="lab-upload-status" class="auth-hint-box hidden" style="margin-top:10px;"></div>
+          <div id="lab-summary" style="margin-top:12px;"></div>
+          <div id="lab-trend-wrap" style="display:none; margin-top:14px;">
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <label class="card-sub" for="lab-test-select">Trend:</label>
+              <select id="lab-test-select" class="lab-select"></select>
+              <span class="card-sub" id="lab-trend-info"></span>
             </div>
+            <div style="height:220px; margin-top:8px;"><canvas id="lab-trend-chart"></canvas></div>
           </div>
+          <div class="card-header" style="margin-top:16px;">
+            <div class="card-sub">Geçmiş raporlar</div>
+            <span class="badge badge-info mono" id="lab-count">0 rapor</span>
+          </div>
+          <div id="lab-report-list"></div>
         </div>
 
         <div class="card" id="med-card">
@@ -1223,13 +1235,13 @@
           </div>
           <span class="badge badge-info">Hızlı</span>
         </button>
-        <button type="button" class="quick-action-item disabled" disabled aria-disabled="true">
+        <button type="button" class="quick-action-item" onclick="triggerLabUpload()">
           <span class="quick-action-icon">📄</span>
           <div class="quick-action-body">
             <strong>Tahlil Yükle (PDF/Foto)</strong>
-            <span>Kan tahlili ve laboratuvar raporları Faz 2 ile aktif olacak</span>
+            <span>Kan tahlili ve laboratuvar raporunu AI ile oku · dosya saklanmaz</span>
           </div>
-          <span class="badge badge-warn">Yakında</span>
+          <span class="badge badge-ok">AI</span>
         </button>
         <button type="button" class="quick-action-item" onclick="openMedModal()">
           <span class="quick-action-icon">💊</span>
@@ -1331,6 +1343,40 @@
     </div>
   </div>
 
+  <input type="file" id="lab-file-input" accept="application/pdf,image/*" style="display:none;" />
+
+  <!-- TAHLİL MODAL -->
+  <div class="modal-backdrop" id="lab-modal">
+    <div class="modal-card modal-card-wide">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🩸 Tahlil Kontrol Et &amp; Kaydet <span class="badge badge-info" id="lab-modal-source" style="margin-left:6px;">Manuel</span></div>
+          <div class="card-sub">Değerleri düzelt; yanlış satırları sil. Dosya kaydedilmez, yalnızca sayılar saklanır.</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="closeLabModal()">✕</button>
+      </div>
+      <form onsubmit="submitLabModal(event)">
+        <div class="form-grid">
+          <div class="field"><label for="lab-draft-date">Rapor Tarihi *</label><input id="lab-draft-date" type="date" required /></div>
+          <div class="field"><label for="lab-draft-lab">Laboratuvar / Kurum</label><input id="lab-draft-lab" type="text" maxlength="120" /></div>
+        </div>
+        <div class="lab-table-wrap" style="margin-top:10px; max-height:46vh; overflow:auto;">
+          <table class="lab-table lab-edit">
+            <thead><tr><th>Test</th><th>Sonuç</th><th>Birim</th><th>Ref. alt</th><th>Ref. üst</th><th></th></tr></thead>
+            <tbody id="lab-draft-body"></tbody>
+          </table>
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:8px; margin-top:12px;">
+          <button type="button" class="btn btn-sm" onclick="addLabDraftRow()">＋ Satır Ekle</button>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn" onclick="closeLabModal()">İptal</button>
+            <button type="submit" class="btn btn-primary" id="lab-save-btn">💾 Kaydet</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- İLAÇ / TAKVİYE MODAL -->
   <div class="modal-backdrop" id="med-modal">
     <div class="modal-card">
@@ -1370,6 +1416,7 @@
   <script src="ai-insights.js"></script>
   <script src="body-scale.js"></script>
   <script src="health-meds.js"></script>
+  <script src="lab-reports.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

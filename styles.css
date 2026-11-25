@@ -3176,3 +3176,25 @@ html[data-theme="weather_sunny"] .health-soon-card {
 .med-day.full { border-color: var(--emerald); background: var(--emerald-soft); }
 .med-day.part { border-color: #d9a441; }
 .med-day.miss { border-color: var(--red); }
+
+/* Faz 2: Kan Tahlili */
+.lab-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lab-select, .lab-edit input {
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); padding: 7px 9px; font-size: 13px; width: 100%;
+}
+.lab-select { width: auto; min-width: 180px; }
+.lab-latest-head { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+.lab-abn-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.lab-chip { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--border); }
+.lab-chip.high { color: var(--red); border-color: var(--red); }
+.lab-chip.low { color: #fbbf24; border-color: #fbbf24; }
+.lab-report { border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.025); }
+.lab-report summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 13.5px; gap: 8px; }
+.lab-table-wrap { overflow-x: auto; margin-top: 10px; }
+.lab-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.lab-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 6px 8px; }
+.lab-table td { padding: 6px 8px; border-top: 1px solid var(--border); }
+.lab-table tr.lab-high td { color: var(--red); }
+.lab-table tr.lab-low td { color: #fbbf24; }
+.lab-edit td { padding: 4px; }

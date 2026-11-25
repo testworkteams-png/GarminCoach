@@ -27,7 +27,7 @@ jobs:
       - name: Prepare web bundle (www)
         run: |
           mkdir -p www
-          cp index.html styles.css theme-engine.js ai-insights.js body-scale.js health-meds.js app.js manifest.json icon.svg sw.js www/
+          cp index.html styles.css theme-engine.js ai-insights.js body-scale.js health-meds.js lab-reports.js app.js manifest.json icon.svg sw.js www/
 
       - name: Install npm dependencies
         run: npm install

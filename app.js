@@ -226,6 +226,7 @@ async function loadAllData() {
   window.GarminAiInsights?.initForUser(state.settings, state.auth, sb);
   window.GarminBodyScale?.initForUser(state.auth, sb);
   window.GarminMeds?.initForUser(state.auth, sb);
+  window.GarminLabs?.initForUser(state.auth, sb);
   renderAll();
   renderNotifications();
   renderMonthly();
@@ -3342,6 +3343,7 @@ window.logoutApp = async function () {
   window.GarminAiInsights?.reset();
   window.GarminBodyScale?.reset();
   window.GarminMeds?.reset();
+  window.GarminLabs?.reset();
   renderNotifications();
   renderAll();
   updateAuthUiLabels();

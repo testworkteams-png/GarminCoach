@@ -1,7 +1,7 @@
-const CACHE_NAME = "garmincoach-shell-v31";
+const CACHE_NAME = "garmincoach-shell-v32";
 const SHARE_CACHE_NAME = "garmincoach-share-temp-v1";
 const SHARE_IMAGE_KEY = "./__shared-scale-image";
-const SHELL_ASSETS = ["./", "./index.html", "./styles.css", "./theme-engine.js", "./ai-insights.js", "./body-scale.js", "./health-meds.js", "./app.js", "./manifest.json", "./icon.svg"];
+const SHELL_ASSETS = ["./", "./index.html", "./styles.css", "./theme-engine.js", "./ai-insights.js", "./body-scale.js", "./health-meds.js", "./lab-reports.js", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
