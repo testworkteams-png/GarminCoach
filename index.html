@@ -253,17 +253,35 @@
               <span class="badge badge-ok" id="readiness-badge">--</span>
             </div>
             <div class="readiness-hero">
-              <div class="dual-ring">
-                <svg viewBox="0 0 174 174">
-                  <circle class="ring-track" cx="87" cy="87" r="72" stroke-width="12" />
-                  <circle class="ring-fill" id="ring-readiness" cx="87" cy="87" r="72" stroke-width="12" stroke="#00e5a3" stroke-dasharray="452.39" stroke-dashoffset="452.39" />
-                  <circle class="ring-track" cx="87" cy="87" r="54" stroke-width="8" />
-                  <circle class="ring-fill" id="ring-bb" cx="87" cy="87" r="54" stroke-width="8" stroke="#38bdf8" stroke-dasharray="339.29" stroke-dashoffset="339.29" />
-                </svg>
-                <div class="dual-ring-center">
-                  <div class="dual-ring-score mono" id="readiness-score">--</div>
-                  <div class="dual-ring-sub" id="readiness-status-label">OPTIMAL</div>
-                  <div class="dual-ring-bb mono" id="bb-ring-label">BB --</div>
+              <div class="ring-visual-row">
+                <div class="dual-ring">
+                  <svg viewBox="0 0 174 174">
+                    <circle class="ring-track" cx="87" cy="87" r="72" stroke-width="12" />
+                    <circle class="ring-fill" id="ring-readiness" cx="87" cy="87" r="72" stroke-width="12" stroke="#00e5a3" stroke-dasharray="452.39" stroke-dashoffset="452.39" />
+                    <circle class="ring-track" cx="87" cy="87" r="54" stroke-width="8" />
+                    <circle class="ring-fill" id="ring-bb" cx="87" cy="87" r="54" stroke-width="8" stroke="#38bdf8" stroke-dasharray="339.29" stroke-dashoffset="339.29" />
+                  </svg>
+                  <div class="dual-ring-center">
+                    <div class="dual-ring-score mono" id="readiness-score">--</div>
+                    <div class="dual-ring-sub" id="readiness-status-label">OPTIMAL</div>
+                    <div class="dual-ring-bb mono" id="bb-ring-label">BB --</div>
+                  </div>
+                </div>
+                <div class="ring-legend-box">
+                  <div class="ring-legend-item">
+                    <span class="ring-legend-dot" id="ring-legend-dot-readiness" style="background:#00e5a3;"></span>
+                    <div class="ring-legend-body">
+                      <div class="ring-legend-title">Dış Halka · Hazırlık <strong class="mono" id="ring-legend-val-readiness">--/100</strong></div>
+                      <div class="ring-legend-desc">Uyku, HRV, nabız ve enerji bileşimi</div>
+                    </div>
+                  </div>
+                  <div class="ring-legend-item">
+                    <span class="ring-legend-dot" id="ring-legend-dot-bb" style="background:#38bdf8;"></span>
+                    <div class="ring-legend-body">
+                      <div class="ring-legend-title">İç Halka · Body Battery <strong class="mono" id="ring-legend-val-bb">--/100</strong></div>
+                      <div class="ring-legend-desc">Sabah en yüksek enerji rezervi</div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="formula-bars" id="readiness-breakdown"></div>

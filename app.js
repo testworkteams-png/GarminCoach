@@ -180,6 +180,9 @@ function setupTabs() {
         const fn = getUserFirstName();
         titleEl.textContent = target === "dashboard" && fn ? `${getTimeGreeting(fn)} · Biyometri Kokpiti` : TAB_TITLES[target];
       }
+      if (target === "dashboard") {
+        requestAnimationFrame(syncLabCarouselHeight);
+      }
       if (target === "workouts" && state.map) {
         setTimeout(() => state.map.invalidateSize(), 160);
       }
@@ -412,6 +415,10 @@ function renderDashboard() {
     document.getElementById("readiness-score").textContent = "--";
     document.getElementById("readiness-status-label").textContent = "VERİ BEKLENİYOR";
     document.getElementById("bb-ring-label").textContent = "Enerji --";
+    const legReadVal = document.getElementById("ring-legend-val-readiness");
+    if (legReadVal) legReadVal.textContent = "--/100";
+    const legBbVal = document.getElementById("ring-legend-val-bb");
+    if (legBbVal) legBbVal.textContent = "--/100";
     document.getElementById("readiness-badge").textContent = "--";
     document.getElementById("readiness-breakdown").innerHTML = `<p class="card-sub">İlk verinizi görmek için Ayarlar'dan Garmin API bağlayın veya "+ Günlük Veri Ekle" butonunu kullanın.</p>`;
     document.getElementById("sleep-total-label").textContent = "--";
@@ -524,8 +531,25 @@ function renderDashboard() {
   ringR.style.strokeDashoffset = String(c1 * (1 - score / 100));
   ringBB.style.strokeDashoffset = String(c2 * (1 - bbMax / 100));
 
-  const ringColor = score >= 80 ? "#00e5a3" : score >= 60 ? "#38bdf8" : score >= 45 ? "#f59e0b" : "#ef4444";
+  const ringColor = score >= 80 ? "#00e5a3" : score >= 60 ? "#22c55e" : score >= 45 ? "#f59e0b" : "#ef4444";
+  const bbColor = "#38bdf8";
   ringR.style.stroke = ringColor;
+  ringBB.style.stroke = bbColor;
+
+  const legReadDot = document.getElementById("ring-legend-dot-readiness");
+  if (legReadDot) legReadDot.style.background = ringColor;
+  const legReadVal = document.getElementById("ring-legend-val-readiness");
+  if (legReadVal) {
+    legReadVal.textContent = `${score}/100`;
+    legReadVal.style.color = ringColor;
+  }
+  const legBbDot = document.getElementById("ring-legend-dot-bb");
+  if (legBbDot) legBbDot.style.background = bbColor;
+  const legBbVal = document.getElementById("ring-legend-val-bb");
+  if (legBbVal) {
+    legBbVal.textContent = `${bbMax}/100`;
+    legBbVal.style.color = bbColor;
+  }
 
   document.getElementById("readiness-score").textContent = score;
   const stLbl = document.getElementById("readiness-status-label");
@@ -727,6 +751,7 @@ function renderDashboard() {
   renderCorrelationMatrix();
   renderAcwrAndEf();
   renderCustomCompareChart();
+  requestAnimationFrame(syncLabCarouselHeight);
 }
 
 function computeAvg(arr) {
@@ -1372,6 +1397,7 @@ window.switchTrendMode = function (mode, btn) {
   btn.parentElement.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
   btn.classList.add("active");
   renderTrendChart();
+  requestAnimationFrame(syncLabCarouselHeight);
 };
 
 function renderTrendChart() {
@@ -3460,6 +3486,21 @@ function initCapacitorBackButton() {
   } catch (_) {}
 }
 
+function syncLabCarouselHeight() {
+  const track = document.getElementById("lab-carousel-track");
+  if (!track) return;
+  const slides = track.querySelectorAll(".lab-carousel-slide");
+  if (!slides.length) return;
+  const idx = Math.max(0, Math.min(slides.length - 1, Number(state._labSlideIndex) || 0));
+  const activeSlide = slides[idx];
+  const card = activeSlide?.querySelector(".card") || activeSlide;
+  if (!card) return;
+  const h = Math.round(card.offsetHeight);
+  if (h > 40) {
+    track.style.height = `${h + 2}px`;
+  }
+}
+
 function updateLabCarouselUi(idx) {
   const track = document.getElementById("lab-carousel-track");
   if (!track) return;
@@ -3488,6 +3529,8 @@ function updateLabCarouselUi(idx) {
   document.querySelectorAll("#lab-carousel-dots .lab-carousel-dot").forEach((dot, i) => {
     dot.classList.toggle("active", i === clamped);
   });
+
+  syncLabCarouselHeight();
 }
 
 window.goToLabSlide = function (idx) {
@@ -3544,6 +3587,12 @@ function initLabCarousel() {
     },
     { passive: true }
   );
+
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => syncLabCarouselHeight());
+    track.querySelectorAll(".lab-carousel-slide > .card").forEach((card) => ro.observe(card));
+  }
+  window.addEventListener("resize", syncLabCarouselHeight);
 
   updateLabCarouselUi(0);
 }
