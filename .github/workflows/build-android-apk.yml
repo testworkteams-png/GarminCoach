@@ -61,12 +61,14 @@ jobs:
                   xml = xml.replace("<application", "\n".join(missing) + "\n<application", 1)
 
           if "android.intent.action.SEND" not in xml and "</activity>" in xml:
-              share_filter = """            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-            </intent-filter>
-        </activity>"""
+              share_filter = "\n".join([
+                  '            <intent-filter>',
+                  '                <action android:name="android.intent.action.SEND" />',
+                  '                <category android:name="android.intent.category.DEFAULT" />',
+                  '                <data android:mimeType="image/*" />',
+                  '            </intent-filter>',
+                  '        </activity>',
+              ])
               xml = xml.replace("</activity>", share_filter, 1)
 
           manifest_path.write_text(xml, encoding="utf-8")
