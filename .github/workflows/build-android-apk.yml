@@ -71,6 +71,17 @@ jobs:
               ])
               xml = xml.replace("</activity>", share_filter, 1)
 
+          if "application/pdf" not in xml and "</activity>" in xml:
+              pdf_filter = "\n".join([
+                  '            <intent-filter>',
+                  '                <action android:name="android.intent.action.SEND" />',
+                  '                <category android:name="android.intent.category.DEFAULT" />',
+                  '                <data android:mimeType="application/pdf" />',
+                  '            </intent-filter>',
+                  '        </activity>',
+              ])
+              xml = xml.replace("</activity>", pdf_filter, 1)
+
           manifest_path.write_text(xml, encoding="utf-8")
           print(manifest_path.read_text(encoding="utf-8"))
           PY
@@ -96,12 +107,20 @@ jobs:
 
           public class MainActivity extends BridgeActivity {
               private volatile String pendingSharedBase64 = null;
+              private volatile String pendingSharedPdfBase64 = null;
 
               public class ShareBridge {
                   @JavascriptInterface
                   public String consumeSharedImage() {
                       String val = pendingSharedBase64;
                       pendingSharedBase64 = null;
+                      return val;
+                  }
+
+                  @JavascriptInterface
+                  public String consumeSharedPdf() {
+                      String val = pendingSharedPdfBase64;
+                      pendingSharedPdfBase64 = null;
                       return val;
                   }
               }
@@ -123,10 +142,49 @@ jobs:
               }
 
               @SuppressWarnings("deprecation")
+              private void handleSharedPdf(Intent intent) {
+                  Uri pdfUri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                  if (pdfUri == null && intent.getClipData() != null && intent.getClipData().getItemCount() > 0) {
+                      ClipData.Item item = intent.getClipData().getItemAt(0);
+                      if (item != null) pdfUri = item.getUri();
+                  }
+                  if (pdfUri == null) return;
+
+                  final Uri targetUri = pdfUri;
+                  Executors.newSingleThreadExecutor().execute(() -> {
+                      try (InputStream is = getContentResolver().openInputStream(targetUri)) {
+                          if (is == null) return;
+                          ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                          byte[] buf = new byte[16384];
+                          int n;
+                          int total = 0;
+                          while ((n = is.read(buf)) != -1) {
+                              total += n;
+                              if (total > 9 * 1024 * 1024) return;
+                              baos.write(buf, 0, n);
+                          }
+                          pendingSharedPdfBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+                          if (getBridge() != null && getBridge().getWebView() != null) {
+                              final WebView wv = getBridge().getWebView();
+                              wv.post(() -> wv.evaluateJavascript(
+                                  "window.GarminLabs && window.GarminLabs.checkNativeSharedPdf && window.GarminLabs.checkNativeSharedPdf();",
+                                  null
+                              ));
+                          }
+                      } catch (Exception ignored) {
+                      }
+                  });
+              }
+
+              @SuppressWarnings("deprecation")
               private void handleShareIntent(Intent intent) {
                   if (intent == null) return;
                   String action = intent.getAction();
                   String type = intent.getType();
+                  if (Intent.ACTION_SEND.equals(action) && "application/pdf".equals(type)) {
+                      handleSharedPdf(intent);
+                      return;
+                  }
                   if (!Intent.ACTION_SEND.equals(action) || type == null || !type.startsWith("image/")) {
                       return;
                   }

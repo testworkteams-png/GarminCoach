@@ -394,6 +394,25 @@
     document.getElementById("lab-file-input")?.click();
   }
 
+  // E-Nabız vb. uygulamalardan "Paylaş → GarminCoach" ile gelen PDF (Android APK)
+  async function checkNativeSharedPdf() {
+    try {
+      if (!st.auth?.authenticated || !st.sb) return false;
+      const bridge = window.GarminNativeShare;
+      if (!bridge || typeof bridge.consumeSharedPdf !== "function") return false;
+      const b64 = bridge.consumeSharedPdf();
+      if (!b64 || String(b64).length < 100) return false;
+      document.querySelector('[data-tab="health"]')?.click();
+      const bin = atob(String(b64));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      await handleFile(new File([bytes], "shared-report.pdf", { type: "application/pdf" }));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function initForUser(auth, sb) {
     st.auth = auth || null;
     st.sb = sb || null;
@@ -406,6 +425,7 @@
     renderAll();
     if (!auth?.authenticated || !auth?.userId || !sb) return;
     await refresh();
+    await checkNativeSharedPdf();
   }
 
   function reset() {
@@ -423,5 +443,5 @@
   window.removeLabDraftRow = removeRow;
   window.submitLabModal = saveDraft;
   window.deleteLabReport = removeReport;
-  window.GarminLabs = { initForUser, reset, refresh };
+  window.GarminLabs = { initForUser, reset, refresh, checkNativeSharedPdf };
 })();
