@@ -349,19 +349,57 @@ html, body {
   50% { opacity: 0.4; transform: scale(0.85); }
 }
 
-/* Mobile Bottom Nav */
+.side-nav-divider {
+  margin: 10px 6px 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.nav-btn-add {
+  background: linear-gradient(135deg, rgba(0, 229, 163, 0.14), rgba(56, 189, 248, 0.14));
+  border-color: rgba(0, 229, 163, 0.32);
+  color: var(--emerald);
+}
+
+.nav-btn-add:hover {
+  background: linear-gradient(135deg, rgba(0, 229, 163, 0.24), rgba(56, 189, 248, 0.24));
+  color: var(--text);
+}
+
+.mobile-subtabs {
+  display: none;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 10px;
+  margin-bottom: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-subtabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile Bottom Nav (5-öğeli hafif şeffaf cam efektli) */
 .mobile-nav {
   display: none;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(6, 10, 20, 0.94);
-  backdrop-filter: blur(20px);
+  background: rgba(8, 13, 27, 0.78);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
   border-top: 1px solid rgba(148, 163, 184, 0.22);
-  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
-  justify-content: space-around;
-  z-index: 900;
+  padding: 6px 6px calc(8px + env(safe-area-inset-bottom));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  z-index: 950;
 }
 
 .mobile-nav button {
@@ -373,8 +411,9 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 4px 8px;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 2px;
   cursor: pointer;
 }
 
@@ -382,11 +421,32 @@ html, body {
   color: var(--emerald);
 }
 
+.mobile-nav button.mobile-nav-fab {
+  width: 48px;
+  height: 48px;
+  margin: -18px auto 0;
+  padding: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--emerald), var(--cyan));
+  color: #031318;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(0, 229, 163, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.mobile-nav button.mobile-nav-fab:active {
+  transform: scale(0.94);
+}
+
 @media (max-width: 1024px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar { display: none; }
-  .mobile-nav { display: flex; }
-  .main-area { padding: 14px 14px 96px; }
+  .mobile-nav { display: grid; }
+  .mobile-subtabs { display: flex; }
+  .main-area { padding: 14px 14px 104px; }
 }
 
 /* Grids & Cards */
@@ -733,17 +793,19 @@ html, body {
   }
   .dual-ring-center {
     padding: 0 14px;
+    gap: 1px;
   }
   .dual-ring-score {
-    font-size: 29px;
+    font-size: 28px;
+    line-height: 0.96;
   }
   .dual-ring-sub {
     font-size: 9px;
     margin-top: 2px;
   }
   .dual-ring-bb {
-    font-size: 9.5px;
-    margin-top: 2px;
+    font-size: 9px;
+    margin-top: 1px;
   }
 }
 
@@ -2770,5 +2832,316 @@ html[data-theme="weather_sunny"] .lab-carousel-dot.active {
     padding: 6px 10px;
     font-size: 11.5px;
   }
+}
+
+/* ============================================================================
+   FAZ 1: HIZLI EKLE BOTTOM SHEET, VÜCUT & SAĞLIK SEKMELERİ
+   ============================================================================ */
+.modal-card-wide {
+  max-width: 620px;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.bottom-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 5, 12, 0.72);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1500;
+  padding: 0;
+}
+
+.bottom-sheet-backdrop.open {
+  display: flex;
+  animation: fadeBackdrop 0.18s ease;
+}
+
+@keyframes fadeBackdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.bottom-sheet {
+  width: 100%;
+  max-width: 560px;
+  background: rgba(13, 20, 38, 0.96);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-bottom: none;
+  border-radius: 22px 22px 0 0;
+  padding: 10px 18px calc(22px + env(safe-area-inset-bottom));
+  box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.55);
+  animation: sheetUp 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(36px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.bottom-sheet-handle {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.38);
+  margin: 0 auto 12px;
+}
+
+.quick-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quick-action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.quick-action-item:hover:not(:disabled) {
+  border-color: var(--emerald);
+  background: rgba(0, 229, 163, 0.08);
+}
+
+.quick-action-item.disabled,
+.quick-action-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.quick-action-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.quick-action-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quick-action-body strong {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.quick-action-body span {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Body Composition Tab */
+.body-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .body-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.body-kpi-card {
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.body-kpi-lbl {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.body-kpi-val {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.body-kpi-unit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.body-delta {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.body-delta.good { color: var(--emerald); }
+.body-delta.warn { color: var(--amber); }
+.body-delta.neutral { color: var(--text-dim); }
+
+.body-extras-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.body-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.body-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  flex-wrap: wrap;
+}
+
+.body-history-main {
+  flex: 1;
+  min-width: 210px;
+}
+
+.body-history-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.body-history-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.body-source-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.body-history-metrics {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.body-history-err {
+  font-size: 11px;
+  color: var(--red);
+  margin-top: 4px;
+}
+
+.body-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.body-del-btn {
+  padding: 4px 8px;
+  opacity: 0.78;
+}
+
+/* Health Phase 2 Coming Soon */
+.health-soon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 700px) {
+  .health-soon-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.health-soon-card {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px dashed var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.health-soon-icon {
+  font-size: 28px;
+}
+
+.health-soon-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.health-soon-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Weather Sunny Overrides for Navigation, Sheet, Body & Health */
+html[data-theme="weather_sunny"] .mobile-nav {
+  background: rgba(220, 229, 239, 0.86);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  border-top-color: rgba(15, 23, 42, 0.22);
+}
+
+html[data-theme="weather_sunny"] .mobile-nav button.mobile-nav-fab {
+  background: linear-gradient(135deg, #06634b, #075480);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+html[data-theme="weather_sunny"] .nav-btn-add {
+  background: rgba(6, 99, 75, 0.14);
+  border-color: rgba(6, 99, 75, 0.35);
+  color: #06634b;
+}
+
+html[data-theme="weather_sunny"] .bottom-sheet {
+  background: rgba(235, 240, 247, 0.97);
+  border-color: rgba(15, 23, 42, 0.22);
+  color: var(--text);
+}
+
+html[data-theme="weather_sunny"] .quick-action-item,
+html[data-theme="weather_sunny"] .body-kpi-card,
+html[data-theme="weather_sunny"] .body-history-item,
+html[data-theme="weather_sunny"] .health-soon-card {
+  background: rgba(15, 23, 42, 0.055);
+  border-color: rgba(15, 23, 42, 0.18);
+  color: var(--text);
 }
 

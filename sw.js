@@ -1,5 +1,5 @@
-const CACHE_NAME = "garmincoach-shell-v27";
-const SHELL_ASSETS = ["./", "./index.html", "./styles.css", "./theme-engine.js", "./ai-insights.js", "./app.js", "./manifest.json", "./icon.svg"];
+const CACHE_NAME = "garmincoach-shell-v28";
+const SHELL_ASSETS = ["./", "./index.html", "./styles.css", "./theme-engine.js", "./ai-insights.js", "./body-scale.js", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -9,6 +9,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 const TAB_TITLES = {
   dashboard: "Sabah Biyometri & Akşam Hava Kokpiti",
+  body: "Vücut Kompozisyonu · Honor Scale 2",
+  health: "Sağlık Merkezi · Faz 2",
   workouts: "Antrenman & Anatomik Kas Laboratuvarı",
   weekly: "Yönetici Kokpiti · Haftalık & Aylık Raporlar",
   archive: "30 Günlük Kayan Doküman & Sınırsız E-Tablo",
@@ -183,6 +185,9 @@ function setupTabs() {
       if (target === "dashboard") {
         requestAnimationFrame(syncLabCarouselHeight);
       }
+      if (target === "body") {
+        requestAnimationFrame(() => window.GarminBodyScale?.onTabShown?.());
+      }
       if (target === "workouts" && state.map) {
         setTimeout(() => state.map.invalidateSize(), 160);
       }
@@ -219,6 +224,7 @@ async function loadAllData() {
 
   window.GarminThemeEngine?.refreshFromSettings(state.settings);
   window.GarminAiInsights?.initForUser(state.settings, state.auth, sb);
+  window.GarminBodyScale?.initForUser(state.auth, sb);
   renderAll();
   renderNotifications();
   renderMonthly();
@@ -2877,6 +2883,8 @@ window.openBiometricModal = () => {
 window.closeModals = () => {
   document.getElementById("workout-modal").classList.remove("open");
   document.getElementById("biometric-modal").classList.remove("open");
+  window.GarminBodyScale?.closeScaleModal?.();
+  window.GarminBodyScale?.closeQuickAddSheet?.();
 };
 
 window.toggleWorkoutFields = () => {
@@ -3331,6 +3339,7 @@ window.logoutApp = async function () {
 
   window.GarminThemeEngine?.refreshFromSettings(null);
   window.GarminAiInsights?.reset();
+  window.GarminBodyScale?.reset();
   renderNotifications();
   renderAll();
   updateAuthUiLabels();
@@ -3371,7 +3380,7 @@ function initPullToRefresh() {
         pulling = false;
         return;
       }
-      if (e.target.closest("#activity-map, .leaflet-container, .modal-backdrop.open, #notif-drawer, #alerts-drawer, .lab-carousel-track, .lab-carousel-nav, .hourly-strip, .table-wrap, input, textarea, select")) {
+      if (e.target.closest("#activity-map, .leaflet-container, .modal-backdrop.open, .bottom-sheet-backdrop.open, .bottom-sheet, #scale-review-modal, #notif-drawer, #alerts-drawer, .lab-carousel-track, .lab-carousel-nav, .hourly-strip, .table-wrap, input, textarea, select")) {
         pulling = false;
         return;
       }
@@ -3464,7 +3473,9 @@ function initCapacitorBackButton() {
     capApp.addListener("backButton", () => {
       const hasOpenModal =
         document.getElementById("workout-modal")?.classList.contains("open") ||
-        document.getElementById("biometric-modal")?.classList.contains("open");
+        document.getElementById("biometric-modal")?.classList.contains("open") ||
+        document.getElementById("scale-review-modal")?.classList.contains("open") ||
+        document.getElementById("quick-add-sheet")?.classList.contains("open");
       if (hasOpenModal) {
         window.closeModals?.();
         return;

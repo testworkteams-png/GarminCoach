@@ -112,11 +112,15 @@
       </div>
 
       <nav class="side-nav" aria-label="Ana Navigasyon">
-        <button class="nav-btn active" data-tab="dashboard">⚡ Sabah Kokpiti</button>
-        <button class="nav-btn" data-tab="workouts">🏋️ Antrenman & Kas</button>
-        <button class="nav-btn" data-tab="weekly">📊 CEO Kokpiti (Hafta/Ay)</button>
-        <button class="nav-btn" data-tab="archive">🗂️ 30G Doküman & Arşiv</button>
-        <button class="nav-btn" data-tab="settings">⚙️ Komuta & Ayarlar</button>
+        <button type="button" class="nav-btn active" data-tab="dashboard">⚡ Özet</button>
+        <button type="button" class="nav-btn" data-tab="body">⚖️ Vücut</button>
+        <button type="button" class="nav-btn nav-btn-add" onclick="openQuickAddSheet()">＋ Hızlı Ekle</button>
+        <button type="button" class="nav-btn" data-tab="health">🩺 Sağlık</button>
+        <button type="button" class="nav-btn" data-tab="settings">⚙️ Ayarlar</button>
+        <div class="side-nav-divider">Kokpit Modülleri</div>
+        <button type="button" class="nav-btn" data-tab="workouts">🏋️ Antrenman &amp; Kas</button>
+        <button type="button" class="nav-btn" data-tab="weekly">📊 CEO Kokpiti (Hafta/Ay)</button>
+        <button type="button" class="nav-btn" data-tab="archive">🗂️ 30G Doküman &amp; Arşiv</button>
       </nav>
 
       <div class="side-actions">
@@ -173,6 +177,14 @@
           <span class="pill" id="pill-theme" onclick="openThemeSettings()" style="cursor:pointer;" title="Aktif Tema (Özel Gün & Canlı Hava) · Değiştirmek için tıklayın">🎨 Otomatik</span>
         </div>
       </header>
+
+      <!-- MOBILE QUICK SUB-MODULE CHIPS -->
+      <div class="mobile-subtabs" aria-label="Kokpit Alt Modülleri">
+        <button type="button" class="chip active" data-tab="dashboard">⚡ Özet</button>
+        <button type="button" class="chip" data-tab="workouts">🏋️ Antrenman</button>
+        <button type="button" class="chip" data-tab="weekly">📊 CEO Rapor</button>
+        <button type="button" class="chip" data-tab="archive">🗂️ 30G Arşiv</button>
+      </div>
 
       <!-- SPECIAL DAY / HOLIDAY THEME BANNER -->
       <div id="theme-holiday-banner" class="alert-banner theme-holiday-banner hidden">
@@ -964,6 +976,58 @@
           <div id="ai-notif-cap-hint" class="auth-hint-box" style="margin-top:12px;">Bildirim zamanlayıcısı kontrol ediliyor...</div>
         </div>
 
+        <div class="card mt-18" id="scale-settings-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">⚖️ Tartı &amp; Garmin Senkronizasyonu (Honor Scale 2)</div>
+              <div class="card-sub">Ölçümler sunucuda otomatik senkron kuyruğuna alınır; arayüzde Garmin şifresi saklanmaz</div>
+            </div>
+            <span class="badge badge-info" id="scale-settings-badge">Hazır</span>
+          </div>
+          <div class="toggle-list">
+            <div class="toggle-row">
+              <div>
+                <div style="font-weight:700; font-size:13.5px;">☁️ Garmin Connect'e Otomatik Aktar</div>
+                <div class="card-sub">Açıkken senkron servisi bekleyen Honor Scale 2 ölçümlerini otomatik olarak Garmin Connect'e aktarır</div>
+              </div>
+              <label class="toggle-switch" aria-label="Garmin Connect Otomatik Aktar">
+                <input type="checkbox" id="toggle-scale-auto-sync" checked onchange="saveScaleSettings()" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div style="font-weight:700; font-size:13.5px;">⏰ Tartılma Hatırlatıcısı</div>
+                <div class="card-sub">Son seçilen gün aralığında ölçüm yapılmışsa o gün bildirim gönderilmez</div>
+              </div>
+              <label class="toggle-switch" aria-label="Tartılma Hatırlatıcısı">
+                <input type="checkbox" id="toggle-weigh-reminder" checked onchange="saveScaleSettings()" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row" id="scale-reminder-options">
+              <div>
+                <div style="font-weight:700; font-size:13.5px;">📅 Hatırlatma Periyodu &amp; Saati</div>
+                <div class="card-sub">Kaç günde bir ve hangi saatte hatırlatma almak istediğinizi seçin</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <select id="inp-weigh-interval" class="time-input-compact" onchange="saveScaleSettings()" aria-label="Tartılma Periyodu">
+                  <option value="2">Her 2 günde bir</option>
+                  <option value="3" selected>Her 3 günde bir</option>
+                  <option value="5">Her 5 günde bir</option>
+                  <option value="7">Her 7 günde bir</option>
+                </select>
+                <input type="time" id="inp-weigh-time" class="time-input-compact mono" value="08:00" onchange="saveScaleSettings()" aria-label="Tartılma Saati" />
+              </div>
+            </div>
+          </div>
+          <div id="scale-reminder-hint" class="auth-hint-box" style="margin-top:12px;">Hatırlatıcı zamanlayıcısı kontrol ediliyor...</div>
+          <div id="scale-sync-status-box" class="auth-hint-box" style="margin-top:10px;">Aktarım durumu yükleniyor...</div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;">
+            <button type="button" class="btn btn-sm" id="btn-retry-scale-sync" onclick="retryPendingScaleSync()">↻ Bekleyen Aktarımları Kontrol Et</button>
+          </div>
+        </div>
+
         <div class="card mt-18" id="theme-settings-card">
           <div class="card-header">
             <div>
@@ -1024,17 +1088,170 @@
           </form>
         </div>
       </section>
+
+      <!-- TAB 6: VÜCUT (HONOR SCALE 2) -->
+      <section id="tab-body" class="tab-panel">
+        <div class="card card-glow">
+          <div class="card-header">
+            <div>
+              <div class="card-title">⚖️ Son Vücut Kompozisyonu Ölçümü</div>
+              <div class="card-sub" id="body-latest-meta">İlk ölçüm bekleniyor</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span class="badge badge-info" id="body-latest-sync-badge">Kayıt Yok</span>
+              <button type="button" class="btn btn-primary btn-sm" onclick="triggerScaleScreenshotUpload()">📷 Ekran Görüntüsü</button>
+              <button type="button" class="btn btn-cyan btn-sm" onclick="openManualScaleModal()">✏️ Manuel Ekle</button>
+            </div>
+          </div>
+          <div class="body-summary-grid" id="body-latest-grid"></div>
+          <div class="body-extras-row" id="body-latest-extras"></div>
+        </div>
+
+        <div class="card mt-18">
+          <div class="card-header">
+            <div>
+              <div class="card-title">📈 Kilo, Yağ Oranı &amp; Kas Kütlesi Trendi</div>
+              <div class="card-sub">Son 30 ölçüm üzerinden Honor Scale 2 değişim grafiği</div>
+            </div>
+            <span class="badge badge-info">Garmin Senkron Hazır</span>
+          </div>
+          <div id="body-chart-empty" class="card-sub" style="margin-bottom:8px;">Grafik çizimi için en az 1 ölçüm ekleyin.</div>
+          <div class="chart-wrap" style="height:260px;">
+            <canvas id="bodyCompositionChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card mt-18">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🗂️ Geçmiş Tartı Ölçümleri &amp; Garmin Durumu</div>
+              <div class="card-sub">Görseller kaydedilmez; yalnızca sayısal metrikler saklanır ve Garmin Connect'e aktarılır</div>
+            </div>
+            <span class="badge badge-info mono" id="body-history-count">0 kayıt</span>
+          </div>
+          <div class="body-history-list" id="body-history-list"></div>
+        </div>
+      </section>
+
+      <!-- TAB 7: SAĞLIK (FAZ 2 YAKINDA) -->
+      <section id="tab-health" class="tab-panel">
+        <div class="card card-glow">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🩺 Sağlık Merkezi &amp; Laboratuvar Takibi</div>
+              <div class="card-sub">Faz 2 kapsamında kan tahlili ve günlük ilaç/vitamin takibi burada yer alacak</div>
+            </div>
+            <span class="badge badge-info">Faz 2 · Yakında</span>
+          </div>
+          <div class="health-soon-grid">
+            <div class="health-soon-card">
+              <div class="health-soon-icon">📄</div>
+              <div class="health-soon-title">Kan Tahlili &amp; PDF Analizi</div>
+              <div class="health-soon-desc">E-Nabız veya laboratuvar PDF/fotoğraf sonuçlarını yapay zeka ile ayrıştırıp biyometrik verilerinle kıyaslama.</div>
+              <span class="badge badge-warn">Faz 2'de Açılacak</span>
+            </div>
+            <div class="health-soon-card">
+              <div class="health-soon-icon">💊</div>
+              <div class="health-soon-title">İlaç, Takviye &amp; Vitamin Takibi</div>
+              <div class="health-soon-desc">Günlük doz hatırlatmaları, takviye geçmişi ve uyku/HRV üzerindeki etkilerinin izlenmesi.</div>
+              <span class="badge badge-warn">Faz 2'de Açılacak</span>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
-  <!-- MOBILE BOTTOM NAV -->
+  <!-- MOBILE BOTTOM NAV (5-ÖĞELİ CAM EFEKTLİ) -->
   <nav class="mobile-nav" aria-label="Mobil Menü">
-    <button class="active" data-tab="dashboard">⚡<span>Kokpit</span></button>
-    <button data-tab="workouts">🏋️<span>Antrenman</span></button>
-    <button data-tab="weekly">📊<span>CEO Rapor</span></button>
-    <button data-tab="archive">🗂️<span>Arşiv</span></button>
-    <button data-tab="settings">⚙️<span>Ayarlar</span></button>
+    <button type="button" class="active" data-tab="dashboard">⚡<span>Özet</span></button>
+    <button type="button" data-tab="body">⚖️<span>Vücut</span></button>
+    <button type="button" class="mobile-nav-fab" onclick="openQuickAddSheet()" aria-label="Hızlı Ekle">＋</button>
+    <button type="button" data-tab="health">🩺<span>Sağlık</span></button>
+    <button type="button" data-tab="settings">⚙️<span>Ayarlar</span></button>
   </nav>
+
+  <!-- GİZLİ EKRAN GÖRÜNTÜSÜ DOSYA SEÇİCİSİ -->
+  <input type="file" id="scale-screenshot-input" accept="image/*" style="display:none;" />
+
+  <!-- HIZLI EKLE BOTTOM SHEET (+) -->
+  <div class="bottom-sheet-backdrop" id="quick-add-sheet" onclick="if(event.target===this)closeQuickAddSheet()">
+    <div class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Hızlı Ekle Menüsü">
+      <div class="bottom-sheet-handle"></div>
+      <div class="card-header" style="margin-bottom:12px;">
+        <div>
+          <div class="card-title">＋ Hızlı Ölçüm &amp; Veri Ekle</div>
+          <div class="card-sub">Honor Scale 2 tartı verisi ekle (Faz 1 aktif)</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="closeQuickAddSheet()">✕</button>
+      </div>
+      <div class="quick-actions-list">
+        <button type="button" class="quick-action-item" onclick="triggerScaleScreenshotUpload()">
+          <span class="quick-action-icon">📷</span>
+          <div class="quick-action-body">
+            <strong>Tartı Ekran Görüntüsü Yükle</strong>
+            <span>Huawei Health / Honor Scale 2 ekranını AI ile oku · görsel saklanmaz</span>
+          </div>
+          <span class="badge badge-ok">AI</span>
+        </button>
+        <button type="button" class="quick-action-item" onclick="openManualScaleModal()">
+          <span class="quick-action-icon">✏️</span>
+          <div class="quick-action-body">
+            <strong>Manuel Tartı Ekle</strong>
+            <span>Kilo, yağ %, kas ve diğer kompozisyon verilerini elle gir</span>
+          </div>
+          <span class="badge badge-info">Hızlı</span>
+        </button>
+        <button type="button" class="quick-action-item disabled" disabled aria-disabled="true">
+          <span class="quick-action-icon">📄</span>
+          <div class="quick-action-body">
+            <strong>Tahlil Yükle (PDF/Foto)</strong>
+            <span>Kan tahlili ve laboratuvar raporları Faz 2 ile aktif olacak</span>
+          </div>
+          <span class="badge badge-warn">Yakında</span>
+        </button>
+        <button type="button" class="quick-action-item disabled" disabled aria-disabled="true">
+          <span class="quick-action-icon">💊</span>
+          <div class="quick-action-body">
+            <strong>İlaç / Vitamin Ekle</strong>
+            <span>Günlük takviye ve hatırlatma modülü Faz 2 ile aktif olacak</span>
+          </div>
+          <span class="badge badge-warn">Yakında</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KONTROL ET & KAYDET MODAL (HONOR SCALE 2) -->
+  <div class="modal-backdrop" id="scale-review-modal">
+    <div class="modal-card modal-card-wide">
+      <div class="card-header">
+        <div>
+          <div class="card-title">⚖️ Kontrol Et &amp; Kaydet <span class="badge badge-info" id="scale-modal-source-badge" style="margin-left:6px;">Manuel</span></div>
+          <div class="card-sub">Görsel kaydedilmez; onayladığında yalnızca sayısal değerler Supabase ve Garmin sırasına yazılır</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="closeScaleReviewModal()">✕</button>
+      </div>
+      <div id="scale-ai-loading" class="auth-hint-box hidden" style="margin-bottom:12px;">⏳ Okunuyor...</div>
+      <form class="form-grid" onsubmit="submitScaleReviewModal(event)">
+        <div class="field" style="grid-column:1 / -1;"><label for="sc-measured-at">Ölçüm Tarihi &amp; Saati</label><input id="sc-measured-at" type="datetime-local" required /></div>
+        <div class="field"><label for="sc-weight">Kilo (kg) *</label><input id="sc-weight" type="number" step="0.01" min="20" max="300" required placeholder="Örn. 76.4" /></div>
+        <div class="field"><label for="sc-bmi">VKİ / BMI</label><input id="sc-bmi" type="number" step="0.1" min="8" max="80" placeholder="Örn. 23.8" /></div>
+        <div class="field"><label for="sc-fat">Vücut Yağ Oranı (%)</label><input id="sc-fat" type="number" step="0.1" min="2" max="75" placeholder="Örn. 17.5" /></div>
+        <div class="field"><label for="sc-muscle">Kas Kütlesi (kg)</label><input id="sc-muscle" type="number" step="0.01" min="5" max="150" placeholder="Örn. 58.2" /></div>
+        <div class="field"><label for="sc-bone">Kemik Kütlesi (kg)</label><input id="sc-bone" type="number" step="0.01" min="0.5" max="15" placeholder="Örn. 3.1" /></div>
+        <div class="field"><label for="sc-water">Vücut Suyu (%)</label><input id="sc-water" type="number" step="0.1" min="15" max="85" placeholder="Örn. 59.4" /></div>
+        <div class="field"><label for="sc-visceral">İç Organ Yağı</label><input id="sc-visceral" type="number" step="0.5" min="1" max="50" placeholder="Örn. 6" /></div>
+        <div class="field"><label for="sc-met-age">Metabolik Yaş</label><input id="sc-met-age" type="number" step="1" min="10" max="110" placeholder="Örn. 29" /></div>
+        <div class="field"><label for="sc-bmr">Bazal Metabolizma (kcal)</label><input id="sc-bmr" type="number" step="1" min="500" max="6000" placeholder="Örn. 1680" /></div>
+        <div class="field"><label for="sc-protein">Protein (%)</label><input id="sc-protein" type="number" step="0.1" min="4" max="45" placeholder="Örn. 19.2" /></div>
+        <div style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+          <button type="button" class="btn" onclick="closeScaleReviewModal()">İptal</button>
+          <button type="submit" class="btn btn-primary" id="btn-scale-save">💾 Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- WORKOUT LOG MODAL -->
   <div class="modal-backdrop" id="workout-modal">
@@ -1100,6 +1317,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="theme-engine.js"></script>
   <script src="ai-insights.js"></script>
+  <script src="body-scale.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
