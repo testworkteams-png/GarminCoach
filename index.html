@@ -263,19 +263,31 @@
                   </svg>
                   <div class="dual-ring-center">
                     <div class="dual-ring-score mono" id="readiness-score">--</div>
-                    <div class="dual-ring-sub" id="readiness-status-label">OPTIMAL</div>
+                    <div class="dual-ring-sub" id="readiness-status-label">OPTİMAL</div>
                     <div class="dual-ring-bb mono" id="bb-ring-label">BB --</div>
                   </div>
                 </div>
+                <svg class="ring-connectors-svg" viewBox="0 0 34 174" aria-hidden="true">
+                  <g id="ring-arrow-readiness" stroke="#00e5a3" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="-18" cy="52" r="3.2" fill="#00e5a3" stroke="none" />
+                    <path d="M -18 52 L 6 38 L 31 38" />
+                    <path d="M 26 34 L 31 38 L 26 42" />
+                  </g>
+                  <g id="ring-arrow-bb" stroke="#38bdf8" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="-35" cy="112" r="3.2" fill="#38bdf8" stroke="none" />
+                    <path d="M -35 112 L 6 132 L 31 132" />
+                    <path d="M 26 128 L 31 132 L 26 136" />
+                  </g>
+                </svg>
                 <div class="ring-legend-box">
-                  <div class="ring-legend-item">
+                  <div class="ring-legend-item" id="ring-legend-card-readiness">
                     <span class="ring-legend-dot" id="ring-legend-dot-readiness" style="background:#00e5a3;"></span>
                     <div class="ring-legend-body">
                       <div class="ring-legend-title">Dış Halka · Hazırlık <strong class="mono" id="ring-legend-val-readiness">--/100</strong></div>
                       <div class="ring-legend-desc">Uyku, HRV, nabız ve enerji bileşimi</div>
                     </div>
                   </div>
-                  <div class="ring-legend-item">
+                  <div class="ring-legend-item" id="ring-legend-card-bb">
                     <span class="ring-legend-dot" id="ring-legend-dot-bb" style="background:#38bdf8;"></span>
                     <div class="ring-legend-body">
                       <div class="ring-legend-title">İç Halka · Body Battery <strong class="mono" id="ring-legend-val-bb">--/100</strong></div>

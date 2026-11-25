@@ -536,6 +536,14 @@ function renderDashboard() {
   ringR.style.stroke = ringColor;
   ringBB.style.stroke = bbColor;
 
+  const legReadCard = document.getElementById("ring-legend-card-readiness");
+  if (legReadCard) legReadCard.style.borderLeftColor = ringColor;
+  const arrowReadGroup = document.getElementById("ring-arrow-readiness");
+  if (arrowReadGroup) {
+    arrowReadGroup.setAttribute("stroke", ringColor);
+    const arrowDot = arrowReadGroup.querySelector("circle");
+    if (arrowDot) arrowDot.setAttribute("fill", ringColor);
+  }
   const legReadDot = document.getElementById("ring-legend-dot-readiness");
   if (legReadDot) legReadDot.style.background = ringColor;
   const legReadVal = document.getElementById("ring-legend-val-readiness");
@@ -551,11 +559,13 @@ function renderDashboard() {
     legBbVal.style.color = bbColor;
   }
 
+  const readinessTrMap = { OPTIMAL: "OPTİMAL", MODERATE: "ORTA", LOW: "DÜŞÜK", CRITICAL: "KRİTİK" };
+  const rawStatus = latest.readiness_status || (score >= 80 ? "OPTIMAL" : score >= 60 ? "MODERATE" : score >= 45 ? "LOW" : "CRITICAL");
   document.getElementById("readiness-score").textContent = score;
   const stLbl = document.getElementById("readiness-status-label");
-  stLbl.textContent = latest.readiness_status || "OPTIMAL";
+  stLbl.textContent = readinessTrMap[rawStatus] || rawStatus;
   stLbl.style.color = ringColor;
-  document.getElementById("bb-ring-label").textContent = `BB ${bbMax}/100`;
+  document.getElementById("bb-ring-label").textContent = `BB ${bbMax}`;
 
   const badge = document.getElementById("readiness-badge");
   badge.textContent = score >= 80 ? "Yeşil Işık" : score >= 60 ? "Kontrollü" : "Toparlanma";

@@ -1,4 +1,4 @@
-const CACHE_NAME = "garmincoach-shell-v26";
+const CACHE_NAME = "garmincoach-shell-v27";
 const SHELL_ASSETS = ["./", "./index.html", "./styles.css", "./theme-engine.js", "./ai-insights.js", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
