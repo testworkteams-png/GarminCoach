@@ -3,10 +3,24 @@
   "short_name": "GarminCoach",
   "description": "Kişisel Garmin Biyometri, Hava Kalitesi Kadranı ve AI Performans Koçu",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#050811",
   "theme_color": "#050811",
   "orientation": "portrait-primary",
+  "share_target": {
+    "action": "./share-scale",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "scale_image",
+          "accept": ["image/*", ".png", ".jpg", ".jpeg", ".webp"]
+        }
+      ]
+    }
+  },
   "icons": [
     {
       "src": "icon.svg",

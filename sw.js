@@ -1,4 +1,6 @@
-const CACHE_NAME = "garmincoach-shell-v28";
+const CACHE_NAME = "garmincoach-shell-v29";
+const SHARE_CACHE_NAME = "garmincoach-share-temp-v1";
+const SHARE_IMAGE_KEY = "./__shared-scale-image";
 const SHELL_ASSETS = ["./", "./index.html", "./styles.css", "./theme-engine.js", "./ai-insights.js", "./body-scale.js", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -17,14 +19,40 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== SHARE_CACHE_NAME).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
+  if (
+    event.request.method === "POST" &&
+    url.origin === self.location.origin &&
+    url.pathname.endsWith("/share-scale")
+  ) {
+    event.respondWith(
+      (async () => {
+        try {
+          const formData = await event.request.formData();
+          const file = formData.get("scale_image");
+          if (file && typeof file.arrayBuffer === "function") {
+            const cache = await caches.open(SHARE_CACHE_NAME);
+            await cache.put(
+              SHARE_IMAGE_KEY,
+              new Response(file, {
+                headers: { "Content-Type": file.type || "image/jpeg" },
+              })
+            );
+          }
+        } catch (_) {}
+        return Response.redirect("./index.html?shared_scale=1", 303);
+      })()
+    );
+    return;
+  }
+
+  if (event.request.method !== "GET") return;
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(event.request, { cache: "no-cache" })

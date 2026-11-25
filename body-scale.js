@@ -5,6 +5,8 @@
   const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5_1RDXV8unnW9ttkHEA_HQ_n8fJrt4I";
   const PARSE_SCALE_URL = `${SUPABASE_URL}/functions/v1/parse-scale-screenshot`;
   const WEIGH_IN_NOTIF_ID = 202602;
+  const SHARE_CACHE_NAME = "garmincoach-share-temp-v1";
+  const SHARE_IMAGE_KEY = "./__shared-scale-image";
 
   const moduleState = {
     auth: null,
@@ -574,12 +576,39 @@
     syncWeighInReminder();
   }
 
+  async function consumeSharedScaleImageIfAny() {
+    try {
+      const url = new URL(window.location.href);
+      const hasQuery = url.searchParams.has("shared_scale");
+      if (hasQuery) {
+        url.searchParams.delete("shared_scale");
+        window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+      }
+
+      if (!("caches" in window)) return;
+      const cache = await caches.open(SHARE_CACHE_NAME);
+      const match = await cache.match(SHARE_IMAGE_KEY);
+      if (!match) return;
+
+      await cache.delete(SHARE_IMAGE_KEY);
+      const blob = await match.blob();
+      if (!blob || blob.size < 50) return;
+
+      const fileObj =
+        typeof File !== "undefined"
+          ? new File([blob], "shared-scale.jpg", { type: blob.type || "image/jpeg" })
+          : blob;
+      await handleScreenshotSelected(fileObj);
+    } catch (_) {}
+  }
+
   async function initForUser(auth, sbClient) {
     moduleState.auth = auth || null;
     moduleState.sbClient = sbClient || null;
     bindFileInputOnce();
     if (!auth?.authenticated || !auth?.userId || !sbClient) return;
     await refresh();
+    await consumeSharedScaleImageIfAny();
   }
 
   function reset() {
