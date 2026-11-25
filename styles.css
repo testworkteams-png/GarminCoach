@@ -3145,3 +3145,34 @@ html[data-theme="weather_sunny"] .health-soon-card {
   color: var(--text);
 }
 
+
+/* Faz 2: Ilac / Takviye Takibi */
+.med-today-list, .med-list { display: flex; flex-direction: column; gap: 8px; }
+.med-row, .med-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border-radius: 14px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.03);
+}
+.med-row.taken { opacity: 0.6; border-color: var(--emerald); }
+.med-row.late { border-color: var(--red); }
+.med-item.inactive { opacity: 0.5; }
+.med-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.med-row-body strong { font-size: 14px; color: var(--text); }
+.med-row-body strong small { font-weight: 500; color: var(--text-muted); margin-left: 4px; }
+.med-row-body span { font-size: 12px; color: var(--text-muted); }
+.med-time { font-size: 13px; color: var(--text-muted); }
+.med-check {
+  width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%;
+  border: 2px solid var(--border); background: transparent; color: var(--emerald);
+  font-size: 18px; font-weight: 800; cursor: pointer;
+}
+.med-row.taken .med-check { background: var(--emerald-soft); border-color: var(--emerald); }
+.med-item-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.med-week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; }
+.med-day {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px;
+  border-radius: 10px; border: 1px solid var(--border); font-size: 11px; color: var(--text-muted);
+}
+.med-day b { font-size: 12px; color: var(--text); }
+.med-day.full { border-color: var(--emerald); background: var(--emerald-soft); }
+.med-day.part { border-color: #d9a441; }
+.med-day.miss { border-color: var(--red); }

@@ -1139,9 +1139,9 @@
           <div class="card-header">
             <div>
               <div class="card-title">🩺 Sağlık Merkezi &amp; Laboratuvar Takibi</div>
-              <div class="card-sub">Faz 2 kapsamında kan tahlili ve günlük ilaç/vitamin takibi burada yer alacak</div>
+              <div class="card-sub">İlaç/vitamin takibi aktif · kan tahlili analizi yakında</div>
             </div>
-            <span class="badge badge-info">Faz 2 · Yakında</span>
+            <span class="badge badge-ok">Faz 2 · İlaç Aktif</span>
           </div>
           <div class="health-soon-grid">
             <div class="health-soon-card">
@@ -1150,13 +1150,34 @@
               <div class="health-soon-desc">E-Nabız veya laboratuvar PDF/fotoğraf sonuçlarını yapay zeka ile ayrıştırıp biyometrik verilerinle kıyaslama.</div>
               <span class="badge badge-warn">Faz 2'de Açılacak</span>
             </div>
-            <div class="health-soon-card">
-              <div class="health-soon-icon">💊</div>
-              <div class="health-soon-title">İlaç, Takviye &amp; Vitamin Takibi</div>
-              <div class="health-soon-desc">Günlük doz hatırlatmaları, takviye geçmişi ve uyku/HRV üzerindeki etkilerinin izlenmesi.</div>
-              <span class="badge badge-warn">Faz 2'de Açılacak</span>
+          </div>
+        </div>
+
+        <div class="card" id="med-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">💊 Bugünün İlaç &amp; Takviyeleri</div>
+              <div class="card-sub" id="med-adherence">Henüz veri yok</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="badge badge-info mono" id="med-today-badge">--</span>
+              <button type="button" class="btn btn-sm btn-primary" onclick="openMedModal()">＋ Ekle</button>
             </div>
           </div>
+          <div class="med-today-list" id="med-today-list"></div>
+          <div class="med-week-strip" id="med-week-strip"></div>
+          <div class="auth-hint-box" id="med-reminder-hint" style="margin-top:12px;"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">📋 İlaç / Takviye Listem</div>
+              <div class="card-sub">Doz saatleri ve notlar · APK'da bildirim olarak hatırlatılır</div>
+            </div>
+            <span class="badge badge-info mono" id="med-count">0 kayıt</span>
+          </div>
+          <div class="med-list" id="med-list"></div>
         </div>
       </section>
     </main>
@@ -1210,13 +1231,13 @@
           </div>
           <span class="badge badge-warn">Yakında</span>
         </button>
-        <button type="button" class="quick-action-item disabled" disabled aria-disabled="true">
+        <button type="button" class="quick-action-item" onclick="openMedModal()">
           <span class="quick-action-icon">💊</span>
           <div class="quick-action-body">
             <strong>İlaç / Vitamin Ekle</strong>
-            <span>Günlük takviye ve hatırlatma modülü Faz 2 ile aktif olacak</span>
+            <span>Doz saatleri, günlük "aldım" işaretleme ve hatırlatma</span>
           </div>
-          <span class="badge badge-warn">Yakında</span>
+          <span class="badge badge-ok">Aktif</span>
         </button>
       </div>
     </div>
@@ -1310,6 +1331,36 @@
     </div>
   </div>
 
+  <!-- İLAÇ / TAKVİYE MODAL -->
+  <div class="modal-backdrop" id="med-modal">
+    <div class="modal-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title" id="med-modal-title">İlaç / Takviye Ekle</div>
+          <div class="card-sub">Birden fazla doz saati için virgülle ayır (örn. 08:00, 20:30)</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="closeMedModal()">✕</button>
+      </div>
+      <form class="form-grid" onsubmit="submitMedModal(event)">
+        <div class="field" style="grid-column:1 / -1;"><label for="med-name">Ad *</label><input id="med-name" type="text" required maxlength="80" placeholder="Örn. D3 Vitamini" /></div>
+        <div class="field"><label for="med-kind">Tür</label>
+          <select id="med-kind">
+            <option value="supplement">Takviye</option>
+            <option value="vitamin">Vitamin</option>
+            <option value="medication">İlaç</option>
+          </select>
+        </div>
+        <div class="field"><label for="med-dose">Doz</label><input id="med-dose" type="text" maxlength="60" placeholder="Örn. 2000 IU / 1 tablet" /></div>
+        <div class="field" style="grid-column:1 / -1;"><label for="med-times">Doz Saatleri</label><input id="med-times" type="text" value="08:00" placeholder="08:00, 20:30" /></div>
+        <div class="field" style="grid-column:1 / -1;"><label for="med-notes">Not</label><input id="med-notes" type="text" maxlength="120" placeholder="Örn. tok karnına" /></div>
+        <div style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+          <button type="button" class="btn" onclick="closeMedModal()">İptal</button>
+          <button type="submit" class="btn btn-primary">💾 Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1318,6 +1369,7 @@
   <script src="theme-engine.js"></script>
   <script src="ai-insights.js"></script>
   <script src="body-scale.js"></script>
+  <script src="health-meds.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
