@@ -186,8 +186,14 @@
   const st = {
     auth: null,
     sb: null,
-    reports: [], // { ...report, results: [] }
-    series: [], // unified biomarker series sorted by priority
+    reports: [],
+    series: [],
+    selectedReportId: "all",
+    slideIdx: 0,
+    tableQuery: "",
+    overviewAi: null,
+    aiLoading: false,
+    aiAttemptedKeys: new Set(),
     activeCat: "all",
     selectedTest: null,
     draft: null,
@@ -213,12 +219,18 @@
     return `${day}.${m}.${y}`;
   }
 
+  function fmtShortDate(d) {
+    if (!d) return "--";
+    const [, m, day] = String(d).slice(0, 10).split("-");
+    return `${day}.${m}`;
+  }
+
   function shortLab(name) {
     if (!name) return "";
     return String(name)
-      .replace(/İSTANBUL\s+ÜSKÜDAR\s+0*20\s+NOLU\s+AİLE\s+HEKİMLİĞİ\s+BİRİMİ/i, "Üsküdar 20 Nolu ASM")
+      .replace(/İSTANBUL\s+ÜSKÜDAR\s+0*20\s+NOLU\s+AİLE\s+HEKİMLİĞİ\s+BİRİMİ/i, "Üsküdar ASM")
       .replace(/AİLE\s+HEKİMLİĞİ\s+BİRİMİ/i, "ASM")
-      .replace(/ÖZEL\s+ERDEM\s+HASTANESİ/i, "Özel Erdem Hst.");
+      .replace(/ÖZEL\s+ERDEM\s+HASTANESİ/i, "Erdem Hst.");
   }
 
   function normKey(s) {
@@ -303,6 +315,7 @@
           map.set(key, { name: key, category: r.category || "other", points: [] });
         }
         map.get(key).points.push({
+          report_id: rp.id,
           date: rp.report_date,
           lab_name: rp.lab_name || "",
           value: Number(r.value),
@@ -341,58 +354,277 @@
     return token;
   }
 
-  // ---------- Render ----------
+  // ---------- Carousel Engine (#hl-carousel-track) ----------
+  function syncHlCarouselHeight() {
+    const track = document.getElementById("hl-carousel-track");
+    if (!track) return;
+    const slides = track.querySelectorAll(".lab-carousel-slide");
+    if (!slides.length) return;
+    const idx = Math.max(0, Math.min(slides.length - 1, Number(st.slideIdx) || 0));
+    const card = slides[idx]?.querySelector(".card") || slides[idx];
+    if (!card) return;
+    const h = Math.round(card.offsetHeight);
+    if (h > 40) track.style.height = `${h + 2}px`;
+  }
+
+  function updateHlCarouselUi(idx) {
+    const track = document.getElementById("hl-carousel-track");
+    if (!track) return;
+    const slides = track.querySelectorAll(".lab-carousel-slide");
+    const total = slides.length;
+    if (!total) return;
+
+    const clamped = Math.max(0, Math.min(total - 1, Number(idx) || 0));
+    st.slideIdx = clamped;
+
+    const counter = document.getElementById("hl-carousel-counter");
+    if (counter) counter.textContent = `${clamped + 1} / ${total}`;
+
+    const nav = document.getElementById("hl-carousel-nav");
+    if (nav) {
+      nav.querySelectorAll(".lab-carousel-tab").forEach((btn, i) => btn.classList.toggle("active", i === clamped));
+      const activeTab = nav.querySelector(`.lab-carousel-tab[data-slide="${clamped}"]`);
+      if (activeTab) {
+        const targetLeft = Math.max(0, activeTab.offsetLeft - (nav.clientWidth - activeTab.offsetWidth) / 2);
+        nav.scrollTo({ left: targetLeft, behavior: "smooth" });
+      }
+    }
+
+    document.querySelectorAll("#hl-carousel-dots .lab-carousel-dot").forEach((dot, i) => dot.classList.toggle("active", i === clamped));
+    syncHlCarouselHeight();
+  }
+
+  function goToHlSlide(idx) {
+    const track = document.getElementById("hl-carousel-track");
+    if (!track) return;
+    const slides = track.querySelectorAll(".lab-carousel-slide");
+    if (!slides.length) return;
+    const clamped = Math.max(0, Math.min(slides.length - 1, Number(idx) || 0));
+    const left = Math.max(0, slides[clamped].offsetLeft - slides[0].offsetLeft);
+    track.scrollTo({ left, behavior: "smooth" });
+    updateHlCarouselUi(clamped);
+    if (clamped === 1 && st.chart) {
+      try { st.chart.resize(); } catch (_) {}
+    }
+  }
+
+  function moveHlCarousel(delta) {
+    const track = document.getElementById("hl-carousel-track");
+    if (!track) return;
+    const total = track.querySelectorAll(".lab-carousel-slide").length;
+    if (!total) return;
+    goToHlSlide(((st.slideIdx || 0) + Number(delta || 0) + total) % total);
+  }
+
+  function initHlCarousel() {
+    const track = document.getElementById("hl-carousel-track");
+    if (!track || track.dataset.bound === "1") return;
+    track.dataset.bound = "1";
+
+    let rafId = 0;
+    track.addEventListener("scroll", () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const slides = track.querySelectorAll(".lab-carousel-slide");
+        if (!slides.length) return;
+        const base = slides[0].offsetLeft;
+        const cur = track.scrollLeft;
+        let best = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < slides.length; i++) {
+          const d = Math.abs(slides[i].offsetLeft - base - cur);
+          if (d < bestDist) { bestDist = d; best = i; }
+        }
+        if (best !== st.slideIdx) updateHlCarouselUi(best);
+      });
+    }, { passive: true });
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => syncHlCarouselHeight());
+      track.querySelectorAll(".lab-carousel-slide > .card").forEach((c) => ro.observe(c));
+    }
+    window.addEventListener("resize", syncHlCarouselHeight);
+    updateHlCarouselUi(0);
+  }
+
+  // ---------- Render: Report Switcher ----------
+  function renderReportSwitcher() {
+    const sw = document.getElementById("lab-report-switcher");
+    const count = document.getElementById("lab-count");
+    const sec = document.getElementById("hl-carousel-section");
+    if (count) count.textContent = `${st.reports.length} rapor`;
+
+    if (st.selectedReportId !== "all" && !st.reports.some((r) => r.id === st.selectedReportId)) {
+      st.selectedReportId = "all";
+    }
+
+    if (sec) sec.classList.toggle("hidden", !st.reports.length);
+    if (!sw) return;
+
+    if (!st.auth?.authenticated) {
+      sw.innerHTML = `<div class="auth-hint-box" style="width:100%;">Giriş yaptıktan sonra tahlillerini ekleyebilirsin.</div>`;
+      return;
+    }
+    if (!st.reports.length) {
+      sw.innerHTML = `<div class="auth-hint-box" style="width:100%;">Henüz tahlil eklenmedi. E-Nabız veya hastane PDF'i yükleyerek başla.</div>`;
+      return;
+    }
+
+    const allPill = `<button type="button" class="lab-rep-pill ${st.selectedReportId === "all" ? "active" : ""}" onclick="selectLabReport('all')">✨ Tümü · ${st.reports.length} rapor</button>`;
+    const repPills = st.reports
+      .map((rp) => {
+        const abn = rp.results.filter((r) => ["low", "high"].includes(flagOf(r))).length;
+        const act = st.selectedReportId === rp.id ? "active" : "";
+        const warnCls = abn ? "has-warn" : "";
+        const labTxt = shortLab(rp.lab_name);
+        return `<button type="button" class="lab-rep-pill ${warnCls} ${act}" onclick="selectLabReport('${esc(rp.id)}')">${fmtShortDate(rp.report_date)}${labTxt ? " · " + esc(labTxt) : ""} · ${abn ? "⚠️" + abn : "✓"}</button>`;
+      })
+      .join("");
+    sw.innerHTML = allPill + repPills;
+  }
+
+  // ---------- Render: AI Comment & Slide 0 Summary ----------
+  function renderAiBox() {
+    const scopeEl = document.getElementById("lab-ai-scope");
+    const textEl = document.getElementById("lab-ai-text");
+    const btnEl = document.getElementById("btn-lab-ai-refresh");
+    if (!textEl) return;
+
+    const isAll = st.selectedReportId === "all";
+    const rp = isAll ? null : st.reports.find((r) => r.id === st.selectedReportId);
+    if (scopeEl) scopeEl.textContent = isAll ? "Birleşik" : `${fmtDate(rp?.report_date)}`;
+    if (btnEl) btnEl.disabled = st.aiLoading;
+
+    if (!st.reports.length) {
+      textEl.textContent = "Yorum için önce en az bir tahlil ekle.";
+      return;
+    }
+    if (st.aiLoading) {
+      textEl.textContent = "⏳ Yapay zeka tahlilleri ve takviyeleri değerlendiriyor...";
+      return;
+    }
+
+    const cachedText = isAll ? st.overviewAi?.summary : rp?.ai_summary;
+    textEl.textContent = cachedText || "Yorum hazırlanıyor...";
+  }
+
+  async function ensureAiSummary(force) {
+    if (!st.auth?.authenticated || !st.reports.length || st.aiLoading) return;
+    const scopeKey = st.selectedReportId || "all";
+    const isAll = scopeKey === "all";
+    const rp = isAll ? null : st.reports.find((r) => r.id === scopeKey);
+    const hasCached = isAll ? Boolean(st.overviewAi?.summary) : Boolean(rp?.ai_summary);
+    if (!force && (hasCached || st.aiAttemptedKeys.has(scopeKey))) return;
+
+    st.aiAttemptedKeys.add(scopeKey);
+    st.aiLoading = true;
+    renderAiBox();
+    syncHlCarouselHeight();
+
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Oturum bulunamadı.");
+      const res = await fetch(PARSE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "analyzeSummary", report_id: isAll ? null : scopeKey, force: Boolean(force) }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error || "AI yorumu alınamadı.");
+      if (isAll) {
+        st.overviewAi = { summary: json.summary, fingerprint: json.fingerprint || "" };
+      } else if (rp) {
+        rp.ai_summary = json.summary;
+      }
+      if (force) toast("✨ Tahlil AI yorumu güncellendi.");
+    } catch (err) {
+      const textEl = document.getElementById("lab-ai-text");
+      if (textEl) textEl.textContent = `AI yorumu şu an alınamadı: ${err.message}`;
+    } finally {
+      st.aiLoading = false;
+      renderAiBox();
+      requestAnimationFrame(syncHlCarouselHeight);
+    }
+  }
+
   function renderSummary() {
     const el = document.getElementById("lab-summary");
     const badge = document.getElementById("lab-badge");
     if (!el) return;
-    if (!st.auth?.authenticated) {
-      el.innerHTML = `<div class="auth-hint-box">Giriş yaptıktan sonra tahlillerini ekleyebilirsin.</div>`;
-      if (badge) { badge.className = "badge badge-info"; badge.textContent = "--"; }
-      return;
-    }
-    if (!st.reports.length) {
-      el.innerHTML = `<div class="auth-hint-box">Henüz tahlil eklenmedi. E-Nabız veya hastane PDF'i yükleyerek başla.</div>`;
-      if (badge) { badge.className = "badge badge-info"; badge.textContent = "Boş"; }
+    if (!st.auth?.authenticated || !st.reports.length) {
+      if (badge) { badge.className = "badge badge-info"; badge.textContent = st.auth?.authenticated ? "Boş" : "--"; }
+      el.innerHTML = "";
       return;
     }
 
-    const abnormalList = st.series.filter((s) => s.isAbnormal);
-    const multiCount = st.series.filter((s) => s.points.length >= 2).length;
+    const isAll = st.selectedReportId === "all";
+    const rp = isAll ? null : st.reports.find((r) => r.id === st.selectedReportId);
+
+    let abnormalCards = [];
+    let metaText = "";
+
+    if (isAll) {
+      const multiCount = st.series.filter((s) => s.points.length >= 2).length;
+      abnormalCards = st.series
+        .filter((s) => s.isAbnormal)
+        .map((s) => ({
+          name: s.name,
+          pt: s.latest,
+          prev: s.prev,
+          delta: s.delta,
+        }));
+      metaText = `<strong>${st.series.length}</strong> standart test · <strong>${multiCount}</strong> çoklu tarih trendi`;
+    } else if (rp) {
+      abnormalCards = rp.results
+        .filter((r) => ["low", "high"].includes(flagOf(r)))
+        .map((r) => {
+          const sr = st.series.find((x) => x.name === r.test_name);
+          const older = (sr?.points || []).filter((p) => p.date < rp.report_date);
+          const prev = older.length ? older[older.length - 1] : null;
+          const delta = prev ? Number(r.value) - Number(prev.value) : null;
+          return {
+            name: r.test_name,
+            pt: { ...r, value: Number(r.value), flag: flagOf(r), date: rp.report_date },
+            prev,
+            delta,
+          };
+        });
+      metaText = `<strong>${fmtDate(rp.report_date)}</strong> · ${esc(shortLab(rp.lab_name) || "Rapor")} · ${rp.results.length} değer`;
+    }
+
     if (badge) {
-      badge.className = `badge mono ${abnormalList.length ? "badge-warn" : "badge-ok"}`;
-      badge.textContent = abnormalList.length ? `${abnormalList.length} sınır dışı` : "Tümü normal";
+      badge.className = `badge mono ${abnormalCards.length ? "badge-warn" : "badge-ok"}`;
+      badge.textContent = abnormalCards.length ? `${abnormalCards.length} sınır dışı` : "Tümü normal";
     }
 
-    const latestRep = st.reports[0];
-    const metaHtml = `<div class="lab-latest-head"><strong>${st.series.length}</strong> farklı test birleştirildi · <strong>${multiCount}</strong> trend hazır · Son rapor: <strong>${fmtDate(latestRep.report_date)}</strong> (${esc(shortLab(latestRep.lab_name) || "Rapor")})</div>`;
-
-    if (!abnormalList.length) {
-      el.innerHTML = metaHtml + `<div class="auth-hint-box">✓ Tüm testlerin en güncel ölçümleri referans aralığında.</div>`;
+    const headHtml = `<div class="lab-latest-head">${metaText}</div>`;
+    if (!abnormalCards.length) {
+      el.innerHTML = headHtml + `<div class="auth-hint-box">✓ ${isAll ? "Tüm testlerin en güncel ölçümleri referans aralığında." : `${fmtDate(rp.report_date)} tarihli rapordaki tüm değerler (${rp.results.length} test) referans aralığında.`}</div>`;
       return;
     }
 
-    const cards = abnormalList
-      .map((s) => {
-        const pt = s.latest;
-        const active = st.selectedTest === s.name ? "active" : "";
+    const cardsHtml = abnormalCards
+      .map((item) => {
+        const pt = item.pt;
+        const active = st.selectedTest === item.name ? "active" : "";
         const arrow = pt.flag === "high" ? "▲ Yüksek" : "▼ Düşük";
-        const deltaTxt = s.prev ? `Önceki: ${s.prev.value} · ${fmtDelta(s.delta, "")}` : `Ref: ${refText(pt)}`;
+        const deltaTxt = item.prev ? `Önceki: ${item.prev.value} · ${fmtDelta(item.delta, "")}` : `Ref: ${refText(pt)}`;
         return `
-        <button type="button" class="lab-focus-card ${pt.flag} ${active}" onclick="selectLabBiomarker('${esc(s.name)}')">
+        <button type="button" class="lab-focus-card ${pt.flag} ${active}" onclick="selectLabBiomarker('${esc(item.name)}', true)">
           <div class="lab-focus-top">
-            <span class="lab-focus-name">${esc(s.name)}</span>
+            <span class="lab-focus-name">${esc(item.name)}</span>
             <span class="lab-focus-flag">${arrow}</span>
           </div>
-          <div class="lab-focus-val mono">${pt.value} <small>${esc(pt.unit)}</small></div>
+          <div class="lab-focus-val mono">${pt.value} <small>${esc(pt.unit || "")}</small></div>
           <div class="lab-focus-sub">${esc(deltaTxt)} · ${fmtDate(pt.date)}</div>
         </button>`;
       })
       .join("");
 
-    el.innerHTML = metaHtml + `<div class="lab-focus-grid">${cards}</div>`;
+    el.innerHTML = headHtml + `<div class="lab-focus-grid">${cardsHtml}</div>`;
   }
 
+  // ---------- Render: Slide 1 Trend & Charts ----------
   function filteredSeries() {
     if (st.activeCat === "abnormal") return st.series.filter((s) => s.isAbnormal);
     if (st.activeCat === "multi") return st.series.filter((s) => s.points.length >= 2);
@@ -402,18 +634,15 @@
   }
 
   function renderTrend() {
-    const wrap = document.getElementById("lab-trend-wrap");
     const strip = document.getElementById("lab-cat-strip");
     const pills = document.getElementById("lab-param-pills");
     const sel = document.getElementById("lab-test-select");
-    if (!wrap || !sel) return;
+    if (!sel) return;
 
     if (!st.series.length) {
-      wrap.style.display = "none";
       if (st.chart) { st.chart.destroy(); st.chart = null; }
       return;
     }
-    wrap.style.display = "";
 
     if (strip) {
       strip.innerHTML = CAT_TABS
@@ -428,8 +657,8 @@
     }
 
     if (pills) {
-      const topPills = list.slice(0, 12);
-      pills.innerHTML = topPills
+      pills.innerHTML = list
+        .slice(0, 12)
         .map((s) => {
           const act = s.name === st.selectedTest ? "active" : "";
           const fl = s.isAbnormal ? ` ${s.latest.flag}` : "";
@@ -564,54 +793,88 @@
     }
   }
 
-  function renderList() {
-    const el = document.getElementById("lab-report-list");
-    const count = document.getElementById("lab-count");
-    if (!el) return;
-    if (count) count.textContent = `${st.reports.length} rapor`;
+  // ---------- Render: Slide 2 Full Table ----------
+  function renderFullTable() {
+    const wrap = document.getElementById("lab-full-table-wrap");
+    const delBtn = document.getElementById("btn-delete-selected-report");
+    if (!wrap) return;
+
+    const isAll = st.selectedReportId === "all";
+    const rp = isAll ? null : st.reports.find((r) => r.id === st.selectedReportId);
+    if (delBtn) delBtn.classList.toggle("hidden", isAll || !rp);
+
     if (!st.reports.length) {
-      el.innerHTML = "";
+      wrap.innerHTML = "";
       return;
     }
-    el.innerHTML = st.reports
-      .map((rp) => {
-        const abnCount = rp.results.filter((r) => ["low", "high"].includes(flagOf(r))).length;
-        const rows = rp.results
-          .map((r) => {
-            const f = flagOf(r);
-            return `<tr class="lab-${f}"><td>${esc(r.test_name)}</td><td class="mono"><b>${r.value}</b> ${esc(r.unit || "")}</td><td class="mono">${esc(refText(r))}</td><td>${f === "high" ? "▲ Yüksek" : f === "low" ? "▼ Düşük" : f === "ok" ? "✓" : ""}</td></tr>`;
-          })
-          .join("");
-        const abnBadge = abnCount ? `<span class="badge badge-warn mono">${abnCount} sınır dışı</span>` : "";
-        return `
-        <details class="lab-report">
-          <summary>
-            <span class="lab-report-title"><strong>${fmtDate(rp.report_date)}</strong>${rp.lab_name ? " · " + esc(shortLab(rp.lab_name)) : ""}</span>
-            <span class="lab-report-badges">${abnBadge}<span class="badge badge-info mono">${rp.results.length} değer</span></span>
-          </summary>
-          <div class="lab-table-wrap"><table class="lab-table"><thead><tr><th>Test</th><th>Sonuç</th><th>Referans</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-          <div style="text-align:right; margin-top:8px;"><button type="button" class="btn btn-sm" onclick="deleteLabReport('${rp.id}')">🗑 Raporu Sil</button></div>
-        </details>`;
+
+    const q = st.tableQuery.trim().toLocaleLowerCase("tr-TR");
+    let rows = isAll
+      ? st.series.map((s) => ({
+          name: s.name,
+          value: s.latest.value,
+          unit: s.latest.unit,
+          ref_low: s.latest.ref_low,
+          ref_high: s.latest.ref_high,
+          flag: s.latest.flag,
+          date: s.latest.date,
+        }))
+      : (rp?.results || []).map((r) => ({
+          name: r.test_name,
+          value: r.value,
+          unit: r.unit,
+          ref_low: r.ref_low,
+          ref_high: r.ref_high,
+          flag: flagOf(r),
+          date: rp.report_date,
+        }));
+
+    if (q) {
+      rows = rows.filter((r) => r.name.toLocaleLowerCase("tr-TR").includes(q));
+    }
+
+    const rank = (f) => (f === "high" || f === "low" ? 0 : f === "ok" ? 1 : 2);
+    rows.sort((a, b) => rank(a.flag) - rank(b.flag) || a.name.localeCompare(b.name, "tr"));
+
+    if (!rows.length) {
+      wrap.innerHTML = `<p class="card-sub">Eşleşen test bulunamadı.</p>`;
+      return;
+    }
+
+    const bodyHtml = rows
+      .map((r) => {
+        const fl = r.flag;
+        const stTxt = fl === "high" ? "▲ Yüksek" : fl === "low" ? "▼ Düşük" : fl === "ok" ? "✓" : "";
+        const dateTd = isAll ? `<td class="mono">${fmtShortDate(r.date)}</td>` : "";
+        return `<tr class="lab-${fl}" onclick="selectLabBiomarker('${esc(r.name)}', true)" style="cursor:pointer;"><td>${esc(r.name)}</td><td class="mono"><b>${r.value}</b> ${esc(r.unit || "")}</td><td class="mono">${esc(refText(r))}</td>${dateTd}<td>${stTxt}</td></tr>`;
       })
       .join("");
+
+    const dateTh = isAll ? "<th>Tarih</th>" : "";
+    wrap.innerHTML = `<table class="lab-table"><thead><tr><th>Test</th><th>Sonuç</th><th>Referans</th>${dateTh}<th></th></tr></thead><tbody>${bodyHtml}</tbody></table>`;
   }
 
   function renderAll() {
-    buildBiomarkerSeries();
+    renderReportSwitcher();
+    renderAiBox();
     renderSummary();
     renderTrend();
-    renderList();
+    renderFullTable();
+    requestAnimationFrame(syncHlCarouselHeight);
   }
 
   // ---------- Data ----------
   async function refresh() {
     if (!st.sb || !st.auth?.userId) return;
     const uid = st.auth.userId;
-    const [rep, res] = await Promise.all([
+    const [rep, res, ov] = await Promise.all([
       st.sb.from("lab_reports").select("*").eq("user_id", uid).order("report_date", { ascending: false }).limit(60),
       st.sb.from("lab_results").select("*").eq("user_id", uid).limit(3000),
+      st.sb.from("lab_ai_overview").select("fingerprint, summary").eq("user_id", uid).maybeSingle(),
     ]);
     if (rep.error) return toast("Tahlil listesi alınamadı: " + rep.error.message);
+
+    st.overviewAi = ov?.data || null;
     const byReport = {};
     (res.data || []).forEach((rawRow) => {
       const c = canonicalizeLabTest(rawRow.test_name, rawRow.unit, rawRow.raw_name);
@@ -622,15 +885,21 @@
       ...rp,
       results: (byReport[rp.id] || []).sort((a, b) => a.test_name.localeCompare(b.test_name, "tr")),
     }));
+    buildBiomarkerSeries();
     renderAll();
+    ensureAiSummary(false);
   }
 
   async function removeReport(id) {
-    if (!window.confirm("Bu tahlil raporu ve tüm değerleri silinsin mi?")) return;
+    if (!id || !window.confirm("Bu tahlil raporu ve tüm değerleri silinsin mi?")) return;
     const { error } = await st.sb.from("lab_reports").delete().eq("id", id).eq("user_id", st.auth.userId);
     if (error) return toast("Silinemedi: " + error.message);
     st.reports = st.reports.filter((r) => r.id !== id);
+    if (st.selectedReportId === id) st.selectedReportId = "all";
+    st.aiAttemptedKeys.delete("all");
+    buildBiomarkerSeries();
     renderAll();
+    if (st.reports.length) ensureAiSummary(true);
   }
 
   // ---------- Draft modal ----------
@@ -754,8 +1023,11 @@
         await st.sb.from("lab_reports").delete().eq("id", rep.id);
         throw e2;
       }
+      st.selectedReportId = rep.id;
+      st.aiAttemptedKeys.delete("all");
+      st.aiAttemptedKeys.delete(rep.id);
       closeModal();
-      toast(`🩸 ${rows.length} değer standart formatta kaydedildi`);
+      toast(`🩸 ${rows.length} değer kaydedildi`);
       await refresh();
     } catch (err) {
       toast("Kaydedilemedi: " + (err.message || err));
@@ -873,6 +1145,7 @@
     st.auth = auth || null;
     st.sb = sb || null;
     bindInput();
+    initHlCarousel();
     const selEl = document.getElementById("lab-test-select");
     if (selEl && selEl.dataset.bound !== "1") {
       selEl.dataset.bound = "1";
@@ -880,8 +1153,10 @@
         st.selectedTest = e.target.value;
         renderSummary();
         renderTrend();
+        requestAnimationFrame(syncHlCarouselHeight);
       });
     }
+    buildBiomarkerSeries();
     renderAll();
     if (!auth?.authenticated || !auth?.userId || !sb) return;
     await refresh();
@@ -892,12 +1167,29 @@
     st.auth = null;
     st.reports = [];
     st.series = [];
+    st.selectedReportId = "all";
     st.selectedTest = null;
     st.activeCat = "all";
+    st.tableQuery = "";
+    st.overviewAi = null;
+    st.aiLoading = false;
+    st.aiAttemptedKeys.clear();
     closeModal();
     if (st.chart) { st.chart.destroy(); st.chart = null; }
     renderAll();
   }
+
+  window.selectLabReport = function (id) {
+    st.selectedReportId = id || "all";
+    renderAll();
+    ensureAiSummary(false);
+  };
+
+  window.refreshLabAiSummary = function (force) {
+    const scopeKey = st.selectedReportId || "all";
+    st.aiAttemptedKeys.delete(scopeKey);
+    ensureAiSummary(Boolean(force));
+  };
 
   window.setLabCategory = function (cat) {
     st.activeCat = cat || "all";
@@ -907,16 +1199,32 @@
     }
     renderSummary();
     renderTrend();
+    requestAnimationFrame(syncHlCarouselHeight);
   };
 
-  window.selectLabBiomarker = function (name) {
+  window.selectLabBiomarker = function (name, jumpToChart) {
     if (!name) return;
     st.selectedTest = name;
     renderSummary();
     renderTrend();
-    document.getElementById("lab-trend-wrap")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (jumpToChart) goToHlSlide(1);
+    requestAnimationFrame(syncHlCarouselHeight);
   };
 
+  window.filterLabTable = function (q) {
+    st.tableQuery = String(q || "");
+    renderFullTable();
+    requestAnimationFrame(syncHlCarouselHeight);
+  };
+
+  window.deleteSelectedLabReport = function () {
+    if (st.selectedReportId && st.selectedReportId !== "all") {
+      removeReport(st.selectedReportId);
+    }
+  };
+
+  window.goToHlSlide = goToHlSlide;
+  window.moveHlCarousel = moveHlCarousel;
   window.triggerLabUpload = triggerUpload;
   window.openLabModal = () => openModal();
   window.closeLabModal = closeModal;
@@ -924,5 +1232,11 @@
   window.removeLabDraftRow = removeRow;
   window.submitLabModal = saveDraft;
   window.deleteLabReport = removeReport;
-  window.GarminLabs = { initForUser, reset, refresh, checkNativeSharedPdf };
+  window.GarminLabs = {
+    initForUser,
+    reset,
+    refresh,
+    checkNativeSharedPdf,
+    onTabShown: () => requestAnimationFrame(syncHlCarouselHeight),
+  };
 })();

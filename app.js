@@ -192,6 +192,9 @@ function setupTabs() {
       if (target === "body") {
         requestAnimationFrame(() => window.GarminBodyScale?.onTabShown?.());
       }
+      if (target === "health") {
+        requestAnimationFrame(() => window.GarminLabs?.onTabShown?.());
+      }
       if (target === "workouts" && state.map) {
         setTimeout(() => state.map.invalidateSize(), 160);
       }

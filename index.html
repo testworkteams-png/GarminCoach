@@ -1144,31 +1144,82 @@
           <div class="card-header">
             <div>
               <div class="card-title">🩸 Kan Tahlili &amp; Biyobelirteçler</div>
-              <div class="card-sub">Farklı hastane raporları tek standart formatta birleştirilir</div>
+              <div class="card-sub">Rapor seç, sınır dışı değerleri ve AI özetini kaydırarak incele</div>
             </div>
             <span class="badge badge-info mono" id="lab-badge">--</span>
           </div>
-          <div class="lab-actions">
-            <button type="button" class="btn btn-primary" onclick="triggerLabUpload()">📄 PDF / Fotoğraf Yükle</button>
-            <button type="button" class="btn" onclick="openLabModal()">✏️ Elle Ekle</button>
-          </div>
-          <div id="lab-upload-status" class="auth-hint-box hidden" style="margin-top:10px;"></div>
-          <div id="lab-summary" style="margin-top:14px;"></div>
-          <div id="lab-trend-wrap" style="display:none; margin-top:16px;">
-            <div class="lab-cat-strip" id="lab-cat-strip"></div>
-            <div class="lab-param-pills" id="lab-param-pills"></div>
-            <div class="lab-trend-toolbar">
-              <select id="lab-test-select" class="lab-select" aria-label="Biyobelirteç seç"></select>
-              <span class="card-sub" id="lab-trend-info"></span>
+          <div class="lab-actions" style="justify-content:space-between;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary" onclick="triggerLabUpload()">📄 PDF / Fotoğraf Yükle</button>
+              <button type="button" class="btn" onclick="openLabModal()">✏️ Elle Ekle</button>
             </div>
-            <div id="lab-chart-box" style="height:210px; margin-top:10px;"><canvas id="lab-trend-chart"></canvas></div>
-            <div id="lab-single-gauge" class="hidden" style="margin-top:10px;"></div>
-          </div>
-          <div class="card-header" style="margin-top:18px;">
-            <div class="card-sub">Geçmiş raporlar</div>
             <span class="badge badge-info mono" id="lab-count">0 rapor</span>
           </div>
-          <div id="lab-report-list"></div>
+          <div id="lab-upload-status" class="auth-hint-box hidden" style="margin-top:10px;"></div>
+          <div class="lab-report-switcher" id="lab-report-switcher"></div>
+        </div>
+
+        <div class="lab-carousel-section hidden" id="hl-carousel-section">
+          <div class="lab-carousel-header">
+            <div class="lab-carousel-nav" id="hl-carousel-nav">
+              <button type="button" class="lab-carousel-tab active" data-slide="0" onclick="goToHlSlide(0)">🎯 Özet &amp; AI</button>
+              <button type="button" class="lab-carousel-tab" data-slide="1" onclick="goToHlSlide(1)">📈 Trend &amp; Grafik</button>
+              <button type="button" class="lab-carousel-tab" data-slide="2" onclick="goToHlSlide(2)">📋 Tam Tablo</button>
+            </div>
+            <div class="lab-carousel-controls">
+              <span class="badge badge-info mono" id="hl-carousel-counter">1 / 3</span>
+              <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveHlCarousel(-1)" aria-label="Önceki kart">‹</button>
+              <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveHlCarousel(1)" aria-label="Sonraki kart">›</button>
+            </div>
+          </div>
+
+          <div class="lab-carousel-track" id="hl-carousel-track">
+            <div class="lab-carousel-slide">
+              <div class="card">
+                <div class="lab-ai-box" id="lab-ai-box">
+                  <div class="lab-ai-head">
+                    <span class="lab-ai-title">✨ AI Tahlil Yorumu</span>
+                    <span class="badge badge-info mono" id="lab-ai-scope">Birleşik</span>
+                    <button type="button" class="btn btn-sm" id="btn-lab-ai-refresh" onclick="refreshLabAiSummary(true)" title="Yorumu yenile" style="margin-left:auto; padding:3px 9px;">↻</button>
+                  </div>
+                  <p class="lab-ai-text" id="lab-ai-text">Tahlil verileri inceleniyor...</p>
+                </div>
+                <div id="lab-summary" style="margin-top:12px;"></div>
+              </div>
+            </div>
+
+            <div class="lab-carousel-slide">
+              <div class="card">
+                <div class="lab-cat-strip" id="lab-cat-strip"></div>
+                <div class="lab-param-pills" id="lab-param-pills"></div>
+                <div class="lab-trend-toolbar">
+                  <select id="lab-test-select" class="lab-select" aria-label="Biyobelirteç seç"></select>
+                  <span class="card-sub" id="lab-trend-info"></span>
+                </div>
+                <div id="lab-chart-box" style="height:210px; margin-top:10px;"><canvas id="lab-trend-chart"></canvas></div>
+                <div id="lab-single-gauge" class="hidden" style="margin-top:10px;"></div>
+              </div>
+            </div>
+
+            <div class="lab-carousel-slide">
+              <div class="card">
+                <div class="lab-table-toolbar">
+                  <input id="lab-table-search" class="search-box" type="search" placeholder="Test ara (örn. LDL, B12, HGB)..." oninput="filterLabTable(this.value)" />
+                  <button type="button" class="btn btn-sm hidden" id="btn-delete-selected-report" onclick="deleteSelectedLabReport()">🗑 Raporu Sil</button>
+                </div>
+                <div id="lab-full-table-wrap" class="lab-table-wrap" style="margin-top:10px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lab-carousel-footer">
+            <div class="lab-carousel-dots" id="hl-carousel-dots">
+              <button type="button" class="lab-carousel-dot active" onclick="goToHlSlide(0)" aria-label="Özet ve AI"></button>
+              <button type="button" class="lab-carousel-dot" onclick="goToHlSlide(1)" aria-label="Trend ve Grafik"></button>
+              <button type="button" class="lab-carousel-dot" onclick="goToHlSlide(2)" aria-label="Tam Tablo"></button>
+            </div>
+            <span class="lab-carousel-hint">Kaydırarak geçiş yap &rarr;</span>
+          </div>
         </div>
 
         <div class="card" id="med-card">

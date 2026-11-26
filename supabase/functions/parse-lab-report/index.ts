@@ -23,6 +23,13 @@ Ayrıca:
 Asla uydurma veya tahmin etme; okunamayanı atla. Yalnızca şu şemaya uyan geçerli JSON döndür:
 {"report_date": string|null, "lab_name": string|null, "results": [{"name": string, "raw_name": string|null, "value": number, "unit": string|null, "ref_low": number|null, "ref_high": number|null}]}`;
 
+const MODELS = [
+  "models/gemini-3.6-flash",
+  "models/gemini-3.5-flash",
+  "models/gemini-2.5-flash",
+  "models/gemini-2.0-flash",
+];
+
 function jsonResp(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -66,7 +73,6 @@ function normKey(s: string): string {
 }
 
 const EXACT_MAP: Record<string, CanonDef> = {
-  // Vitamin & Mineral
   "25-oh vitamin d3": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
   "25-oh vitamin d": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
   "25-oh d3": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
@@ -91,7 +97,6 @@ const EXACT_MAP: Record<string, CanonDef> = {
   "kalsiyum (ca)": { name: "Kalsiyum", cat: "vitamin", unit: "mg/dL" },
   "fosfor": { name: "Fosfor", cat: "vitamin", unit: "mg/dL" },
   "fosfor (p)": { name: "Fosfor", cat: "vitamin", unit: "mg/dL" },
-  // Kolesterol & Şeker
   "ldl kolesterol": { name: "LDL Kolesterol", cat: "lipid", unit: "mg/dL" },
   "ldl kolesterol (indirekt, hesaplamali)": { name: "LDL Kolesterol", cat: "lipid", unit: "mg/dL" },
   "ldl": { name: "LDL Kolesterol", cat: "lipid", unit: "mg/dL" },
@@ -108,7 +113,6 @@ const EXACT_MAP: Record<string, CanonDef> = {
   "glukoz": { name: "Glukoz (Açlık)", cat: "lipid", unit: "mg/dL" },
   "hba1c": { name: "HbA1c", cat: "lipid", unit: "%" },
   "glike hemoglobin (hb a1c)": { name: "HbA1c", cat: "lipid", unit: "%" },
-  // Organ & Enzim
   "alt": { name: "ALT", cat: "organ", unit: "U/L" },
   "alt (sgpt)": { name: "ALT", cat: "organ", unit: "U/L" },
   "sgpt": { name: "ALT", cat: "organ", unit: "U/L" },
@@ -149,13 +153,11 @@ const EXACT_MAP: Record<string, CanonDef> = {
   "potasyum ( k , serum )": { name: "Potasyum", cat: "organ", unit: "mmol/L" },
   "klor": { name: "Klor", cat: "organ", unit: "mmol/L" },
   "klor (cl)": { name: "Klor", cat: "organ", unit: "mmol/L" },
-  // Tiroid
   "tsh": { name: "TSH", cat: "tiroid", unit: "mIU/L" },
   "serbest t4": { name: "Serbest T4", cat: "tiroid", unit: "ng/dL" },
   "ft4": { name: "Serbest T4", cat: "tiroid", unit: "ng/dL" },
   "serbest t3": { name: "Serbest T3", cat: "tiroid", unit: "pg/mL" },
   "ft3": { name: "Serbest T3", cat: "tiroid", unit: "pg/mL" },
-  // Kan Sayımı (Hemogram)
   "hgb": { name: "Hemoglobin (HGB)", cat: "hemogram", unit: "g/dL" },
   "hemoglobin": { name: "Hemoglobin (HGB)", cat: "hemogram", unit: "g/dL" },
   "hemoglobin (hgb)": { name: "Hemoglobin (HGB)", cat: "hemogram", unit: "g/dL" },
@@ -276,6 +278,154 @@ function sanitize(raw: any) {
   };
 }
 
+function flagOf(r: any) {
+  const v = Number(r.value);
+  if (r.ref_low !== null && r.ref_low !== undefined && v < Number(r.ref_low)) return "YETKISIZ_LOW";
+  if (r.ref_high !== null && r.ref_high !== undefined && v > Number(r.ref_high)) return "HIGH";
+  return "OK";
+}
+
+async function handleAnalyzeSummary(supabase: any, authUser: any, body: any, apiKey: string) {
+  const reportId = body.report_id ? String(body.report_id).trim() : null;
+  const force = Boolean(body.force);
+
+  const [repRes, resRes, medRes] = await Promise.all([
+    supabase.from("lab_reports").select("id, report_date, lab_name, ai_summary").eq("user_id", authUser.id).order("report_date", { ascending: false }).limit(30),
+    supabase.from("lab_results").select("report_id, test_name, value, unit, ref_low, ref_high, category").eq("user_id", authUser.id).limit(3000),
+    supabase.from("medications").select("name, dose, kind").eq("user_id", authUser.id).eq("active", true),
+  ]);
+
+  const reports = repRes.data || [];
+  if (!reports.length) return jsonResp({ ok: true, summary: null, cached: false });
+
+  const results = resRes.data || [];
+  const activeMeds = medRes.data || [];
+  const fingerprint = `${reports.map((r: any) => r.id).sort().join(",")}::${activeMeds.map((m: any) => m.name).sort().join(",")}`;
+
+  if (reportId) {
+    const targetRep = reports.find((r: any) => r.id === reportId);
+    if (!targetRep) return jsonResp({ ok: false, error: "Rapor bulunamadı." }, 404);
+    if (!force && targetRep.ai_summary) {
+      return jsonResp({ ok: true, summary: targetRep.ai_summary, cached: true });
+    }
+  } else if (!force) {
+    const { data: ov } = await supabase
+      .from("lab_ai_overview")
+      .select("fingerprint, summary")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+    if (ov?.summary && ov.fingerprint === fingerprint) {
+      return jsonResp({ ok: true, summary: ov.summary, cached: true });
+    }
+  }
+
+  const byReport = new Map<string, any[]>();
+  for (const r of results) {
+    const arr = byReport.get(r.report_id) || [];
+    arr.push(r);
+    byReport.set(r.report_id, arr);
+  }
+
+  const ascReports = [...reports].sort((a: any, b: any) => String(a.report_date).localeCompare(String(b.report_date)));
+  const series = new Map<string, any[]>();
+  for (const rp of ascReports) {
+    for (const r of byReport.get(rp.id) || []) {
+      const arr = series.get(r.test_name) || [];
+      arr.push({ date: rp.report_date, ...r });
+      series.set(r.test_name, arr);
+    }
+  }
+
+  const trendLines: string[] = [];
+  const latestRows: string[] = [];
+  for (const [name, pts] of series.entries()) {
+    const last = pts[pts.length - 1];
+    const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+    const fl = Number(last.value) > Number(last.ref_high ?? Infinity)
+      ? "YÜKSEK"
+      : Number(last.value) < Number(last.ref_low ?? -Infinity)
+        ? "DÜŞÜK"
+        : "normal";
+    if (fl !== "normal" || prev) {
+      const refStr = last.ref_low != null || last.ref_high != null ? `ref ${last.ref_low ?? "-"}–${last.ref_high ?? "-"}` : "";
+      const prevStr = prev ? ` (önceki ${prev.date}: ${prev.value})` : "";
+      const line = `- ${name}: ${last.value} ${last.unit || ""} [${fl}] ${refStr}${prevStr}`;
+      if (fl !== "normal" || Math.abs(Number(last.value) - Number(prev?.value ?? last.value)) > 0.01) {
+        trendLines.push(line);
+      } else {
+        latestRows.push(line);
+      }
+    }
+  }
+
+  let focusPrompt = "";
+  if (reportId) {
+    const target = reports.find((r: any) => r.id === reportId);
+    const tRows = byReport.get(reportId) || [];
+    const lines = tRows.map((r: any) => {
+      const fl = r.ref_high != null && Number(r.value) > Number(r.ref_high)
+        ? "YÜKSEK"
+        : r.ref_low != null && Number(r.value) < Number(r.ref_low)
+          ? "DÜŞÜK"
+          : "normal";
+      const pts = (series.get(r.test_name) || []).filter((p: any) => p.date < target.report_date);
+      const prev = pts.length ? pts[pts.length - 1] : null;
+      return `- ${r.test_name}: ${r.value} ${r.unit || ""} [${fl}] (ref ${r.ref_low ?? "-"}–${r.ref_high ?? "-"})${prev ? ` [önceki ${prev.date}: ${prev.value}]` : ""}`;
+    });
+    focusPrompt = `Seçili Rapor: ${target.report_date} · ${target.lab_name || "Laboratuvar"} (${tRows.length} değer).
+Rapordaki değerler (sınır dışılar ve önceki karşılaştırmalar dahil):
+${lines.slice(0, 65).join("\n")}
+
+Görev: Bu tek raporu 3-4 kısa, sade Türkçe cümleyle yorumla. Madde işareti kullanma, akıcı tek paragraf yaz. Varsa yüksek/düşük değerleri ve önceki tarihe göre iyileşme/değişimleri (örn. LDL düşüşü) vurgula; tümü normalse netçe belirt. Aktif takviyelerle (${activeMeds.map((m: any) => m.name).join(", ") || "yok"}) uyumluysa kısaca değin, sonunda hekim kontrolünü hatırlat.`;
+  } else {
+    focusPrompt = `Tüm Raporlar Birleşik Özet (${reports.length} rapor: ${ascReports.map((r: any) => r.report_date).join(", ")}).
+Aktif İlaç/Takviyeler: ${activeMeds.map((m: any) => `${m.name}${m.dose ? " (" + m.dose + ")" : ""}`).join(", ") || "yok"}.
+Öne çıkan sınır dışı değerler ve tarihler arası değişimler:
+${trendLines.slice(0, 45).join("\n")}
+Ek takipler:
+${latestRows.slice(0, 15).join("\n")}
+
+Görev: Kullanıcının tüm tahlil geçmişini ve takviyelerini birlikte değerlendiren 3-4 kısa, anlaşılır Türkçe cümlelik akıcı bir özet yaz. Madde işareti kullanma, tek paragraf olsun. Güncel dikkat gerektiren değerleri (yüksek/düşük), önceki ölçümlere kıyasla iyiye/kötüye giden trendleri ve takviye uyumunu özetle; son cümlede klinik değerlendirme için doktora danışılmasını belirt.`;
+  }
+
+  for (const modelName of MODELS) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(35000),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: focusPrompt }] }],
+            generationConfig: { temperature: 0.35, maxOutputTokens: 320 },
+          }),
+        },
+      );
+      if (!res.ok) continue;
+      const j = await res.json();
+      const text = (j?.candidates?.[0]?.content?.parts || [])
+        .map((p: any) => String(p?.text || ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!text) continue;
+
+      if (reportId) {
+        await supabase.from("lab_reports").update({ ai_summary: text }).eq("id", reportId).eq("user_id", authUser.id);
+      } else {
+        await supabase.from("lab_ai_overview").upsert(
+          { user_id: authUser.id, fingerprint, summary: text, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" },
+        );
+      }
+      return jsonResp({ ok: true, summary: text, cached: false, fingerprint, model_used: modelName });
+    } catch (_) {}
+  }
+
+  return jsonResp({ ok: false, error: "AI özeti şu an oluşturulamadı." }, 502);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResp({ ok: false, error: "Yalnızca POST desteklenir." }, 405);
@@ -288,6 +438,18 @@ Deno.serve(async (req: Request) => {
     if (!authUser) return jsonResp({ ok: false, error: "Oturum doğrulaması gereklidir." }, 401);
 
     const body = await req.json().catch(() => ({}));
+    const { data: userInt } = await supabase
+      .from("user_integrations")
+      .select("gemini_api_key")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+    const apiKey = (userInt?.gemini_api_key && String(userInt.gemini_api_key).trim()) || Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) return jsonResp({ ok: false, error: "GEMINI_API_KEY tanımlı değil." }, 500);
+
+    if (body.action === "analyzeSummary") {
+      return await handleAnalyzeSummary(supabase, authUser, body, apiKey);
+    }
+
     let data = String(body.file_base64 || "").trim();
     let mime = String(body.mime_type || "application/pdf").trim();
     const m = data.match(/^data:([^;]+);base64,(.+)$/);
@@ -301,17 +463,8 @@ Deno.serve(async (req: Request) => {
     }
     if (data.length > 14_000_000) return jsonResp({ ok: false, error: "Dosya çok büyük (maks ~10 MB)." }, 413);
 
-    const { data: userInt } = await supabase
-      .from("user_integrations")
-      .select("gemini_api_key")
-      .eq("user_id", authUser.id)
-      .maybeSingle();
-    const apiKey = (userInt?.gemini_api_key && String(userInt.gemini_api_key).trim()) || Deno.env.get("GEMINI_API_KEY");
-    if (!apiKey) return jsonResp({ ok: false, error: "GEMINI_API_KEY tanımlı değil." }, 500);
-
-    const models = ["models/gemini-3.6-flash", "models/gemini-3.5-flash", "models/gemini-2.5-flash", "models/gemini-2.0-flash"];
     const debug: string[] = [];
-    for (const modelName of models) {
+    for (const modelName of MODELS) {
       try {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`,
@@ -347,7 +500,7 @@ Deno.serve(async (req: Request) => {
         if (parsed && typeof parsed === "object") {
           const out = sanitize(parsed);
           if (out.results.length) {
-            data = ""; // dosya hiçbir yere kaydedilmez
+            data = "";
             return jsonResp({ ok: true, data: out, model_used: modelName });
           }
           debug.push(`${modelName}:NO_RESULTS`);

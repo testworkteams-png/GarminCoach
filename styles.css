@@ -3847,3 +3847,102 @@ html[data-theme="weather_sunny"] .lab-focus-card.low .lab-focus-flag,
 html[data-theme="weather_sunny"] .lab-gauge-status.low {
   color: #b45309;
 }
+
+/* Faz 2+: Yatay Rapor Seçici, AI Özeti & Karusel Tablo */
+.lab-report-switcher {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  margin-top: 12px;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lab-report-switcher::-webkit-scrollbar { display: none; }
+
+.lab-rep-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.lab-rep-pill.has-warn {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.lab-rep-pill.active {
+  background: var(--emerald-soft);
+  border-color: rgba(0, 229, 163, 0.5);
+  color: var(--emerald);
+}
+
+.lab-ai-box {
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(0, 229, 163, 0.05));
+}
+
+.lab-ai-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.lab-ai-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.lab-ai-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.58;
+  color: var(--text-secondary);
+}
+
+.lab-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lab-table-toolbar .search-box {
+  flex: 1;
+  min-width: 180px;
+}
+
+#hl-carousel-section {
+  margin-bottom: 16px;
+}
+
+html[data-theme="weather_sunny"] .lab-rep-pill {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.16);
+}
+
+html[data-theme="weather_sunny"] .lab-rep-pill.active {
+  background: rgba(6, 99, 75, 0.14);
+  border-color: rgba(6, 99, 75, 0.45);
+  color: #06634b;
+}
+
+html[data-theme="weather_sunny"] .lab-ai-box {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(7, 84, 128, 0.25);
+}
