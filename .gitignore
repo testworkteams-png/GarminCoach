@@ -1,2 +1,7 @@
 supabase/.temp/
 supabase/.env
+*.apk
+.env
+.env.*
+.DS_Store
+node_modules/
