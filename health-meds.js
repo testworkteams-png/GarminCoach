@@ -708,21 +708,34 @@
   }
 
   function bindPhotoInput() {
-    const input = document.getElementById("med-photo-input");
-    if (!input || input.dataset.bound === "1") return;
-    input.dataset.bound = "1";
-    input.addEventListener("change", (ev) => {
-      const f = ev.target?.files?.[0];
-      input.value = "";
-      if (f) handleMedPhoto(f);
+    ["med-photo-input", "med-camera-input"].forEach((id) => {
+      const input = document.getElementById(id);
+      if (!input || input.dataset.bound === "1") return;
+      input.dataset.bound = "1";
+      input.addEventListener("change", (ev) => {
+        const f = ev.target?.files?.[0];
+        input.value = "";
+        if (f) handleMedPhoto(f);
+      });
     });
+  }
+
+  function closeMedScanSourceSheet() {
+    document.getElementById("med-scan-source-sheet")?.classList.remove("open");
+  }
+
+  function pickMedPhotoSource(mode) {
+    closeMedScanSourceSheet();
+    bindPhotoInput();
+    const id = mode === "camera" ? "med-camera-input" : "med-photo-input";
+    document.getElementById(id)?.click();
   }
 
   function triggerPhotoScan() {
     window.closeQuickAddSheet?.();
     if (!st.auth?.authenticated) return toast("Önce giriş yapmalısın.");
     bindPhotoInput();
-    document.getElementById("med-photo-input")?.click();
+    document.getElementById("med-scan-source-sheet")?.classList.add("open");
   }
 
   // ---------- .ics Takvim Dışa Aktarımı ----------
@@ -897,6 +910,8 @@
   window.applyMedPreset = applyPreset;
   window.submitMedModal = submitModal;
   window.triggerMedPhotoScan = triggerPhotoScan;
+  window.closeMedScanSourceSheet = closeMedScanSourceSheet;
+  window.pickMedPhotoSource = pickMedPhotoSource;
   window.closeMedScanModal = closeScanModal;
   window.removeMedScanRow = function (i) {
     st.scanDrafts = collectScanDrafts();

@@ -1478,6 +1478,39 @@
   </div>
 
   <input type="file" id="med-photo-input" accept="image/*" style="display:none;" />
+  <input type="file" id="med-camera-input" accept="image/*" capture="environment" style="display:none;" />
+
+  <!-- ETİKET TARAMA KAYNAK SEÇİCİ -->
+  <div class="bottom-sheet-backdrop" id="med-scan-source-sheet" onclick="if(event.target===this)closeMedScanSourceSheet()">
+    <div class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Etiket Fotoğraf Kaynağı">
+      <div class="bottom-sheet-handle"></div>
+      <div class="card-header" style="margin-bottom:12px;">
+        <div>
+          <div class="card-title">📷 İlaç Etiketi Tara (AI)</div>
+          <div class="card-sub">Fotoğraf veritabanında saklanmaz, yalnızca okunur</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="closeMedScanSourceSheet()">✕</button>
+      </div>
+      <div class="quick-actions-list">
+        <button type="button" class="quick-action-item" onclick="pickMedPhotoSource('camera')">
+          <span class="quick-action-icon">📸</span>
+          <div class="quick-action-body">
+            <strong>Kamera ile Çek</strong>
+            <span>Etiketi veya kutuyu doğrudan arka kamerayla çek</span>
+          </div>
+          <span class="badge badge-ok">Kamera</span>
+        </button>
+        <button type="button" class="quick-action-item" onclick="pickMedPhotoSource('gallery')">
+          <span class="quick-action-icon">🖼</span>
+          <div class="quick-action-body">
+            <strong>Galeriden Seç</strong>
+            <span>Daha önce çektiğin etiket fotoğrafını yükle</span>
+          </div>
+          <span class="badge badge-info">Galeri</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- İLAÇ / TAKVİYE MODAL -->
   <div class="modal-backdrop" id="med-modal">
