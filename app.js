@@ -163,8 +163,12 @@ function getTimeGreeting(name) {
     const hObj = p.find((x) => x.type === "hour");
     if (hObj) hr = Number(hObj.value) % 24;
   } catch (_) {}
-  const base = hr >= 5 && hr < 12 ? "Günaydın" : hr < 18 ? "İyi günler" : "İyi akşamlar";
-  return name ? `${base}, ${name}` : "Sabah Biyometri & Akşam Hava Kokpiti";
+  const base =
+    hr >= 5 && hr < 12 ? "Günaydın" :
+    hr >= 12 && hr < 18 ? "Tünaydın" :
+    hr >= 18 && hr < 23 ? "İyi akşamlar" :
+    "İyi geceler";
+  return name ? `${base}, ${name}` : "Günlük Özet";
 }
 
 function setupTabs() {
@@ -180,7 +184,7 @@ function setupTabs() {
       const titleEl = document.getElementById("page-title");
       if (titleEl && TAB_TITLES[target]) {
         const fn = getUserFirstName();
-        titleEl.textContent = target === "dashboard" && fn ? `${getTimeGreeting(fn)} · Biyometri Kokpiti` : TAB_TITLES[target];
+        titleEl.textContent = target === "dashboard" && fn ? getTimeGreeting(fn) : TAB_TITLES[target];
       }
       if (target === "dashboard") {
         requestAnimationFrame(syncLabCarouselHeight);
@@ -282,7 +286,7 @@ function renderTopbar() {
   const dashPanel = document.getElementById("tab-dashboard");
   const titleEl = document.getElementById("page-title");
   if (titleEl && dashPanel?.classList.contains("active") && firstName) {
-    titleEl.textContent = `${getTimeGreeting(firstName)} · Biyometri Kokpiti`;
+    titleEl.textContent = getTimeGreeting(firstName);
   }
 
   if (s) {
@@ -303,14 +307,42 @@ function renderTopbar() {
       locEl.title = `Konum Kaynağı: ${srcLabel} · Yenilemek için tıklayın`;
     }
   }
+  const shortDate = (d) => fmtDateDmy(d).slice(0, 5);
   if (latest) {
-    document.getElementById("pill-date").textContent = fmtDateDmy(latest.log_date);
+    document.getElementById("pill-date").textContent = shortDate(latest.log_date);
     document.getElementById("side-readiness-chip").textContent = `${latest.readiness_score ?? "--"}/100`;
   } else {
-    document.getElementById("pill-date").textContent = fmtDateDmy(new Date());
+    document.getElementById("pill-date").textContent = shortDate(new Date());
     document.getElementById("side-readiness-chip").textContent = "--/100";
   }
+
+  const weatherPill = document.getElementById("pill-weather");
+  const w = latest?.evening_weather || null;
+  if (weatherPill) {
+    if (w && w.temp_c != null) {
+      const prob = Number(w.precip_prob ?? 0);
+      const hr = new Date().getHours();
+      const icon = prob >= 50 ? "🌧" : prob >= 25 ? "🌦" : (hr >= 20 || hr < 6) ? "🌙" : "☀️";
+      const tempVal = Math.round(Number(w.temp_c));
+      weatherPill.textContent = `${icon} ${tempVal}°C`;
+      weatherPill.title = `${w.city || s?.active_city || ""} · Hissedilen ${w.feels_like_c ?? tempVal}°C · Yağış %${prob}`;
+      weatherPill.classList.remove("hidden");
+    } else {
+      weatherPill.classList.add("hidden");
+    }
+  }
 }
+
+window.scrollToWeatherCard = function () {
+  const dashBtn = document.querySelector('[data-tab="dashboard"]');
+  if (dashBtn && !document.getElementById("tab-dashboard")?.classList.contains("active")) {
+    dashBtn.click();
+  }
+  setTimeout(() => {
+    const el = document.getElementById("evening-weather-stats") || document.getElementById("weather-source-label");
+    el?.closest(".card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 120);
+};
 
 function computeClientReadinessComponents(bio) {
   const s = state.settings || {};
