@@ -8,17 +8,20 @@ const corsHeaders = {
 };
 
 const PROMPT = `Sen bir kan tahlili / laboratuvar raporu ayrıştırıcısısın (E-Nabız, hastane veya laboratuvar PDF'i ya da fotoğrafı, Türkçe veya İngilizce).
-Raporda sayısal sonucu olan HER testi çıkar. Her test için:
-- name: Test adı (Türkçe raporda yazıldığı gibi, örn. "Hemoglobin", "Ferritin", "25-OH Vitamin D")
+Raporda sayısal sonucu olan HER testi çıkar. Farklı hastanelerin uzun veya değişik adlarını standart tek isimlere çevir ve orijinal adını "raw_name" alanına koy:
+Standart isim örnekleri: "Hemoglobin (HGB)", "Hematokrit (HCT)", "Lökosit (WBC)", "Eritrosit (RBC)", "Trombosit (PLT)", "MCV", "MCH", "MCHC", "RDW", "RDW-SD", "MPV", "PCT", "P-LCR", "Nötrofil %", "Nötrofil #", "Lenfosit %", "Lenfosit #", "Monosit %", "Monosit #", "Eozinofil %", "Eozinofil #", "Bazofil %", "Bazofil #", "Vitamin D (25-OH)", "Vitamin B12", "Folat (B9)", "Ferritin", "Demir", "Demir Bağlama (TDBK)", "Magnezyum", "Kalsiyum", "Fosfor", "LDL Kolesterol", "HDL Kolesterol", "Total Kolesterol", "Trigliserid", "Glukoz (Açlık)", "HbA1c", "ALT", "AST", "GGT", "ALP", "LDH", "Kreatin Kinaz (CK)", "Amilaz", "Bilirubin (Total)", "Bilirubin (Direkt)", "Albümin", "Kreatinin", "eGFR", "Üre", "Ürik Asit", "CRP", "Sodyum", "Potasyum", "Klor", "TSH", "Serbest T4", "Serbest T3".
+Her test için:
+- name: Standart kısa ad (yukarıdaki sözlüğe uyumlu)
+- raw_name: Raporda yazan orijinal tam test adı
 - value: Sayısal sonuç (yalnızca sayı; "<0.5" gibi ise 0.5 yaz). Sayısal olmayan sonuçları (pozitif/negatif vb.) ATLA.
-- unit: Birim (örn. "g/dL", "ng/mL") yoksa null
+- unit: Birim (örn. "g/dL", "ng/mL", "pg/mL") yoksa null
 - ref_low: Referans aralığı alt sınırı, yoksa null
 - ref_high: Referans aralığı üst sınırı, yoksa null
 Ayrıca:
 - report_date: Numune/rapor tarihi YYYY-MM-DD, görünmüyorsa null
 - lab_name: Laboratuvar/kurum adı, yoksa null
 Asla uydurma veya tahmin etme; okunamayanı atla. Yalnızca şu şemaya uyan geçerli JSON döndür:
-{"report_date": string|null, "lab_name": string|null, "results": [{"name": string, "value": number, "unit": string|null, "ref_low": number|null, "ref_high": number|null}]}`;
+{"report_date": string|null, "lab_name": string|null, "results": [{"name": string, "raw_name": string|null, "value": number, "unit": string|null, "ref_low": number|null, "ref_high": number|null}]}`;
 
 function jsonResp(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -44,25 +47,232 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+type CanonDef = { name: string; cat: string; unit?: string };
+
+function normKey(s: string): string {
+  return s
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/^tam kan sayimi\s*\(hemogram\)\s*/i, "")
+    .replace(/^hemogram\s*[-:]?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .replace(/[.\s]+$/g, "")
+    .trim();
+}
+
+const EXACT_MAP: Record<string, CanonDef> = {
+  // Vitamin & Mineral
+  "25-oh vitamin d3": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
+  "25-oh vitamin d": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
+  "25-oh d3": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
+  "vitamin d (25-oh)": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
+  "vitamin d3": { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" },
+  "vitamin b12": { name: "Vitamin B12", cat: "vitamin", unit: "pg/mL" },
+  "b12 vitamini": { name: "Vitamin B12", cat: "vitamin", unit: "pg/mL" },
+  "folat": { name: "Folat (B9)", cat: "vitamin", unit: "ng/mL" },
+  "folat (b9)": { name: "Folat (B9)", cat: "vitamin", unit: "ng/mL" },
+  "folik asit (folat)": { name: "Folat (B9)", cat: "vitamin", unit: "ng/mL" },
+  "folik asit": { name: "Folat (B9)", cat: "vitamin", unit: "ng/mL" },
+  "ferritin": { name: "Ferritin", cat: "vitamin", unit: "ng/mL" },
+  "demir": { name: "Demir", cat: "vitamin", unit: "µg/dL" },
+  "demir (serum)": { name: "Demir", cat: "vitamin", unit: "µg/dL" },
+  "demir baglama kapasitesi": { name: "Demir Bağlama (TDBK)", cat: "vitamin", unit: "µg/dL" },
+  "demir baglama kapasitesi (tdbk)": { name: "Demir Bağlama (TDBK)", cat: "vitamin", unit: "µg/dL" },
+  "demir baglama (tdbk)": { name: "Demir Bağlama (TDBK)", cat: "vitamin", unit: "µg/dL" },
+  "tdbk": { name: "Demir Bağlama (TDBK)", cat: "vitamin", unit: "µg/dL" },
+  "magnezyum": { name: "Magnezyum", cat: "vitamin", unit: "mg/dL" },
+  "magnezyum(mg)": { name: "Magnezyum", cat: "vitamin", unit: "mg/dL" },
+  "kalsiyum": { name: "Kalsiyum", cat: "vitamin", unit: "mg/dL" },
+  "kalsiyum (ca)": { name: "Kalsiyum", cat: "vitamin", unit: "mg/dL" },
+  "fosfor": { name: "Fosfor", cat: "vitamin", unit: "mg/dL" },
+  "fosfor (p)": { name: "Fosfor", cat: "vitamin", unit: "mg/dL" },
+  // Kolesterol & Şeker
+  "ldl kolesterol": { name: "LDL Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "ldl kolesterol (indirekt, hesaplamali)": { name: "LDL Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "ldl": { name: "LDL Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "hdl kolesterol": { name: "HDL Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "hdl": { name: "HDL Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "kolesterol total": { name: "Total Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "total kolesterol": { name: "Total Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "kolesterol": { name: "Total Kolesterol", cat: "lipid", unit: "mg/dL" },
+  "trigliserid": { name: "Trigliserid", cat: "lipid", unit: "mg/dL" },
+  "glukoz(aclik)": { name: "Glukoz (Açlık)", cat: "lipid", unit: "mg/dL" },
+  "glukoz (aclik)": { name: "Glukoz (Açlık)", cat: "lipid", unit: "mg/dL" },
+  "glukoz (aclik kan sekeri)": { name: "Glukoz (Açlık)", cat: "lipid", unit: "mg/dL" },
+  "aclik kan sekeri": { name: "Glukoz (Açlık)", cat: "lipid", unit: "mg/dL" },
+  "glukoz": { name: "Glukoz (Açlık)", cat: "lipid", unit: "mg/dL" },
+  "hba1c": { name: "HbA1c", cat: "lipid", unit: "%" },
+  "glike hemoglobin (hb a1c)": { name: "HbA1c", cat: "lipid", unit: "%" },
+  // Organ & Enzim
+  "alt": { name: "ALT", cat: "organ", unit: "U/L" },
+  "alt (sgpt)": { name: "ALT", cat: "organ", unit: "U/L" },
+  "sgpt": { name: "ALT", cat: "organ", unit: "U/L" },
+  "alanin aminotransferaz (alt)": { name: "ALT", cat: "organ", unit: "U/L" },
+  "ast": { name: "AST", cat: "organ", unit: "U/L" },
+  "ast (sgot)": { name: "AST", cat: "organ", unit: "U/L" },
+  "sgot": { name: "AST", cat: "organ", unit: "U/L" },
+  "aspartat transaminaz (ast)": { name: "AST", cat: "organ", unit: "U/L" },
+  "ggt": { name: "GGT", cat: "organ", unit: "U/L" },
+  "gamma glutamil transferaz (ggt)": { name: "GGT", cat: "organ", unit: "U/L" },
+  "alp": { name: "ALP", cat: "organ", unit: "U/L" },
+  "alkalen fosfataz (alp)": { name: "ALP", cat: "organ", unit: "U/L" },
+  "ldh": { name: "LDH", cat: "organ", unit: "U/L" },
+  "laktat dehidrogenaz (ldh)": { name: "LDH", cat: "organ", unit: "U/L" },
+  "ck": { name: "Kreatin Kinaz (CK)", cat: "organ", unit: "U/L" },
+  "kreatin kinaz (ck)": { name: "Kreatin Kinaz (CK)", cat: "organ", unit: "U/L" },
+  "amilaz": { name: "Amilaz", cat: "organ", unit: "U/L" },
+  "bilirubin (total)": { name: "Bilirubin (Total)", cat: "organ", unit: "mg/dL" },
+  "total bilirubin": { name: "Bilirubin (Total)", cat: "organ", unit: "mg/dL" },
+  "bilirubin (direkt)": { name: "Bilirubin (Direkt)", cat: "organ", unit: "mg/dL" },
+  "direkt bilirubin": { name: "Bilirubin (Direkt)", cat: "organ", unit: "mg/dL" },
+  "albumin": { name: "Albümin", cat: "organ" },
+  "kreatinin": { name: "Kreatinin", cat: "organ", unit: "mg/dL" },
+  "egfr": { name: "eGFR", cat: "organ", unit: "mL/dk" },
+  "egfr hesaplamasi": { name: "eGFR", cat: "organ", unit: "mL/dk" },
+  "ure": { name: "Üre", cat: "organ", unit: "mg/dL" },
+  "ure (serum/plazma)": { name: "Üre", cat: "organ", unit: "mg/dL" },
+  "urik asit": { name: "Ürik Asit", cat: "organ", unit: "mg/dL" },
+  "crp": { name: "CRP", cat: "organ", unit: "mg/L" },
+  "c reaktif protein (crp)": { name: "CRP", cat: "organ", unit: "mg/L" },
+  "crp,nefelometrik": { name: "CRP", cat: "organ", unit: "mg/L" },
+  "crp, nefelometrik": { name: "CRP", cat: "organ", unit: "mg/L" },
+  "sodyum": { name: "Sodyum", cat: "organ", unit: "mmol/L" },
+  "sodyum (na)": { name: "Sodyum", cat: "organ", unit: "mmol/L" },
+  "sodyum (na,serum)": { name: "Sodyum", cat: "organ", unit: "mmol/L" },
+  "potasyum": { name: "Potasyum", cat: "organ", unit: "mmol/L" },
+  "potasyum (k)": { name: "Potasyum", cat: "organ", unit: "mmol/L" },
+  "potasyum ( k , serum )": { name: "Potasyum", cat: "organ", unit: "mmol/L" },
+  "klor": { name: "Klor", cat: "organ", unit: "mmol/L" },
+  "klor (cl)": { name: "Klor", cat: "organ", unit: "mmol/L" },
+  // Tiroid
+  "tsh": { name: "TSH", cat: "tiroid", unit: "mIU/L" },
+  "serbest t4": { name: "Serbest T4", cat: "tiroid", unit: "ng/dL" },
+  "ft4": { name: "Serbest T4", cat: "tiroid", unit: "ng/dL" },
+  "serbest t3": { name: "Serbest T3", cat: "tiroid", unit: "pg/mL" },
+  "ft3": { name: "Serbest T3", cat: "tiroid", unit: "pg/mL" },
+  // Kan Sayımı (Hemogram)
+  "hgb": { name: "Hemoglobin (HGB)", cat: "hemogram", unit: "g/dL" },
+  "hemoglobin": { name: "Hemoglobin (HGB)", cat: "hemogram", unit: "g/dL" },
+  "hemoglobin (hgb)": { name: "Hemoglobin (HGB)", cat: "hemogram", unit: "g/dL" },
+  "hct": { name: "Hematokrit (HCT)", cat: "hemogram", unit: "%" },
+  "hematokrit": { name: "Hematokrit (HCT)", cat: "hemogram", unit: "%" },
+  "hematokrit (hct)": { name: "Hematokrit (HCT)", cat: "hemogram", unit: "%" },
+  "wbc": { name: "Lökosit (WBC)", cat: "hemogram", unit: "10^3/µL" },
+  "lokosit (wbc)": { name: "Lökosit (WBC)", cat: "hemogram", unit: "10^3/µL" },
+  "rbc": { name: "Eritrosit (RBC)", cat: "hemogram", unit: "10^6/µL" },
+  "eritrosit (rbc)": { name: "Eritrosit (RBC)", cat: "hemogram", unit: "10^6/µL" },
+  "plt": { name: "Trombosit (PLT)", cat: "hemogram", unit: "10^3/µL" },
+  "trombosit (plt)": { name: "Trombosit (PLT)", cat: "hemogram", unit: "10^3/µL" },
+  "mcv": { name: "MCV", cat: "hemogram", unit: "fL" },
+  "mch": { name: "MCH", cat: "hemogram", unit: "pg" },
+  "mchc": { name: "MCHC", cat: "hemogram", unit: "g/dL" },
+  "rdw": { name: "RDW", cat: "hemogram", unit: "%" },
+  "rdw-cv": { name: "RDW", cat: "hemogram", unit: "%" },
+  "rdw-sd": { name: "RDW-SD", cat: "hemogram", unit: "fL" },
+  "mpv": { name: "MPV", cat: "hemogram", unit: "fL" },
+  "pct": { name: "PCT", cat: "hemogram", unit: "%" },
+  "p-lcr": { name: "P-LCR", cat: "hemogram", unit: "%" },
+  "% neu": { name: "Nötrofil %", cat: "hemogram", unit: "%" },
+  "neu%": { name: "Nötrofil %", cat: "hemogram", unit: "%" },
+  "notrofil %": { name: "Nötrofil %", cat: "hemogram", unit: "%" },
+  "neu#": { name: "Nötrofil #", cat: "hemogram", unit: "10^3/µL" },
+  "notrofil #": { name: "Nötrofil #", cat: "hemogram", unit: "10^3/µL" },
+  "% lym": { name: "Lenfosit %", cat: "hemogram", unit: "%" },
+  "lym%": { name: "Lenfosit %", cat: "hemogram", unit: "%" },
+  "lenfosit %": { name: "Lenfosit %", cat: "hemogram", unit: "%" },
+  "lym#": { name: "Lenfosit #", cat: "hemogram", unit: "10^3/µL" },
+  "lenfosit #": { name: "Lenfosit #", cat: "hemogram", unit: "10^3/µL" },
+  "% mon": { name: "Monosit %", cat: "hemogram", unit: "%" },
+  "mono%": { name: "Monosit %", cat: "hemogram", unit: "%" },
+  "monosit %": { name: "Monosit %", cat: "hemogram", unit: "%" },
+  "mon#": { name: "Monosit #", cat: "hemogram", unit: "10^3/µL" },
+  "mono#": { name: "Monosit #", cat: "hemogram", unit: "10^3/µL" },
+  "monosit #": { name: "Monosit #", cat: "hemogram", unit: "10^3/µL" },
+  "% eo": { name: "Eozinofil %", cat: "hemogram", unit: "%" },
+  "eos%": { name: "Eozinofil %", cat: "hemogram", unit: "%" },
+  "eozinofil %": { name: "Eozinofil %", cat: "hemogram", unit: "%" },
+  "eo#": { name: "Eozinofil #", cat: "hemogram", unit: "10^3/µL" },
+  "eos#": { name: "Eozinofil #", cat: "hemogram", unit: "10^3/µL" },
+  "eozinofil #": { name: "Eozinofil #", cat: "hemogram", unit: "10^3/µL" },
+  "% bas": { name: "Bazofil %", cat: "hemogram", unit: "%" },
+  "baso%": { name: "Bazofil %", cat: "hemogram", unit: "%" },
+  "bazofil %": { name: "Bazofil %", cat: "hemogram", unit: "%" },
+  "bas#": { name: "Bazofil #", cat: "hemogram", unit: "10^3/µL" },
+  "baso#": { name: "Bazofil #", cat: "hemogram", unit: "10^3/µL" },
+  "bazofil #": { name: "Bazofil #", cat: "hemogram", unit: "10^3/µL" },
+};
+
+function canonicalizeLabRow(r: any) {
+  const rawName = String(r?.raw_name || r?.name || "").trim().slice(0, 120);
+  const inputName = String(r?.name || r?.raw_name || "").trim().slice(0, 120);
+  const unitRaw = r?.unit ? String(r.unit).trim().slice(0, 30) : null;
+  const k = normKey(inputName);
+  const rk = normKey(rawName);
+
+  if (k === "pdw" || k.startsWith("pdw ") || rk === "pdw") {
+    const isPct = (unitRaw || "").includes("%") || k.includes("%");
+    return {
+      name: isPct ? "PDW (%)" : "PDW (fL)",
+      raw_name: rawName || inputName,
+      category: "hemogram",
+      value: num(r?.value),
+      unit: isPct ? "%" : "fL",
+      ref_low: num(r?.ref_low),
+      ref_high: num(r?.ref_high),
+    };
+  }
+
+  let match = EXACT_MAP[k] || EXACT_MAP[rk];
+  if (!match) {
+    if (/vitamin\s*d|25[-\s]*oh/.test(k)) match = { name: "Vitamin D (25-OH)", cat: "vitamin", unit: "ng/mL" };
+    else if (/ldl/.test(k)) match = { name: "LDL Kolesterol", cat: "lipid", unit: "mg/dL" };
+    else if (/hdl/.test(k)) match = { name: "HDL Kolesterol", cat: "lipid", unit: "mg/dL" };
+    else if (/alanin|\balt\b|\bsgpt\b/.test(k)) match = { name: "ALT", cat: "organ", unit: "U/L" };
+    else if (/aspartat|\bast\b|\bsgot\b/.test(k)) match = { name: "AST", cat: "organ", unit: "U/L" };
+    else if (/egfr/.test(k)) match = { name: "eGFR", cat: "organ", unit: "mL/dk" };
+    else if (/hbsag|anti\s*hb|anti\s*hc|anti\s*hi|vdrl/.test(k)) match = { name: inputName, cat: "other" };
+  }
+
+  const finalName = match?.name || inputName;
+  let finalUnit = match?.unit || unitRaw;
+  if (finalUnit === "ng/L" && finalName === "Vitamin B12") finalUnit = "pg/mL";
+  if ((finalUnit === "µg/L" || finalUnit === "ug/L") && finalName === "Folat (B9)") finalUnit = "ng/mL";
+  if (finalUnit === "mEq/L" && (finalName === "Sodyum" || finalName === "Potasyum" || finalName === "Klor")) finalUnit = "mmol/L";
+
+  return {
+    name: finalName,
+    raw_name: rawName || finalName,
+    category: match?.cat || "other",
+    value: num(r?.value),
+    unit: finalUnit,
+    ref_low: num(r?.ref_low),
+    ref_high: num(r?.ref_high),
+  };
+}
+
 function sanitize(raw: any) {
   let reportDate: string | null = null;
   if (typeof raw?.report_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.report_date.trim())) {
     reportDate = raw.report_date.trim();
   }
-  const results = (Array.isArray(raw?.results) ? raw.results : [])
-    .map((r: any) => ({
-      name: String(r?.name || "").trim().slice(0, 120),
-      value: num(r?.value),
-      unit: r?.unit ? String(r.unit).trim().slice(0, 30) : null,
-      ref_low: num(r?.ref_low),
-      ref_high: num(r?.ref_high),
-    }))
-    .filter((r: any) => r.name && r.value !== null)
-    .slice(0, 150);
+  const byName = new Map<string, ReturnType<typeof canonicalizeLabRow>>();
+  for (const item of Array.isArray(raw?.results) ? raw.results : []) {
+    const row = canonicalizeLabRow(item);
+    if (!row.name || row.value === null) continue;
+    const prev = byName.get(row.name);
+    if (!prev || (prev.ref_low === null && row.ref_low !== null)) {
+      byName.set(row.name, row);
+    }
+  }
   return {
     report_date: reportDate,
     lab_name: raw?.lab_name ? String(raw.lab_name).trim().slice(0, 120) : null,
-    results,
+    results: [...byName.values()].slice(0, 150),
   };
 }
 

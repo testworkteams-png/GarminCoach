@@ -1143,27 +1143,28 @@
         <div class="card card-glow">
           <div class="card-header">
             <div>
-              <div class="card-title">🩺 Sağlık Merkezi &amp; Laboratuvar Takibi</div>
-              <div class="card-sub">İlaç/vitamin takibi ve kan tahlili analizi aktif</div>
+              <div class="card-title">🩸 Kan Tahlili &amp; Biyobelirteçler</div>
+              <div class="card-sub">Farklı hastane raporları tek standart formatta birleştirilir</div>
             </div>
-            <span class="badge badge-ok">Faz 2 · Aktif</span>
-          </div>
-          <div class="lab-actions">
-            <button type="button" class="btn btn-primary" onclick="triggerLabUpload()">📄 PDF / Fotoğraf Yükle (AI)</button>
-            <button type="button" class="btn" onclick="openLabModal()">✏️ Elle Ekle</button>
             <span class="badge badge-info mono" id="lab-badge">--</span>
           </div>
+          <div class="lab-actions">
+            <button type="button" class="btn btn-primary" onclick="triggerLabUpload()">📄 PDF / Fotoğraf Yükle</button>
+            <button type="button" class="btn" onclick="openLabModal()">✏️ Elle Ekle</button>
+          </div>
           <div id="lab-upload-status" class="auth-hint-box hidden" style="margin-top:10px;"></div>
-          <div id="lab-summary" style="margin-top:12px;"></div>
-          <div id="lab-trend-wrap" style="display:none; margin-top:14px;">
-            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-              <label class="card-sub" for="lab-test-select">Trend:</label>
-              <select id="lab-test-select" class="lab-select"></select>
+          <div id="lab-summary" style="margin-top:14px;"></div>
+          <div id="lab-trend-wrap" style="display:none; margin-top:16px;">
+            <div class="lab-cat-strip" id="lab-cat-strip"></div>
+            <div class="lab-param-pills" id="lab-param-pills"></div>
+            <div class="lab-trend-toolbar">
+              <select id="lab-test-select" class="lab-select" aria-label="Biyobelirteç seç"></select>
               <span class="card-sub" id="lab-trend-info"></span>
             </div>
-            <div style="height:220px; margin-top:8px;"><canvas id="lab-trend-chart"></canvas></div>
+            <div id="lab-chart-box" style="height:210px; margin-top:10px;"><canvas id="lab-trend-chart"></canvas></div>
+            <div id="lab-single-gauge" class="hidden" style="margin-top:10px;"></div>
           </div>
-          <div class="card-header" style="margin-top:16px;">
+          <div class="card-header" style="margin-top:18px;">
             <div class="card-sub">Geçmiş raporlar</div>
             <span class="badge badge-info mono" id="lab-count">0 rapor</span>
           </div>
