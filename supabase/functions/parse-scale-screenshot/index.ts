@@ -40,8 +40,9 @@ Yalnızca şu JSON şemasına birebir uyan geçerli JSON nesnesi döndür:
 const CANDIDATE_MODELS = [
   "models/gemini-3.6-flash",
   "models/gemini-3.5-flash",
+  "models/gemini-3.5-flash-lite",
+  "models/gemini-3.8-flash",
   "models/gemini-2.5-flash",
-  "models/gemini-2.0-flash",
 ];
 
 const BODY_ANALYSIS_PROMPT = `Sen kanıta dayalı spor fizyolojisi ve vücut kompozisyonu koçusun. Kullanıcının boy, kilo ve akıllı tartı (Honor Scale 2) verilerini analiz et.
@@ -128,7 +129,7 @@ async function resolveGeminiApiKey(supabase: any, userId: string): Promise<strin
   );
 }
 
-async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.1) {
+async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.1, timeoutMs = 28000) {
   const debugErrors: string[] = [];
   for (const modelName of CANDIDATE_MODELS) {
     try {
@@ -137,7 +138,7 @@ async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(28000),
+          signal: AbortSignal.timeout(timeoutMs),
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
@@ -155,12 +156,9 @@ async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.
       }
 
       const gemJson = await gemRes.json();
-      const respParts: any[] = gemJson?.candidates?.[0]?.content?.parts || [];
-      const rawText = respParts
-        .filter((p: any) => !p?.thought && p?.text)
-        .map((p: any) => String(p.text))
-        .join("\n")
-        .trim();
+      const respParts: any[] = (gemJson?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p?.thought);
+      const texts = respParts.map((p: any) => String(p?.text || "")).filter(Boolean);
+      const rawText = (texts.find((t: string) => t.trim().startsWith("{")) || texts[texts.length - 1] || "").trim();
       if (!rawText) {
         debugErrors.push(`${modelName}:EMPTY`);
         continue;
@@ -184,6 +182,78 @@ async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.
     }
   }
   return { ok: false as const, parsed: null, modelName: null, debugErrors };
+}
+
+function fmtNumTr(val: number | null, dec = 1): string {
+  if (val === null || val === undefined || !Number.isFinite(val)) return "--";
+  return Number(val).toFixed(dec).replace(".", ",");
+}
+
+function buildSmartBodyAnalysis(context: any) {
+  const prof = context?.profile || {};
+  const l = context?.latest || {};
+  const p = context?.previous || null;
+  const w = l.weight_kg as number | null;
+  const bmi = l.bmi as number | null;
+  const fat = l.body_fat_pct as number | null;
+  const muscle = l.muscle_mass_kg as number | null;
+  const lean = l.lean_mass_kg as number | null;
+  const visceral = l.visceral_fat as number | null;
+  const water = l.body_water_pct as number | null;
+  const protein = l.protein_pct as number | null;
+  const bone = l.bone_mass_kg as number | null;
+  const bmr = l.bmr_kcal as number | null;
+
+  const title = `⚖️ Vücut Analizi · ${w != null ? `${fmtNumTr(w, 1)} kg` : ""}${bmi != null ? ` (VKİ ${fmtNumTr(bmi, 1)})` : ""}`.trim();
+
+  const bmiBand =
+    bmi == null ? "" : bmi < 18.5 ? "zayıf" : bmi < 25 ? "sağlıklı" : bmi < 30 ? "hafif kilolu" : "yüksek";
+  const heightPhrase = prof.height_cm ? `Yaklaşık ${prof.height_cm} cm boy için ` : "";
+  const weightPhrase = w != null ? `${fmtNumTr(w, 1)} kg ağırlık ve ${bmi != null ? `${fmtNumTr(bmi, 1)} VKİ` : ""} ` : "";
+  const prevDiff = w != null && p?.weight_kg != null ? Number((w - p.weight_kg).toFixed(1)) : null;
+  const trendPhrase =
+    prevDiff === null || prevDiff === 0
+      ? ""
+      : `Önceki ölçüme göre kilo ${prevDiff > 0 ? `+${fmtNumTr(prevDiff, 1)}` : fmtNumTr(prevDiff, 1)} kg değişti.`;
+
+  const summary =
+    `${heightPhrase}${weightPhrase}${bmiBand ? `${bmiBand} aralıkta değerlendiriliyor.` : "kaydedildi."} ` +
+    `${muscle != null && fat != null ? `İskelet kas kütlen ${fmtNumTr(muscle, 1)} kg, vücut yağ oranın %${fmtNumTr(fat, 1)}${lean != null ? ` (yağsız kütle ${fmtNumTr(lean, 1)} kg)` : ""}. ` : ""}` +
+    trendPhrase;
+
+  const highlights: string[] = [];
+  if (lean != null || muscle != null) {
+    highlights.push(
+      `Kas & Yağsız Doku: ${muscle != null ? `İskelet kası ${fmtNumTr(muscle, 1)} kg` : ""}${muscle != null && lean != null ? " · " : ""}${lean != null ? `Yağsız kütle ${fmtNumTr(lean, 1)} kg` : ""}${protein != null ? ` · Protein %${fmtNumTr(protein, 1)}` : ""}.`
+    );
+  }
+  if (fat != null || visceral != null) {
+    const visStatus = visceral == null ? "" : visceral <= 9 ? "sağlıklı" : visceral <= 14 ? "sınırda yüksek" : "yüksek";
+    highlights.push(
+      `Yağ Profili: ${fat != null ? `Vücut yağı %${fmtNumTr(fat, 1)}` : ""}${visceral != null ? `${fat != null ? " · " : ""}Viseral yağ ${fmtNumTr(visceral, 1)} (${visStatus})` : ""}.`
+    );
+  }
+  if (water != null || bone != null || bmr != null) {
+    highlights.push(
+      `Metabolizma & Mineral: ${water != null ? `Su %${fmtNumTr(water, 1)}` : ""}${bone != null ? `${water != null ? " · " : ""}Kemik minerali ${fmtNumTr(bone, 2)} kg` : ""}${bmr != null ? ` · Bazal metabolizma ${Math.round(bmr)} kcal/g` : ""}.`
+    );
+  }
+
+  const actions: string[] = [];
+  if (water != null && water < 50) {
+    actions.push(`Vücut su oranı (%${fmtNumTr(water, 1)}) hedefin (%50–65) biraz altında; gün içine yayılmış şekilde 2,5–3 litre su tüketmeye odaklan.`);
+  } else {
+    actions.push("Tartı ölçümlerini tutarlılık için sabah aç karnına ve benzer saatlerde yap.");
+  }
+  if (visceral != null && visceral > 9) {
+    actions.push("Viseral yağ seviyesini aşağı çekmek için haftalık 2–3 Zone-2 aerobik koşu/bisiklet ve akşam saatlerinde rafine karbonhidratı sınırlamak etkili olur.");
+  }
+  if (bmr != null) {
+    const proteinTarget = w != null ? Math.round(w * 1.5) : 110;
+    actions.push(`Kas kütlesini korumak ve BMR (${Math.round(bmr)} kcal/g) verimliliğini desteklemek için haftada 2–3 direnç antrenmanı ve günlük ~${proteinTarget} g kaliteli protein hedefle.`);
+  }
+
+  return { title, summary: summary.trim(), highlights, actions: actions.slice(0, 3) };
 }
 
 function enrichRecordForAi(rec: any) {
@@ -261,36 +331,31 @@ async function handleAnalyzeBodyComposition(supabase: any, authUser: any, body: 
   };
 
   const apiKey = await resolveGeminiApiKey(supabase, authUser.id);
-  if (!apiKey) {
-    return jsonResp({ ok: false, error: "GEMINI_API_KEY tanımlı değil." }, 500);
+  const gem = apiKey
+    ? await callGeminiJson(
+        apiKey,
+        [{ text: `${BODY_ANALYSIS_PROMPT}\n\nVERİ:\n${JSON.stringify(context)}` }],
+        0.35,
+        10000
+      )
+    : { ok: false as const, parsed: null, modelName: null, debugErrors: ["NO_GEMINI_KEY"] };
+
+  if (!gem.ok) {
+    console.warn("analyzeBodyComposition Gemini fallback:", gem.debugErrors);
   }
 
-  const gem = await callGeminiJson(
-    apiKey,
-    [{ text: `${BODY_ANALYSIS_PROMPT}\n\nVERİ:\n${JSON.stringify(context)}` }],
-    0.35
-  );
-  if (!gem.ok || !gem.parsed) {
-    return jsonResp(
-      { ok: false, error: "YZ yorumu oluşturulamadı. Lütfen tekrar deneyin.", debug: gem.debugErrors },
-      502
-    );
-  }
-
-  const p = gem.parsed;
-  const defaultTitle = `⚖️ Vücut Analizi · ${latest.weight_kg != null ? String(latest.weight_kg).replace(".", ",") + " kg" : ""}${latest.bmi != null ? ` (VKİ ${String(latest.bmi).replace(".", ",")})` : ""}`.trim();
-  const title = String(p.title || defaultTitle).trim().slice(0, 120) || defaultTitle;
-  const summary = String(p.summary || "").trim().slice(0, 700);
-  const highlights = Array.isArray(p.highlights)
+  const fallback = buildSmartBodyAnalysis(context);
+  const p = gem.ok && gem.parsed ? gem.parsed : null;
+  const title = String(p?.title || fallback.title).trim().slice(0, 120) || fallback.title;
+  const summary = String(p?.summary || fallback.summary).trim().slice(0, 700) || fallback.summary;
+  const parsedHighlights = Array.isArray(p?.highlights)
     ? p.highlights.map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, 5)
     : [];
-  const actions = Array.isArray(p.actions)
+  const parsedActions = Array.isArray(p?.actions)
     ? p.actions.map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, 4)
     : [];
-
-  if (!summary) {
-    return jsonResp({ ok: false, error: "YZ yorumu boş döndü, lütfen tekrar deneyin." }, 422);
-  }
+  const highlights = parsedHighlights.length > 0 ? parsedHighlights : fallback.highlights;
+  const actions = parsedActions.length > 0 ? parsedActions : fallback.actions;
 
   const reportDate = new Date(latest.measured_at || Date.now()).toISOString().slice(0, 10);
   const payloadObj = {
@@ -306,27 +371,55 @@ async function handleAnalyzeBodyComposition(supabase: any, authUser: any, body: 
     actions,
   };
 
-  const { data: insertedNotif, error: notifErr } = await supabase
+  const { data: existingNotif } = await supabase
     .from("notifications")
-    .insert({
-      user_id: authUser.id,
-      type: "HEALTH_ALERT",
-      title,
-      body: summary,
-      payload: payloadObj,
-      report_date: reportDate,
-      push_status: "IN_APP_ONLY",
-    })
-    .select("id, created_at")
-    .single();
+    .select("id")
+    .eq("user_id", authUser.id)
+    .contains("payload", { kind: "body_ai_commentary", record_id: latest.id })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (notifErr) {
-    return jsonResp({ ok: false, error: `Bildirim kaydı hatası: ${notifErr.message}` }, 500);
+  let savedNotifId: string | null = existingNotif?.id || null;
+  if (savedNotifId) {
+    const { error: updErr } = await supabase
+      .from("notifications")
+      .update({
+        title,
+        body: summary,
+        payload: payloadObj,
+        report_date: reportDate,
+        read_at: null,
+        created_at: new Date().toISOString(),
+      })
+      .eq("id", savedNotifId)
+      .eq("user_id", authUser.id);
+    if (updErr) {
+      return jsonResp({ ok: false, error: `Bildirim güncelleme hatası: ${updErr.message}` }, 500);
+    }
+  } else {
+    const { data: insertedNotif, error: notifErr } = await supabase
+      .from("notifications")
+      .insert({
+        user_id: authUser.id,
+        type: "HEALTH_ALERT",
+        title,
+        body: summary,
+        payload: payloadObj,
+        report_date: reportDate,
+        push_status: "IN_APP_ONLY",
+      })
+      .select("id")
+      .single();
+    if (notifErr) {
+      return jsonResp({ ok: false, error: `Bildirim kaydı hatası: ${notifErr.message}` }, 500);
+    }
+    savedNotifId = insertedNotif?.id || null;
   }
 
   return jsonResp({
     ok: true,
-    notification_id: insertedNotif?.id || null,
+    notification_id: savedNotifId,
     analysis: {
       title,
       summary,
@@ -337,7 +430,7 @@ async function handleAnalyzeBodyComposition(supabase: any, authUser: any, body: 
       weight_kg: latest.weight_kg,
       bmi: latest.bmi,
     },
-    model_used: gem.modelName,
+    model_used: gem.modelName || "smart-physiology-fallback",
   });
 }
 
