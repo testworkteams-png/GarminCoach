@@ -1246,19 +1246,24 @@
             <div class="card-sub" style="margin:12px 0 6px; font-weight:700;">⚡ Gerektiğinde Kullanılanlar</div>
             <div class="med-today-list" id="med-prn-list"></div>
           </div>
-          <div class="auth-hint-box" id="med-reminder-hint" style="margin-top:12px;"></div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
+        <details class="card med-manage-acc" id="med-manage-acc">
+          <summary class="med-manage-sum">
             <div>
-              <div class="card-title">📋 İlaç / Takviye Listem</div>
-              <div class="card-sub">🔔 Hatırlatıcı aç/kapat veya 📅 telefon takvimine ekle</div>
+              <div class="card-title">📋 İlaçları Yönet</div>
+              <div class="card-sub">Talimat, bildirim, takvim ve düzenleme</div>
             </div>
-            <span class="badge badge-info mono" id="med-count" style="white-space:nowrap; flex-shrink:0;">0 kayıt</span>
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+              <span class="badge badge-info mono" id="med-count" style="white-space:nowrap;">0 kayıt</span>
+              <span class="med-manage-chev" aria-hidden="true"></span>
+            </div>
+          </summary>
+          <div class="med-manage-body">
+            <div class="med-list" id="med-list"></div>
+            <div class="card-sub hidden" id="med-reminder-hint" style="margin-top:10px;"></div>
           </div>
-          <div class="med-list" id="med-list"></div>
-        </div>
+        </details>
       </section>
     </main>
   </div>

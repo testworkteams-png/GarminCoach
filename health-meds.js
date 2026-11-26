@@ -164,14 +164,13 @@
         .map((r) => {
           const meta = KIND_META[r.med.kind] || KIND_META.supplement;
           const late = isToday && !r.taken && r.slot < now;
-          const subParts = [r.med.purpose, r.med.dose || meta.label, r.med.notes].filter(Boolean);
           return `
           <div class="med-row ${r.taken ? "taken" : ""} ${late ? "late" : ""}">
             <button type="button" class="med-check" ${isFuture ? "disabled title='Gelecek tarih işaretlenemez'" : ""} aria-label="${r.taken ? "Geri al" : "Aldım"}"
               onclick="toggleMedTaken('${r.med.id}','${esc(r.slot)}')">${r.taken ? "✓" : ""}</button>
             <div class="med-row-body">
               <strong>${meta.icon} ${esc(r.med.name)}</strong>
-              <span>${subParts.map(esc).join(" · ")}</span>
+              <span>${esc(r.med.dose || meta.label)}</span>
             </div>
             <span class="mono med-time">${esc(r.slot)}</span>
           </div>`;
@@ -185,14 +184,13 @@
       prnList.innerHTML = prnMeds
         .map((m) => {
           const takenPrn = isTaken(m.id, selDate, "PRN");
-          const subParts = [m.purpose, m.dose, m.notes].filter(Boolean);
           return `
           <div class="med-row ${takenPrn ? "taken" : ""}">
             <button type="button" class="med-check" ${isFuture ? "disabled" : ""} aria-label="${takenPrn ? "Geri al" : "Aldım"}"
               onclick="toggleMedTaken('${m.id}','PRN')">${takenPrn ? "✓" : ""}</button>
             <div class="med-row-body">
               <strong>⚡ ${esc(m.name)}</strong>
-              <span>${subParts.map(esc).join(" · ") || "Gerektiğinde kullan"}</span>
+              <span>${esc(m.dose || "Gerektiğinde")}</span>
             </div>
             <span class="badge badge-info" style="font-size:10px;">Gerektiğinde</span>
           </div>`;
@@ -838,14 +836,11 @@
     });
 
     if (!ln) {
-      if (hintEl) {
-        hintEl.textContent = eligible.length
-          ? `🔔 ${eligible.length} ilaçta bildirim açık (Android APK'da otomatik çalar) · İstersen 📅 ile takvime ekle.`
-          : "🌐 Web sürümündesin: düzenli ilaç bildirimleri APK'da, takvim aktarımı 📅 ile her cihazda çalışır.";
-      }
+      if (hintEl) hintEl.classList.add("hidden");
       return;
     }
 
+    if (hintEl) hintEl.classList.remove("hidden");
     try {
       let perm = await ln.checkPermissions();
       if (perm.display !== "granted") perm = await ln.requestPermissions();

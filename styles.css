@@ -4401,3 +4401,58 @@ html[data-theme="weather_sunny"] .med-rem-btn.on {
   border-color: rgba(6, 99, 75, 0.4);
   background: rgba(6, 99, 75, 0.12);
 }
+
+/* Akordeon İlaç Yönetimi */
+.med-manage-acc {
+  padding: 0;
+  overflow: hidden;
+}
+
+.med-manage-sum {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.med-manage-sum::-webkit-details-marker {
+  display: none;
+}
+
+.med-manage-chev {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  position: relative;
+  transition: transform 0.25s ease;
+}
+
+.med-manage-chev::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.med-manage-acc[open] .med-manage-chev {
+  transform: rotate(180deg);
+}
+
+.med-manage-body {
+  padding: 0 18px 16px;
+}
+
+html[data-theme="weather_sunny"] .med-manage-chev {
+  background: rgba(15, 23, 42, 0.07);
+}
