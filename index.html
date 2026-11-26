@@ -1096,46 +1096,53 @@
 
       <!-- TAB 6: VÜCUT (HONOR SCALE 2) -->
       <section id="tab-body" class="tab-panel">
-        <div class="card card-glow">
-          <div class="card-header">
-            <div>
-              <div class="card-title">⚖️ Son Vücut Kompozisyonu Ölçümü</div>
-              <div class="card-sub" id="body-latest-meta">İlk ölçüm bekleniyor</div>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <div class="card card-glow body-main-card">
+          <div class="body-hero-bar">
+            <button type="button" class="body-hero-weight-btn" onclick="openBodyMetricModal('weight_kg')" title="Kilo grafiği ve detayları aç">
+              <div class="body-hero-top">
+                <span class="body-hero-num mono" id="body-hero-weight">--</span>
+                <span class="body-hero-unit">kg</span>
+                <span class="body-hero-delta" id="body-hero-delta"></span>
+              </div>
+              <div class="body-hero-sub" id="body-latest-meta">İlk ölçüm bekleniyor</div>
+            </button>
+            <div class="body-hero-actions">
               <span class="badge badge-info" id="body-latest-sync-badge">Kayıt Yok</span>
-              <button type="button" class="btn btn-primary btn-sm" onclick="triggerScaleScreenshotUpload()">📷 Ekran Görüntüsü</button>
-              <button type="button" class="btn btn-cyan btn-sm" onclick="openManualScaleModal()">✏️ Manuel Ekle</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="triggerScaleScreenshotUpload()">📷 Tara</button>
+              <button type="button" class="btn btn-cyan btn-sm" onclick="openManualScaleModal()">✏️ Ekle</button>
             </div>
           </div>
-          <div class="body-summary-grid" id="body-latest-grid"></div>
-          <div class="body-extras-row" id="body-latest-extras"></div>
+          <div class="body-param-grid" id="body-latest-grid"></div>
         </div>
 
-        <div class="card mt-18">
+        <div class="card mt-14 body-structure-card" id="body-structure-card">
           <div class="card-header">
-            <div>
-              <div class="card-title">📈 Kilo, Yağ Oranı &amp; Kas Kütlesi Trendi</div>
-              <div class="card-sub">Son 30 ölçüm üzerinden Honor Scale 2 değişim grafiği</div>
+            <div class="card-title">Vücut yapısı</div>
+            <span class="badge badge-info">kg dağılımı</span>
+          </div>
+          <div class="body-donut-layout" id="body-donut-layout">
+            <div class="body-donut-wrap">
+              <canvas id="bodyStructureDonut"></canvas>
             </div>
-            <span class="badge badge-info">Garmin Senkron Hazır</span>
+            <div class="body-donut-legend" id="body-donut-legend"></div>
           </div>
-          <div id="body-chart-empty" class="card-sub" style="margin-bottom:8px;">Grafik çizimi için en az 1 ölçüm ekleyin.</div>
-          <div class="chart-wrap" style="height:260px;">
-            <canvas id="bodyCompositionChart"></canvas>
-          </div>
+          <div class="body-donut-empty hidden" id="body-donut-empty">Vücut yapısı dağılımı için tartı ölçümü ekleyin.</div>
+          <div class="body-donut-caption" id="body-donut-caption">Yapı (kg) = su + protein + yağ + kemik minerali</div>
         </div>
 
-        <div class="card mt-18">
-          <div class="card-header">
-            <div>
-              <div class="card-title">🗂️ Geçmiş Tartı Ölçümleri &amp; Garmin Durumu</div>
-              <div class="card-sub">Görseller kaydedilmez; yalnızca sayısal metrikler saklanır ve Garmin Connect'e aktarılır</div>
+        <details class="card body-history-acc mt-14" id="body-history-acc">
+          <summary class="body-history-acc-head">
+            <span class="card-title">📋 Ölçüm Geçmişi &amp; Garmin Durumu</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="badge badge-info mono" id="body-history-count">0 kayıt</span>
+              <span class="body-history-chev" aria-hidden="true"></span>
             </div>
-            <span class="badge badge-info mono" id="body-history-count">0 kayıt</span>
+          </summary>
+          <div class="body-history-acc-body">
+            <div class="card-sub" style="margin-bottom:10px;">Görseller kaydedilmez; yalnızca sayısal metrikler saklanır ve Garmin Connect'e aktarılır.</div>
+            <div class="body-history-list" id="body-history-list"></div>
           </div>
-          <div class="body-history-list" id="body-history-list"></div>
-        </div>
+        </details>
       </section>
 
       <!-- TAB 7: SAĞLIK (FAZ 2 YAKINDA) -->
@@ -1577,6 +1584,37 @@
         <button type="button" class="btn" onclick="closeMedScanModal()">İptal</button>
         <button type="button" class="btn" id="btn-med-scan-cal" onclick="submitMedScan(true)">📅 Kaydet + Takvime Ekle</button>
         <button type="button" class="btn btn-primary" id="btn-med-scan-save" onclick="submitMedScan(false)">💾 Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VÜCUT PARAMETRE DETAY MODAL -->
+  <div class="modal-backdrop" id="body-metric-modal" onclick="if(event.target===this)closeBodyMetricModal()">
+    <div class="modal-card body-detail-sheet">
+      <div class="body-detail-topbar">
+        <div class="body-detail-tabs" id="body-detail-tabs"></div>
+        <button type="button" class="btn btn-sm body-detail-close" onclick="closeBodyMetricModal()" aria-label="Kapat">✕</button>
+      </div>
+      <div class="body-gauge-card">
+        <div class="body-gauge-svg-wrap" id="body-gauge-svg-wrap"></div>
+        <div class="body-gauge-legend" id="body-gauge-legend"></div>
+      </div>
+      <div class="body-history-chart-card">
+        <div class="body-detail-chart-head">
+          <div>
+            <div class="body-detail-chart-title">Geçmiş</div>
+            <div class="body-detail-chart-sub" id="body-detail-chart-summary">--</div>
+          </div>
+          <div class="body-detail-ranges" id="body-detail-ranges">
+            <button type="button" class="body-range-btn" data-range="30" onclick="setBodyDetailRange('30')">1A</button>
+            <button type="button" class="body-range-btn" data-range="90" onclick="setBodyDetailRange('90')">3A</button>
+            <button type="button" class="body-range-btn active" data-range="all" onclick="setBodyDetailRange('all')">Tümü</button>
+          </div>
+        </div>
+        <div class="body-detail-stats" id="body-detail-stats"></div>
+        <div class="chart-wrap" style="height:210px;">
+          <canvas id="bodyMetricHistoryChart"></canvas>
+        </div>
       </div>
     </div>
   </div>
