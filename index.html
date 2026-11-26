@@ -34,61 +34,56 @@
   <!-- MULTI-USER AUTHENTICATION GATE OVERLAY -->
   <div id="auth-gate-overlay" class="auth-gate-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="auth-gate-title">
     <div class="auth-card">
-      <div class="auth-brand-row">
-        <div class="brand-mark">GC</div>
-        <div>
-          <div id="auth-gate-title" class="brand-name" style="font-size:20px;">GarminCoach Elite</div>
-          <div class="brand-tag">Kişisel Sağlık, Antrenman &amp; CEO Performans Kokpiti</div>
-        </div>
+      <div class="auth-brand">
+        <div class="auth-logo">GC</div>
+        <h1 id="auth-gate-title" class="auth-title">GarminCoach</h1>
+        <p id="auth-default-hint" class="auth-subtitle">Tekrar hoş geldin</p>
       </div>
 
-      <div class="auth-tabs">
-        <button type="button" id="auth-tab-login" class="auth-tab active" onclick="switchAuthMode('login')">🔐 Giriş Yap</button>
-        <button type="button" id="auth-tab-register" class="auth-tab" onclick="switchAuthMode('register')">✨ Yeni Hesap Aç</button>
+      <div class="auth-tabs" id="auth-tabs">
+        <button type="button" id="auth-tab-login" class="auth-tab active" onclick="switchAuthMode('login')">Giriş</button>
+        <button type="button" id="auth-tab-register" class="auth-tab" onclick="switchAuthMode('register')">Kayıt Ol</button>
       </div>
 
-      <div id="auth-default-hint" class="auth-hint-box">Oturum durumu kontrol ediliyor...</div>
-      <div id="auth-error-msg" class="auth-error-box hidden"></div>
+      <div id="auth-error-msg" class="auth-error-box hidden" role="alert"></div>
 
-      <form id="auth-login-form" onsubmit="submitAppLogin(event)">
-        <div class="field" style="margin-bottom:10px;">
-          <label for="login-username">E-posta veya Kullanıcı Adı</label>
-          <input id="login-username" type="text" required autocomplete="username" placeholder="E-posta adresiniz veya kullanıcı adınız (örn. ali)" />
-        </div>
-        <div class="field" style="margin-bottom:10px;">
-          <label for="login-password">Şifre</label>
-          <input id="login-password" type="password" required autocomplete="current-password" placeholder="••••••••" />
-        </div>
+      <form id="auth-login-form" class="auth-form" onsubmit="submitAppLogin(event)">
+        <label class="auth-field">
+          <span class="sr-only">E-posta veya kullanıcı adı</span>
+          <input id="login-username" type="text" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="E-posta veya kullanıcı adı" />
+        </label>
+        <label class="auth-field auth-field-pass">
+          <span class="sr-only">Şifre</span>
+          <input id="login-password" type="password" required autocomplete="current-password" placeholder="Şifre" />
+          <button type="button" class="auth-pass-toggle" onclick="toggleAuthPassword('login-password', this)" aria-label="Şifreyi göster">Göster</button>
+        </label>
         <label class="auth-remember-row">
           <input id="login-remember" type="checkbox" checked />
-          <span>Bu cihazda oturumu açık tut</span>
+          <span>Beni hatırla</span>
         </label>
-        <button type="submit" id="auth-login-btn" class="btn btn-primary" style="width:100%; justify-content:center; padding:11px 14px;">🔐 Giriş Yap ve Kokpiti Aç</button>
+        <button type="submit" id="auth-login-btn" class="auth-submit">Giriş Yap</button>
       </form>
 
-      <form id="auth-register-form" class="hidden" onsubmit="submitUserRegister(event)">
-        <div class="field" style="margin-bottom:8px;">
-          <label for="reg-name">Ad Soyad</label>
-          <input id="reg-name" type="text" required placeholder="Örn. Ahmet Yılmaz" />
-        </div>
-        <div class="field" style="margin-bottom:8px;">
-          <label for="reg-email">E-posta Adresi</label>
-          <input id="reg-email" type="email" required autocomplete="email" placeholder="ornek@email.com" />
-        </div>
-        <div class="field" style="margin-bottom:8px;">
-          <label for="reg-password">Şifre (En az 6 karakter)</label>
-          <input id="reg-password" type="password" required minlength="6" autocomplete="new-password" placeholder="En az 6 karakter" />
-        </div>
-        <div class="form-grid" style="margin-bottom:10px;">
-          <div class="field"><label for="reg-birth">Doğum Yılı</label><input id="reg-birth" type="number" value="1990" min="1940" max="2015" /></div>
-          <div class="field"><label for="reg-city">Şehir</label><input id="reg-city" type="text" value="İstanbul" /></div>
+      <form id="auth-register-form" class="auth-form hidden" onsubmit="submitUserRegister(event)">
+        <label class="auth-field"><span class="sr-only">Ad Soyad</span><input id="reg-name" type="text" required autocomplete="name" placeholder="Ad Soyad" /></label>
+        <label class="auth-field"><span class="sr-only">E-posta</span><input id="reg-email" type="email" required autocomplete="email" placeholder="E-posta" /></label>
+        <label class="auth-field auth-field-pass">
+          <span class="sr-only">Şifre</span>
+          <input id="reg-password" type="password" required minlength="6" autocomplete="new-password" placeholder="Şifre (en az 6 karakter)" />
+          <button type="button" class="auth-pass-toggle" onclick="toggleAuthPassword('reg-password', this)" aria-label="Şifreyi göster">Göster</button>
+        </label>
+        <div class="auth-row-2">
+          <label class="auth-field"><span class="sr-only">Doğum yılı</span><input id="reg-birth" type="number" value="1990" min="1940" max="2015" placeholder="Doğum yılı" /></label>
+          <label class="auth-field"><span class="sr-only">Şehir</span><input id="reg-city" type="text" value="İstanbul" placeholder="Şehir" /></label>
         </div>
         <label class="auth-remember-row">
           <input id="reg-remember" type="checkbox" checked />
-          <span>Hesap sonrası oturumu açık tut</span>
+          <span>Beni hatırla</span>
         </label>
-        <button type="submit" id="auth-reg-btn" class="btn btn-cyan" style="width:100%; justify-content:center; padding:11px 14px;">🚀 Hesap Oluştur ve Garmin'i Bağla</button>
+        <button type="submit" id="auth-reg-btn" class="auth-submit">Hesap Oluştur</button>
       </form>
+
+      <p class="auth-foot">Verilerin şifreli bağlantıyla korunur</p>
     </div>
   </div>
 

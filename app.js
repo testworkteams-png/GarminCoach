@@ -2666,7 +2666,7 @@ window.saveGarminIntegration = async function (ev) {
     await loadAllData().catch(() => {});
     showToast(`Bağlantı hatası: ${err.message}`);
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.classList.remove("is-loading"); }
   }
 };
 
@@ -3111,10 +3111,9 @@ window.switchAuthMode = function (mode) {
   const formReg = document.getElementById("auth-register-form");
   const hintEl = document.getElementById("auth-default-hint");
 
-  if (tabReg) tabReg.classList.toggle("hidden", !PUBLIC_REGISTRATION_ENABLED);
-  if (tabLogin?.parentElement) {
-    tabLogin.parentElement.style.gridTemplateColumns = PUBLIC_REGISTRATION_ENABLED ? "" : "1fr";
-  }
+  const tabsWrap = document.getElementById("auth-tabs");
+  if (tabsWrap) tabsWrap.classList.toggle("hidden", !PUBLIC_REGISTRATION_ENABLED);
+  if (tabsWrap) tabsWrap.classList.toggle("is-register", isReg);
   if (tabLogin) tabLogin.classList.toggle("active", !isReg);
   if (tabReg) tabReg.classList.toggle("active", isReg);
   if (formLogin) formLogin.classList.toggle("hidden", isReg);
@@ -3122,9 +3121,18 @@ window.switchAuthMode = function (mode) {
   setAuthError("");
 
   if (hintEl) {
-    hintEl.innerHTML = isReg
-      ? "Kendi ücretsiz hesabınızı açın, ardından <strong>Ayarlar &rarr; Garmin API</strong> kısmından kendi saatinizin verilerini bağlayın."
-      : "Hesabınızla giriş yapın (mevcut sahipseniz e-posta veya kullanıcı adınızı girebilirsiniz).";
+    hintEl.textContent = isReg ? "Yeni hesabını oluştur" : "Tekrar hoş geldin";
+  }
+};
+
+window.toggleAuthPassword = function (inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  if (btn) {
+    btn.textContent = show ? "Gizle" : "Göster";
+    btn.setAttribute("aria-label", show ? "Şifreyi gizle" : "Şifreyi göster");
   }
 };
 
@@ -3163,7 +3171,7 @@ window.submitAppLogin = async function (ev) {
   const remember = Boolean(document.getElementById("login-remember")?.checked);
   const btn = document.getElementById("auth-login-btn");
   setAuthError("");
-  if (btn) btn.disabled = true;
+  if (btn) { btn.disabled = true; btn.classList.add("is-loading"); }
 
   try {
     const res = await fetch(ENGINE_URL, {
@@ -3184,7 +3192,7 @@ window.submitAppLogin = async function (ev) {
   } catch (err) {
     setAuthError(err.message);
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.classList.remove("is-loading"); }
   }
 };
 
@@ -3202,7 +3210,7 @@ window.submitUserRegister = async function (ev) {
   const remember = Boolean(document.getElementById("reg-remember")?.checked);
   const btn = document.getElementById("auth-reg-btn");
   setAuthError("");
-  if (btn) btn.disabled = true;
+  if (btn) { btn.disabled = true; btn.classList.add("is-loading"); }
 
   try {
     const res = await fetch(ENGINE_URL, {
@@ -3231,7 +3239,7 @@ window.submitUserRegister = async function (ev) {
   } catch (err) {
     setAuthError(err.message);
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.classList.remove("is-loading"); }
   }
 };
 
