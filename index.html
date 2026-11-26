@@ -226,25 +226,31 @@
       <!-- TAB 1: DASHBOARD -->
       <section id="tab-dashboard" class="tab-panel active">
         <!-- ACTIVE INTELLIGENCE DAILY AI SUMMARY CARD -->
-        <div class="card ai-insight-hero-card" id="ai-daily-insight-card">
-          <div class="card-header" style="margin-bottom:10px;">
-            <div>
-              <div class="card-title">✨ Günlük AI Özeti <span class="badge badge-info" id="ai-insight-cat-badge" style="margin-left:6px;">Hazırlanıyor</span></div>
-              <div class="card-sub">Son 14 günlük trend, uyku, kalp dengesi ve antrenman yükü ilişkisi</div>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-              <span class="badge badge-info mono" id="ai-insight-date-badge">--</span>
-              <button type="button" class="btn btn-sm" id="btn-ai-refresh" onclick="refreshAiInsight(true)" title="İçgörüyü Yenile">↻ Yenile</button>
-            </div>
-          </div>
-          <div class="ai-insight-title" id="ai-insight-title">Günlük AI Özeti yükleniyor...</div>
-          <p class="ai-insight-summary" id="ai-insight-summary">Verileriniz inceleniyor.</p>
-          <div class="ai-tip-box hidden" id="ai-insight-tip"></div>
-          <div class="ai-feedback-row hidden" id="ai-insight-feedback-row">
-            <span class="card-sub" id="ai-insight-fb-status">Bu içgörü faydalı oldu mu?</span>
-            <div style="display:flex; gap:8px;">
-              <button type="button" class="ai-fb-btn" id="btn-ai-fb-up" onclick="rateAiInsight(1)">👍 Faydalı</button>
-              <button type="button" class="ai-fb-btn" id="btn-ai-fb-down" onclick="rateAiInsight(-1)">👎 Geliştir</button>
+        <div class="card ai-insight-hero-card ai-accordion" id="ai-daily-insight-card">
+          <button type="button" class="ai-acc-head" id="ai-acc-toggle" aria-expanded="false" aria-controls="ai-acc-body" onclick="toggleAiInsightAccordion()">
+            <span class="ai-acc-head-top">
+              <span class="ai-acc-label">✨ Günlük AI Özeti</span>
+              <span class="badge badge-info" id="ai-insight-cat-badge">Hazırlanıyor</span>
+              <span class="ai-acc-chevron" aria-hidden="true"></span>
+            </span>
+            <span class="ai-insight-title" id="ai-insight-title">Günlük AI Özeti yükleniyor...</span>
+            <span class="ai-acc-short" id="ai-insight-short">Verileriniz inceleniyor.</span>
+          </button>
+          <div class="ai-acc-body" id="ai-acc-body" role="region" aria-labelledby="ai-acc-toggle">
+            <div class="ai-acc-inner">
+              <p class="ai-insight-summary" id="ai-insight-summary">Verileriniz inceleniyor.</p>
+              <div class="ai-tip-box hidden" id="ai-insight-tip"></div>
+              <div class="ai-feedback-row hidden" id="ai-insight-feedback-row">
+                <span class="card-sub" id="ai-insight-fb-status">Bu içgörü faydalı oldu mu?</span>
+                <div style="display:flex; gap:8px;">
+                  <button type="button" class="ai-fb-btn" id="btn-ai-fb-up" onclick="rateAiInsight(1)">👍 Faydalı</button>
+                  <button type="button" class="ai-fb-btn" id="btn-ai-fb-down" onclick="rateAiInsight(-1)">👎 Geliştir</button>
+                </div>
+              </div>
+              <div class="ai-acc-foot">
+                <span class="card-sub"><span class="mono" id="ai-insight-date-badge">--</span> · Son 14 günlük trend analizi</span>
+                <button type="button" class="btn btn-sm" id="btn-ai-refresh" onclick="refreshAiInsight(true)" title="İçgörüyü Yenile">↻ Yenile</button>
+              </div>
             </div>
           </div>
         </div>

@@ -2498,6 +2498,135 @@ html[data-theme="weather_sunny"] .ring-legend-item { background: rgba(15, 23, 42
   color: var(--text-secondary);
 }
 
+/* Günlük AI Özeti — akordeon */
+.ai-accordion {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ai-acc-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ai-acc-head-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.ai-acc-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.ai-acc-head-top .badge,
+.ai-acc-foot .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ai-acc-date {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ai-acc-chevron {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  position: relative;
+  transition: transform 0.3s ease, background 0.2s ease;
+}
+
+.ai-acc-chevron::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.ai-accordion.is-open .ai-acc-chevron {
+  transform: rotate(180deg);
+}
+
+.ai-acc-head .ai-insight-title {
+  margin-bottom: 0;
+}
+
+.ai-acc-short {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.ai-accordion.is-open .ai-acc-short {
+  display: none;
+}
+
+.ai-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s ease;
+}
+
+.ai-accordion.is-open .ai-acc-body {
+  grid-template-rows: 1fr;
+}
+
+.ai-acc-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 18px;
+  opacity: 0;
+  transition: opacity 0.25s ease, padding 0.32s ease;
+}
+
+.ai-accordion.is-open .ai-acc-inner {
+  padding: 0 18px 16px;
+  opacity: 1;
+}
+
+.ai-acc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+html[data-theme="weather_sunny"] .ai-acc-chevron {
+  background: rgba(15, 23, 42, 0.07);
+}
+
 .ai-tip-box {
   margin-top: 12px;
   padding: 10px 13px;

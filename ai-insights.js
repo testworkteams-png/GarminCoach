@@ -178,6 +178,43 @@
     }
   }
 
+  const ACC_KEY = "garmincoach.aiInsightExpanded";
+
+  function shortSummary(txt) {
+    const t = String(txt || "").trim();
+    if (!t) return "--";
+    const m = t.match(/^.+?[.!?](\s|$)/);
+    const first = (m ? m[0] : t).trim();
+    return first.length > 140 ? first.slice(0, 137).trimEnd() + "…" : first;
+  }
+
+  function setAiAccordion(open, persist) {
+    const card = document.getElementById("ai-daily-insight-card");
+    const btn = document.getElementById("ai-acc-toggle");
+    if (!card) return;
+    card.classList.toggle("is-open", open);
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (persist) {
+      try { localStorage.setItem(ACC_KEY, open ? "1" : "0"); } catch (_) {}
+    }
+  }
+
+  window.toggleAiInsightAccordion = function () {
+    const card = document.getElementById("ai-daily-insight-card");
+    setAiAccordion(!card?.classList.contains("is-open"), true);
+  };
+
+  function initAiAccordion() {
+    let open = false;
+    try { open = localStorage.getItem(ACC_KEY) === "1"; } catch (_) {}
+    setAiAccordion(open, false);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAiAccordion);
+  } else {
+    initAiAccordion();
+  }
+
   function renderInsightCard() {
     const card = document.getElementById("ai-daily-insight-card");
     const catBadge = document.getElementById("ai-insight-cat-badge");
@@ -191,6 +228,11 @@
     const fbStatus = document.getElementById("ai-insight-fb-status");
 
     if (!card || !titleEl || !summaryEl) return;
+    const shortEl = document.getElementById("ai-insight-short");
+    const setText = (txt) => {
+      summaryEl.textContent = txt;
+      if (shortEl) shortEl.textContent = shortSummary(txt);
+    };
 
     if (moduleState.prefs.ai_insights_enabled === false) {
       if (catBadge) {
@@ -199,7 +241,7 @@
       }
       if (dateBadge) dateBadge.textContent = "Pasif";
       titleEl.textContent = "AI Günlük Analizleri Devre Dışı";
-      summaryEl.textContent = "Ayarlar sekmesindeki 'AI Günlük Analizleri' anahtarını açtığınızda uyku, toparlanma ve antrenman yükünüzün günlük yapay zeka özeti burada görünür.";
+      setText("Ayarlar sekmesindeki 'AI Günlük Analizleri' anahtarını açtığınızda uyku, toparlanma ve antrenman yükünüzün günlük yapay zeka özeti burada görünür.");
       if (tipEl) tipEl.classList.add("hidden");
       if (fbRow) fbRow.classList.add("hidden");
       return;
@@ -211,7 +253,7 @@
         catBadge.className = "badge badge-info";
       }
       titleEl.textContent = "Günlük AI Özeti hazırlanıyor...";
-      summaryEl.textContent = "Bugünkü biyometrik verileriniz ve son 14 günlük trendiniz analiz ediliyor.";
+      setText("Bugünkü biyometrik verileriniz ve son 14 günlük trendiniz analiz ediliyor.");
       if (tipEl) tipEl.classList.add("hidden");
       if (fbRow) fbRow.classList.add("hidden");
       return;
@@ -225,7 +267,7 @@
       }
       if (dateBadge) dateBadge.textContent = "--";
       titleEl.textContent = "Henüz Garmin Verisi Bulunmuyor";
-      summaryEl.textContent = "Garmin API bağlantınızı yapıp ilk verinizi senkronize ettiğinizde günlük Active Intelligence özeti otomatik olarak oluşturulacaktır.";
+      setText("Garmin API bağlantınızı yapıp ilk verinizi senkronize ettiğinizde günlük Active Intelligence özeti otomatik olarak oluşturulacaktır.");
       if (tipEl) tipEl.classList.add("hidden");
       if (fbRow) fbRow.classList.add("hidden");
       return;
@@ -241,7 +283,7 @@
       dateBadge.textContent = m ? `${m[3]}.${m[2]}.${m[1]}` : (ins.date || "--.--.----");
     }
     titleEl.textContent = ins.title || "Günlük AI Özeti";
-    summaryEl.textContent = ins.summary || "--";
+    setText(ins.summary || "--");
 
     if (tipEl) {
       tipEl.classList.remove("hidden");
@@ -437,6 +479,7 @@
     setTimeout(() => {
       const card = document.getElementById("ai-daily-insight-card");
       if (!card) return;
+      setAiAccordion(true, false);
       card.scrollIntoView({ behavior: "smooth", block: "center" });
       card.classList.add("ai-card-pulse");
       setTimeout(() => card.classList.remove("ai-card-pulse"), 2200);
