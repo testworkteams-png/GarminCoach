@@ -1110,6 +1110,7 @@
               <span class="badge badge-info" id="body-latest-sync-badge">Kayıt Yok</span>
               <button type="button" class="btn btn-primary btn-sm" onclick="triggerScaleScreenshotUpload()">📷 Tara</button>
               <button type="button" class="btn btn-cyan btn-sm" onclick="openManualScaleModal()">✏️ Ekle</button>
+              <button type="button" class="btn btn-sm body-ai-trigger-btn" id="btn-body-ai-commentary" onclick="requestBodyAiCommentary()" title="Boy, kilo ve vücut verilerini YZ ile yorumla">✨ YZ</button>
             </div>
           </div>
           <div class="body-param-grid" id="body-latest-grid"></div>
@@ -1615,6 +1616,24 @@
         <div class="chart-wrap" style="height:210px;">
           <canvas id="bodyMetricHistoryChart"></canvas>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VÜCUT YZ YORUM MODAL (OKUNUNCA BİLDİRİMLERE ALINIR) -->
+  <div class="modal-backdrop" id="body-ai-modal" onclick="if(event.target===this)dismissBodyAiModal()">
+    <div class="modal-card body-ai-sheet">
+      <div class="card-header" style="margin-bottom:10px;">
+        <div>
+          <div class="card-title" id="body-ai-title">✨ Vücut Kompozisyonu YZ Yorumu</div>
+          <div class="card-sub" id="body-ai-meta">Boy, kilo ve son tartı verilerine göre analiz</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="dismissBodyAiModal()" aria-label="Kapat">✕</button>
+      </div>
+      <div id="body-ai-body" class="body-ai-content"></div>
+      <div class="body-ai-footer">
+        <span class="card-sub" id="body-ai-hint">🔔 Bu yorum Bildirimler altına da kaydedilir.</span>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-body-ai-ack" onclick="acknowledgeBodyAiModal()">✓ Okudum · Bildirimlere Al</button>
       </div>
     </div>
   </div>

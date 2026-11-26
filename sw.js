@@ -1,4 +1,4 @@
-const CACHE_NAME = "garmincoach-shell-v47";
+const CACHE_NAME = "garmincoach-shell-v48";
 const SHARE_CACHE_NAME = "garmincoach-share-temp-v1";
 const SHARE_IMAGE_KEY = "./__shared-scale-image";
 const SHARE_PDF_KEY = "./__shared-lab-pdf";

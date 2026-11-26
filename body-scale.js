@@ -23,6 +23,8 @@
     activeDetailKey: "weight_kg",
     activeDetailRange: "all",
     selectedPointIdx: null,
+    activeAiNotificationId: null,
+    analyzingAi: false,
     modalSource: "manual",
     parsing: false,
     listenerAttached: false,
@@ -1256,6 +1258,11 @@
     moduleState.escListenerAttached = true;
     document.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") {
+        const aiModal = document.getElementById("body-ai-modal");
+        if (aiModal?.classList.contains("open")) {
+          dismissBodyAiModal();
+          return;
+        }
         const modal = document.getElementById("body-metric-modal");
         if (modal?.classList.contains("open")) closeBodyMetricModal();
       }
@@ -1276,6 +1283,8 @@
   function reset() {
     moduleState.auth = null;
     moduleState.records = [];
+    moduleState.activeAiNotificationId = null;
+    moduleState.analyzingAi = false;
     if (moduleState.donutChart) {
       moduleState.donutChart.destroy();
       moduleState.donutChart = null;
@@ -1287,6 +1296,7 @@
     closeQuickAddSheet();
     closeScaleModal();
     closeBodyMetricModal();
+    dismissBodyAiModal();
     renderAll();
   }
 
@@ -1466,6 +1476,7 @@
       await refresh();
       toast("✓ Ölçüm kaydedildi · Garmin Connect aktarımı sıraya alındı.");
       document.querySelector('[data-tab="body"]')?.click();
+      requestBodyAiCommentary({ auto: true });
     } catch (err) {
       toast(`Kayıt hatası: ${err.message}`);
     } finally {
@@ -1549,6 +1560,181 @@
     }
   }
 
+  function renderBodyAiModalContent(analysis, fromHistory = false) {
+    const titleEl = document.getElementById("body-ai-title");
+    const metaEl = document.getElementById("body-ai-meta");
+    const bodyEl = document.getElementById("body-ai-body");
+    const hintEl = document.getElementById("body-ai-hint");
+    const ackBtn = document.getElementById("btn-body-ai-ack");
+    if (!bodyEl) return;
+
+    if (titleEl) titleEl.textContent = analysis?.title || "✨ Vücut Kompozisyonu YZ Yorumu";
+
+    const metaParts = [];
+    if (analysis?.height_cm) metaParts.push(`Tahmini Boy ~${analysis.height_cm} cm`);
+    if (analysis?.weight_kg != null) metaParts.push(`${fmtTr(analysis.weight_kg, 1)} kg`);
+    if (analysis?.bmi != null) metaParts.push(`VKİ ${fmtTr(analysis.bmi, 1)}`);
+    if (analysis?.measured_at) metaParts.push(fmtDateShort(analysis.measured_at));
+    if (metaEl) metaEl.textContent = metaParts.join(" · ") || "Boy, kilo ve son tartı verilerine göre analiz";
+
+    const sections = [];
+    if (analysis?.summary) {
+      sections.push(`<p class="body-ai-summary">${esc(analysis.summary)}</p>`);
+    }
+    if (Array.isArray(analysis?.highlights) && analysis.highlights.length > 0) {
+      sections.push(`
+        <div class="body-ai-section-title">Öne Çıkanlar</div>
+        <ul class="body-ai-list">
+          ${analysis.highlights.map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>`);
+    }
+    if (Array.isArray(analysis?.actions) && analysis.actions.length > 0) {
+      sections.push(`
+        <div class="body-ai-section-title">Öneriler</div>
+        <ul class="body-ai-list actions">
+          ${analysis.actions.map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>`);
+    }
+    bodyEl.innerHTML = sections.join("") || `<p class="card-sub">Yorum içeriği bulunamadı.</p>`;
+
+    if (hintEl) {
+      hintEl.textContent = fromHistory
+        ? "🔔 Bildirimler geçmişinden açıldı."
+        : "🔔 Bu yorum Bildirimler altına da kaydedilir.";
+    }
+    if (ackBtn) {
+      ackBtn.disabled = false;
+      ackBtn.textContent = fromHistory ? "Kapat" : "✓ Okudum · Bildirimlere Al";
+    }
+  }
+
+  function dismissBodyAiModal() {
+    const modal = document.getElementById("body-ai-modal");
+    if (modal) modal.classList.remove("open");
+  }
+
+  async function acknowledgeBodyAiModal() {
+    const notifId = moduleState.activeAiNotificationId;
+    moduleState.activeAiNotificationId = null;
+    dismissBodyAiModal();
+
+    if (notifId && moduleState.sbClient && moduleState.auth?.userId) {
+      try {
+        await moduleState.sbClient
+          .from("notifications")
+          .update({ read_at: new Date().toISOString() })
+          .eq("id", notifId)
+          .eq("user_id", moduleState.auth.userId);
+      } catch (_) {}
+      await window.refreshNotifications?.();
+      toast("🔔 Vücut YZ yorumu Bildirimler altına alındı.");
+    }
+  }
+
+  function openSavedBodyAiCommentary(notif) {
+    if (!notif) return;
+    const modal = document.getElementById("body-ai-modal");
+    const ackBtn = document.getElementById("btn-body-ai-ack");
+    moduleState.activeAiNotificationId = null;
+    if (modal) modal.classList.add("open");
+    if (ackBtn) ackBtn.disabled = false;
+
+    const p = notif.payload || {};
+    renderBodyAiModalContent(
+      {
+        title: notif.title,
+        summary: p.summary || notif.body,
+        highlights: Array.isArray(p.highlights) ? p.highlights : [],
+        actions: Array.isArray(p.actions) ? p.actions : [],
+        height_cm: p.height_cm ?? null,
+        weight_kg: p.weight_kg ?? null,
+        bmi: p.bmi ?? null,
+        measured_at: p.measured_at || notif.created_at,
+      },
+      true
+    );
+  }
+
+  async function requestBodyAiCommentary(opts = {}) {
+    const isAuto = Boolean(opts?.auto);
+    if (!moduleState.records.length) {
+      if (!isAuto) toast("Yorumlamak için önce en az bir vücut ölçümü ekleyin.");
+      return;
+    }
+    if (moduleState.analyzingAi) return;
+
+    moduleState.analyzingAi = true;
+    const triggerBtn = document.getElementById("btn-body-ai-commentary");
+    const modal = document.getElementById("body-ai-modal");
+    const titleEl = document.getElementById("body-ai-title");
+    const metaEl = document.getElementById("body-ai-meta");
+    const bodyEl = document.getElementById("body-ai-body");
+    const hintEl = document.getElementById("body-ai-hint");
+    const ackBtn = document.getElementById("btn-body-ai-ack");
+
+    if (triggerBtn) triggerBtn.disabled = true;
+
+    if (!isAuto) {
+      moduleState.activeAiNotificationId = null;
+      if (titleEl) titleEl.textContent = "✨ Vücut Kompozisyonu YZ Yorumu";
+      if (metaEl) metaEl.textContent = "Boy, kilo ve son tartı verilerine göre analiz hazırlanıyor";
+      if (bodyEl) {
+        bodyEl.innerHTML = `<div class="body-ai-loading">⏳ Boy, kilo ve vücut kompozisyonu verilerin yapay zeka ile yorumlanıyor...</div>`;
+      }
+      if (hintEl) hintEl.textContent = "🔔 Hazır olunca Bildirimler altına da kaydedilecek.";
+      if (ackBtn) {
+        ackBtn.disabled = true;
+        ackBtn.textContent = "Hazırlanıyor...";
+      }
+      if (modal) modal.classList.add("open");
+    }
+
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Oturum bulunamadı. Lütfen yeniden giriş yapın.");
+
+      const hM = inferHeightM();
+      const res = await fetch(PARSE_SCALE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: "analyzeBodyComposition",
+          height_cm: hM ? Math.round(hM * 100) : null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok || !json.analysis) {
+        throw new Error(json.error || "YZ yorumu oluşturulamadı.");
+      }
+
+      moduleState.activeAiNotificationId = json.notification_id || null;
+      renderBodyAiModalContent(json.analysis, false);
+      if (modal) modal.classList.add("open");
+      await window.refreshNotifications?.();
+    } catch (err) {
+      moduleState.activeAiNotificationId = null;
+      if (!isAuto) {
+        if (bodyEl) {
+          bodyEl.innerHTML = `<p class="card-sub" style="color:var(--red);">⚠️ ${esc(err.message)}</p>`;
+        }
+        if (hintEl) hintEl.textContent = "Lütfen daha sonra tekrar deneyin.";
+        if (ackBtn) {
+          ackBtn.disabled = false;
+          ackBtn.textContent = "Kapat";
+        }
+      } else {
+        toast(`YZ yorumu alınamadı: ${err.message}`);
+      }
+    } finally {
+      moduleState.analyzingAi = false;
+      if (triggerBtn) triggerBtn.disabled = false;
+    }
+  }
+
   function onTabShown() {
     renderStructureDonut();
     if (moduleState.donutChart) {
@@ -1570,6 +1756,10 @@
   window.openBodyMetricModal = openBodyMetricModal;
   window.closeBodyMetricModal = closeBodyMetricModal;
   window.setBodyDetailRange = setBodyDetailRange;
+  window.requestBodyAiCommentary = requestBodyAiCommentary;
+  window.acknowledgeBodyAiModal = acknowledgeBodyAiModal;
+  window.dismissBodyAiModal = dismissBodyAiModal;
+  window.openSavedBodyAiCommentary = openSavedBodyAiCommentary;
 
   window.GarminBodyScale = {
     initForUser,
@@ -1583,6 +1773,8 @@
     closeScaleModal,
     openBodyMetricModal,
     closeBodyMetricModal,
+    requestBodyAiCommentary,
+    openSavedBodyAiCommentary,
     checkNativeSharedImage,
   };
 })();

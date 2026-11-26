@@ -2535,6 +2535,22 @@ window.clearAllNotifications = async function () {
   }
 };
 
+window.refreshNotifications = async function () {
+  if (!state.auth?.userId || !sb) return;
+  try {
+    const { data, error } = await sb
+      .from("notifications")
+      .select("*")
+      .eq("user_id", state.auth.userId)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    if (!error && Array.isArray(data)) {
+      state.notifications = data;
+      renderNotifications();
+    }
+  } catch (_) {}
+};
+
 window.openNotificationItem = async function (id) {
   const n = (state.notifications || []).find((x) => x.id === id);
   if (!n) return;
@@ -2557,6 +2573,9 @@ window.openNotificationItem = async function (id) {
     switchCeoMode("monthly");
   } else if (n.type === "WEEKLY_CEO" || n.payload?.mode === "weekly") {
     switchCeoMode("weekly");
+  }
+  if (n.payload?.kind === "body_ai_commentary" && typeof window.openSavedBodyAiCommentary === "function") {
+    window.openSavedBodyAiCommentary(n);
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
   if (n.payload?.focus_card === "ai-daily-insight-card") {
