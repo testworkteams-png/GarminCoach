@@ -26,8 +26,8 @@ Asla uydurma veya tahmin etme; okunamayanı atla. Yalnızca şu şemaya uyan ge�
 const MODELS = [
   "models/gemini-3.6-flash",
   "models/gemini-3.5-flash",
+  "models/gemini-3.5-flash-lite",
   "models/gemini-2.5-flash",
-  "models/gemini-2.0-flash",
 ];
 
 function jsonResp(payload: unknown, status = 200) {
@@ -376,7 +376,8 @@ async function handleAnalyzeSummary(supabase: any, authUser: any, body: any, api
 Rapordaki değerler (sınır dışılar ve önceki karşılaştırmalar dahil):
 ${lines.slice(0, 65).join("\n")}
 
-Görev: Bu tek raporu 3-4 kısa, sade Türkçe cümleyle yorumla. Madde işareti kullanma, akıcı tek paragraf yaz. Varsa yüksek/düşük değerleri ve önceki tarihe göre iyileşme/değişimleri (örn. LDL düşüşü) vurgula; tümü normalse netçe belirt. Aktif takviyelerle (${activeMeds.map((m: any) => m.name).join(", ") || "yok"}) uyumluysa kısaca değin, sonunda hekim kontrolünü hatırlat.`;
+Görev: Bu tek raporu 3-4 kısa, sade Türkçe cümleyle yorumla. Madde işareti kullanma, akıcı tek paragraf yaz. Varsa yüksek/düşük değerleri ve önceki tarihe göre iyileşme/değişimleri (örn. LDL düşüşü) vurgula; tümü normalse netçe belirt. Aktif takviyelerle (${activeMeds.map((m: any) => m.name).join(", ") || "yok"}) uyumluysa kısaca değin, sonunda hekim kontrolünü hatırlat.
+Yalnızca şu JSON şemasını döndür: {"summary": "3-4 cümlelik akıcı Türkçe yorum"}`;
   } else {
     focusPrompt = `Tüm Raporlar Birleşik Özet (${reports.length} rapor: ${ascReports.map((r: any) => r.report_date).join(", ")}).
 Aktif İlaç/Takviyeler: ${activeMeds.map((m: any) => `${m.name}${m.dose ? " (" + m.dose + ")" : ""}`).join(", ") || "yok"}.
@@ -385,7 +386,8 @@ ${trendLines.slice(0, 45).join("\n")}
 Ek takipler:
 ${latestRows.slice(0, 15).join("\n")}
 
-Görev: Kullanıcının tüm tahlil geçmişini ve takviyelerini birlikte değerlendiren 3-4 kısa, anlaşılır Türkçe cümlelik akıcı bir özet yaz. Madde işareti kullanma, tek paragraf olsun. Güncel dikkat gerektiren değerleri (yüksek/düşük), önceki ölçümlere kıyasla iyiye/kötüye giden trendleri ve takviye uyumunu özetle; son cümlede klinik değerlendirme için doktora danışılmasını belirt.`;
+Görev: Kullanıcının tüm tahlil geçmişini ve takviyelerini birlikte değerlendiren 3-4 kısa, anlaşılır Türkçe cümlelik akıcı bir özet yaz. Madde işareti kullanma, tek paragraf olsun. Güncel dikkat gerektiren değerleri (yüksek/düşük), önceki ölçümlere kıyasla iyiye/kötüye giden trendleri ve takviye uyumunu özetle; son cümlede klinik değerlendirme için doktora danışılmasını belirt.
+Yalnızca şu JSON şemasını döndür: {"summary": "3-4 cümlelik akıcı Türkçe yorum"}`;
   }
 
   for (const modelName of MODELS) {
@@ -398,18 +400,28 @@ Görev: Kullanıcının tüm tahlil geçmişini ve takviyelerini birlikte değer
           signal: AbortSignal.timeout(35000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: focusPrompt }] }],
-            generationConfig: { temperature: 0.35, maxOutputTokens: 320 },
+            generationConfig: { temperature: 0.3, responseMimeType: "application/json" },
           }),
         },
       );
       if (!res.ok) continue;
       const j = await res.json();
-      const text = (j?.candidates?.[0]?.content?.parts || [])
-        .map((p: any) => String(p?.text || ""))
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-      if (!text) continue;
+      const parts: any[] = (j?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p?.thought);
+      const texts = parts.map((p: any) => String(p?.text || "")).filter(Boolean);
+      const raw = texts.find((t: string) => t.trim().startsWith("{")) || texts[texts.length - 1] || "";
+      if (!raw) continue;
+
+      const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (_) {
+        const mm = cleaned.match(/\{[\s\S]*\}/);
+        if (mm) parsed = JSON.parse(mm[0]);
+      }
+      if (Array.isArray(parsed)) parsed = parsed[0];
+      const text = String(parsed?.summary || "").replace(/\s+/g, " ").trim();
+      if (text.length < 25) continue;
 
       if (reportId) {
         await supabase.from("lab_reports").update({ ai_summary: text }).eq("id", reportId).eq("user_id", authUser.id);
@@ -483,8 +495,9 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         const j = await res.json();
-        const parts: any[] = j?.candidates?.[0]?.content?.parts || [];
-        const raw = parts.map((p: any) => String(p?.text || "")).filter(Boolean).join("\n").trim();
+        const parts: any[] = (j?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p?.thought);
+        const texts = parts.map((p: any) => String(p?.text || "")).filter(Boolean);
+        const raw = texts.find((t: string) => t.trim().startsWith("{")) || texts[texts.length - 1] || "";
         if (!raw) {
           debug.push(`${modelName}:EMPTY`);
           continue;

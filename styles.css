@@ -3922,21 +3922,112 @@ html[data-theme="weather_sunny"] .lab-gauge-status.low {
   flex-wrap: wrap;
 }
 
-.lab-table-toolbar .search-box {
+.search-box {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  outline: none;
+}
+
+.lab-search-wrap {
+  position: relative;
   flex: 1;
-  min-width: 180px;
+  min-width: 175px;
+  display: flex;
+  align-items: center;
+}
+
+.lab-search-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 13px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.lab-search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 34px 0 34px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.lab-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.lab-search-input:focus {
+  border-color: rgba(0, 229, 163, 0.55);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 0 0 3px rgba(0, 229, 163, 0.12);
+}
+
+.lab-search-clear {
+  position: absolute;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.lab-table-filters {
+  display: inline-flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.lab-mini-filter {
+  padding: 7px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lab-mini-filter.active {
+  background: var(--emerald-soft);
+  border-color: rgba(0, 229, 163, 0.45);
+  color: var(--emerald);
 }
 
 #hl-carousel-section {
   margin-bottom: 16px;
 }
 
-html[data-theme="weather_sunny"] .lab-rep-pill {
+html[data-theme="weather_sunny"] .lab-rep-pill,
+html[data-theme="weather_sunny"] .lab-mini-filter {
   background: rgba(15, 23, 42, 0.04);
   border-color: rgba(15, 23, 42, 0.16);
 }
 
-html[data-theme="weather_sunny"] .lab-rep-pill.active {
+html[data-theme="weather_sunny"] .lab-search-input {
+  background: #f1f5f9;
+  color: #0b1220;
+  border-color: rgba(15, 23, 42, 0.2);
+}
+
+html[data-theme="weather_sunny"] .lab-rep-pill.active,
+html[data-theme="weather_sunny"] .lab-mini-filter.active {
   background: rgba(6, 99, 75, 0.14);
   border-color: rgba(6, 99, 75, 0.45);
   color: #06634b;

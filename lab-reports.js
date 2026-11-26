@@ -191,8 +191,10 @@
     selectedReportId: "all",
     slideIdx: 0,
     tableQuery: "",
+    tableFilter: "all",
     overviewAi: null,
     aiLoading: false,
+    aiError: null,
     aiAttemptedKeys: new Set(),
     activeCat: "all",
     selectedTest: null,
@@ -500,12 +502,20 @@
       return;
     }
     if (st.aiLoading) {
-      textEl.textContent = "⏳ Yapay zeka tahlilleri ve takviyeleri değerlendiriyor...";
+      textEl.textContent = "⏳ Yapay zeka tahlilleri yorumluyor (yaklaşık 2–3 sn)...";
       return;
     }
 
     const cachedText = isAll ? st.overviewAi?.summary : rp?.ai_summary;
-    textEl.textContent = cachedText || "Yorum hazırlanıyor...";
+    if (cachedText) {
+      textEl.textContent = cachedText;
+      return;
+    }
+    if (st.aiError) {
+      textEl.textContent = `⚠️ ${st.aiError} (Sağ üstten ↻ ile tekrar deneyebilirsin)`;
+      return;
+    }
+    textEl.textContent = "Yorum hazırlanıyor...";
   }
 
   async function ensureAiSummary(force) {
@@ -518,6 +528,7 @@
 
     st.aiAttemptedKeys.add(scopeKey);
     st.aiLoading = true;
+    st.aiError = null;
     renderAiBox();
     syncHlCarouselHeight();
 
@@ -538,8 +549,7 @@
       }
       if (force) toast("✨ Tahlil AI yorumu güncellendi.");
     } catch (err) {
-      const textEl = document.getElementById("lab-ai-text");
-      if (textEl) textEl.textContent = `AI yorumu şu an alınamadı: ${err.message}`;
+      st.aiError = err?.message || "AI yorumu alınamadı";
     } finally {
       st.aiLoading = false;
       renderAiBox();
@@ -829,6 +839,9 @@
           date: rp.report_date,
         }));
 
+    if (st.tableFilter === "abnormal") {
+      rows = rows.filter((r) => r.flag === "high" || r.flag === "low");
+    }
     if (q) {
       rows = rows.filter((r) => r.name.toLocaleLowerCase("tr-TR").includes(q));
     }
@@ -1171,8 +1184,10 @@
     st.selectedTest = null;
     st.activeCat = "all";
     st.tableQuery = "";
+    st.tableFilter = "all";
     st.overviewAi = null;
     st.aiLoading = false;
+    st.aiError = null;
     st.aiAttemptedKeys.clear();
     closeModal();
     if (st.chart) { st.chart.destroy(); st.chart = null; }
@@ -1181,6 +1196,7 @@
 
   window.selectLabReport = function (id) {
     st.selectedReportId = id || "all";
+    st.aiError = null;
     renderAll();
     ensureAiSummary(false);
   };
@@ -1188,6 +1204,7 @@
   window.refreshLabAiSummary = function (force) {
     const scopeKey = st.selectedReportId || "all";
     st.aiAttemptedKeys.delete(scopeKey);
+    st.aiError = null;
     ensureAiSummary(Boolean(force));
   };
 
@@ -1213,6 +1230,18 @@
 
   window.filterLabTable = function (q) {
     st.tableQuery = String(q || "");
+    const inp = document.getElementById("lab-table-search");
+    if (inp && inp.value !== st.tableQuery) inp.value = st.tableQuery;
+    document.getElementById("btn-lab-search-clear")?.classList.toggle("hidden", !st.tableQuery.trim());
+    renderFullTable();
+    requestAnimationFrame(syncHlCarouselHeight);
+  };
+
+  window.setLabTableFilter = function (f) {
+    st.tableFilter = f || "all";
+    document.querySelectorAll("#lab-table-filters .lab-mini-filter").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-f") === st.tableFilter);
+    });
     renderFullTable();
     requestAnimationFrame(syncHlCarouselHeight);
   };

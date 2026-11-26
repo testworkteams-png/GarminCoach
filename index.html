@@ -1143,17 +1143,14 @@
         <div class="card card-glow">
           <div class="card-header">
             <div>
-              <div class="card-title">🩸 Kan Tahlili &amp; Biyobelirteçler</div>
-              <div class="card-sub">Rapor seç, sınır dışı değerleri ve AI özetini kaydırarak incele</div>
+              <div class="card-title">🩸 Kan Tahlillerim</div>
+              <div class="card-sub">Sonuçlarını ve değişimi tek ekranda takip et</div>
             </div>
-            <span class="badge badge-info mono" id="lab-badge">--</span>
+            <span class="badge badge-info mono" id="lab-badge" style="white-space:nowrap; flex-shrink:0;">--</span>
           </div>
-          <div class="lab-actions" style="justify-content:space-between;">
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="btn btn-primary" onclick="triggerLabUpload()">📄 PDF / Fotoğraf Yükle</button>
-              <button type="button" class="btn" onclick="openLabModal()">✏️ Elle Ekle</button>
-            </div>
-            <span class="badge badge-info mono" id="lab-count">0 rapor</span>
+          <div class="lab-actions">
+            <button type="button" class="btn btn-primary" onclick="triggerLabUpload()">📄 PDF / Fotoğraf Yükle</button>
+            <button type="button" class="btn" onclick="openLabModal()">✏️ Elle Ekle</button>
           </div>
           <div id="lab-upload-status" class="auth-hint-box hidden" style="margin-top:10px;"></div>
           <div class="lab-report-switcher" id="lab-report-switcher"></div>
@@ -1193,7 +1190,7 @@
                 <div class="lab-cat-strip" id="lab-cat-strip"></div>
                 <div class="lab-param-pills" id="lab-param-pills"></div>
                 <div class="lab-trend-toolbar">
-                  <select id="lab-test-select" class="lab-select" aria-label="Biyobelirteç seç"></select>
+                  <select id="lab-test-select" class="lab-select" aria-label="Test seç"></select>
                   <span class="card-sub" id="lab-trend-info"></span>
                 </div>
                 <div id="lab-chart-box" style="height:210px; margin-top:10px;"><canvas id="lab-trend-chart"></canvas></div>
@@ -1204,8 +1201,16 @@
             <div class="lab-carousel-slide">
               <div class="card">
                 <div class="lab-table-toolbar">
-                  <input id="lab-table-search" class="search-box" type="search" placeholder="Test ara (örn. LDL, B12, HGB)..." oninput="filterLabTable(this.value)" />
-                  <button type="button" class="btn btn-sm hidden" id="btn-delete-selected-report" onclick="deleteSelectedLabReport()">🗑 Raporu Sil</button>
+                  <div class="lab-search-wrap">
+                    <span class="lab-search-icon" aria-hidden="true">🔍</span>
+                    <input id="lab-table-search" class="lab-search-input" type="text" autocomplete="off" placeholder="Test ara (LDL, B12, HGB...)" oninput="filterLabTable(this.value)" />
+                    <button type="button" class="lab-search-clear hidden" id="btn-lab-search-clear" onclick="filterLabTable('')" aria-label="Aramayı temizle">✕</button>
+                  </div>
+                  <div class="lab-table-filters" id="lab-table-filters">
+                    <button type="button" class="lab-mini-filter active" data-f="all" onclick="setLabTableFilter('all')">Tümü</button>
+                    <button type="button" class="lab-mini-filter" data-f="abnormal" onclick="setLabTableFilter('abnormal')">⚠️ Sınır Dışı</button>
+                  </div>
+                  <button type="button" class="btn btn-sm hidden" id="btn-delete-selected-report" onclick="deleteSelectedLabReport()">🗑 Sil</button>
                 </div>
                 <div id="lab-full-table-wrap" class="lab-table-wrap" style="margin-top:10px;"></div>
               </div>
