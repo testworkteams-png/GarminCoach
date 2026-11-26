@@ -4203,3 +4203,114 @@ html[data-theme="weather_sunny"] .lab-step-item.done .lab-step-dot {
   color: #06634b;
   border-color: #06634b;
 }
+
+/* Faz 2+: İlaç Gün Takvimi, Hazır Şablonlar & Etiket Tarama */
+button.med-day {
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.12s ease;
+}
+
+.med-day.selected {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+
+.med-day.future {
+  border-style: dashed;
+  opacity: 0.8;
+}
+
+.med-prn-section {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+}
+
+.med-preset-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+
+.med-preset-strip::-webkit-scrollbar { display: none; }
+
+.med-preset-chip {
+  flex: 0 0 auto;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.med-preset-chip:hover {
+  border-color: rgba(0, 229, 163, 0.45);
+  color: var(--emerald);
+}
+
+.med-check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.med-check-row input {
+  accent-color: var(--emerald);
+  width: 16px;
+  height: 16px;
+}
+
+.med-scan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 55vh;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.med-scan-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.med-scan-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 13.5px;
+}
+
+.med-scan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+@media (max-width: 520px) {
+  .med-scan-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+html[data-theme="weather_sunny"] .med-preset-chip,
+html[data-theme="weather_sunny"] .med-scan-card,
+html[data-theme="weather_sunny"] button.med-day {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.16);
+}

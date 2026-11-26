@@ -1131,6 +1131,17 @@
     const cancelBtn = document.getElementById("btn-lab-parse-cancel");
     const errBtns = document.getElementById("lab-parse-err-btns");
 
+    const labSteps = [
+      "Belge alındı ve hazırlandı",
+      "Yapay zeka sonuçları ve referansları tarıyor",
+      "Hastane adları standart formata çevriliyor",
+      "Kontrol ekranı açılıyor",
+    ];
+    document.querySelectorAll("#lab-parse-steps .lab-step-item").forEach((el) => {
+      const s = Number(el.getAttribute("data-step") || 0);
+      const sp = el.querySelector("span:last-child");
+      if (sp && labSteps[s - 1]) sp.textContent = labSteps[s - 1];
+    });
     if (icon) { icon.textContent = "📄"; icon.className = "lab-parse-icon"; }
     if (title) title.textContent = "Tahlil Raporu Okunuyor";
     const sizeStr = fmtSize(fileSize);

@@ -1230,16 +1230,22 @@
         <div class="card" id="med-card">
           <div class="card-header">
             <div>
-              <div class="card-title">💊 Bugünün İlaç &amp; Takviyeleri</div>
+              <div class="card-title">💊 İlaç &amp; Takviye Takvimi</div>
               <div class="card-sub" id="med-adherence">Henüz veri yok</div>
             </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <span class="badge badge-info mono" id="med-today-badge">--</span>
-              <button type="button" class="btn btn-sm btn-primary" onclick="openMedModal()">＋ Ekle</button>
-            </div>
+            <span class="badge badge-info mono" id="med-today-badge" style="white-space:nowrap; flex-shrink:0;">--</span>
           </div>
+          <div class="lab-actions" style="margin-bottom:12px;">
+            <button type="button" class="btn btn-primary" onclick="triggerMedPhotoScan()">📷 Etiket Tara (AI)</button>
+            <button type="button" class="btn" onclick="openMedModal()">＋ Elle Ekle</button>
+          </div>
+          <div class="med-week-strip" id="med-week-strip" style="margin-top:0; margin-bottom:12px;"></div>
+          <div class="card-sub" id="med-selected-day-title" style="margin-bottom:8px; font-weight:700;">Bugünün Planı</div>
           <div class="med-today-list" id="med-today-list"></div>
-          <div class="med-week-strip" id="med-week-strip"></div>
+          <div class="med-prn-section hidden" id="med-prn-wrap">
+            <div class="card-sub" style="margin:12px 0 6px; font-weight:700;">⚡ Gerektiğinde Kullanılanlar</div>
+            <div class="med-today-list" id="med-prn-list"></div>
+          </div>
           <div class="auth-hint-box" id="med-reminder-hint" style="margin-top:12px;"></div>
         </div>
 
@@ -1247,7 +1253,7 @@
           <div class="card-header">
             <div>
               <div class="card-title">📋 İlaç / Takviye Listem</div>
-              <div class="card-sub">Doz saatleri ve notlar · APK'da bildirim olarak hatırlatılır</div>
+              <div class="card-sub">🔔 Hatırlatıcı aç/kapat veya 📅 telefon takvimine ekle</div>
             </div>
             <span class="badge badge-info mono" id="med-count">0 kayıt</span>
           </div>
@@ -1471,33 +1477,69 @@
     </div>
   </div>
 
+  <input type="file" id="med-photo-input" accept="image/*" style="display:none;" />
+
   <!-- İLAÇ / TAKVİYE MODAL -->
   <div class="modal-backdrop" id="med-modal">
     <div class="modal-card">
       <div class="card-header">
         <div>
           <div class="card-title" id="med-modal-title">İlaç / Takviye Ekle</div>
-          <div class="card-sub">Birden fazla doz saati için virgülle ayır (örn. 08:00, 20:30)</div>
+          <div class="card-sub">Hazır şablon seç veya bilgileri doldur · Saatleri virgülle ayır</div>
         </div>
         <button type="button" class="btn btn-sm" onclick="closeMedModal()">✕</button>
       </div>
+      <div class="med-preset-strip" id="med-preset-strip">
+        <button type="button" class="med-preset-chip" onclick="applyMedPreset('d3')">🍊 D3 2000 IU</button>
+        <button type="button" class="med-preset-chip" onclick="applyMedPreset('folat')">🧬 Folat (B9)</button>
+        <button type="button" class="med-preset-chip" onclick="applyMedPreset('b12')">💉 B12 1000 mcg</button>
+        <button type="button" class="med-preset-chip" onclick="applyMedPreset('mag')">🪨 Magnezyum</button>
+        <button type="button" class="med-preset-chip" onclick="applyMedPreset('omega3')">🐟 Omega-3</button>
+        <button type="button" class="med-preset-chip" onclick="applyMedPreset('demir')">🩸 Demir</button>
+      </div>
       <form class="form-grid" onsubmit="submitMedModal(event)">
-        <div class="field" style="grid-column:1 / -1;"><label for="med-name">Ad *</label><input id="med-name" type="text" required maxlength="80" placeholder="Örn. D3 Vitamini" /></div>
+        <div class="field" style="grid-column:1 / -1;"><label for="med-name">İlaç / Takviye Adı *</label><input id="med-name" type="text" required maxlength="80" placeholder="Örn. Arveles 25 mg veya D3 Vitamini" /></div>
         <div class="field"><label for="med-kind">Tür</label>
           <select id="med-kind">
-            <option value="supplement">Takviye</option>
-            <option value="vitamin">Vitamin</option>
             <option value="medication">İlaç</option>
+            <option value="vitamin">Vitamin</option>
+            <option value="supplement">Takviye</option>
           </select>
         </div>
-        <div class="field"><label for="med-dose">Doz</label><input id="med-dose" type="text" maxlength="60" placeholder="Örn. 2000 IU / 1 tablet" /></div>
-        <div class="field" style="grid-column:1 / -1;"><label for="med-times">Doz Saatleri</label><input id="med-times" type="text" value="08:00" placeholder="08:00, 20:30" /></div>
-        <div class="field" style="grid-column:1 / -1;"><label for="med-notes">Not</label><input id="med-notes" type="text" maxlength="120" placeholder="Örn. tok karnına" /></div>
+        <div class="field"><label for="med-dose">Doz</label><input id="med-dose" type="text" maxlength="60" placeholder="Örn. 1 tablet / 2000 IU" /></div>
+        <div class="field"><label for="med-purpose">Kullanım Amacı</label><input id="med-purpose" type="text" maxlength="80" placeholder="Örn. Ağrı Kesici" /></div>
+        <div class="field"><label for="med-times">Doz Saatleri</label><input id="med-times" type="text" value="09:00" placeholder="09:00, 21:00" /></div>
+        <div class="field"><label for="med-start-date">Başlangıç</label><input id="med-start-date" type="date" /></div>
+        <div class="field"><label for="med-duration">Süre (Gün)</label><input id="med-duration" type="number" min="1" max="365" placeholder="Boş = Sürekli" /></div>
+        <div class="field" style="grid-column:1 / -1;"><label for="med-notes">Kullanım Talimatı</label><input id="med-notes" type="text" maxlength="140" placeholder="Örn. tok karnına 1 bardak su ile" /></div>
+        <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+          <label class="med-check-row"><input id="med-as-needed" type="checkbox" /><span>⚡ Gerektiğinde kullan (günlük alarm kurma)</span></label>
+          <label class="med-check-row"><input id="med-reminder" type="checkbox" checked /><span>🔔 Uygulama hatırlatıcısı açık</span></label>
+        </div>
         <div style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
           <button type="button" class="btn" onclick="closeMedModal()">İptal</button>
           <button type="submit" class="btn btn-primary">💾 Kaydet</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ETİKET TARAMA KONTROL & KAYDET MODAL (AI) -->
+  <div class="modal-backdrop" id="med-scan-modal" onclick="if(event.target===this)closeMedScanModal()">
+    <div class="modal-card modal-card-wide">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📷 Etiket Kontrol Et &amp; Kaydet <span class="badge badge-info" style="margin-left:6px;">🤖 AI</span></div>
+          <div class="card-sub" id="med-scan-sub">Fotoğraf saklanmaz · Bilgileri kontrol et, gerekirse düzenle</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="closeMedScanModal()">✕</button>
+      </div>
+      <div id="med-scan-list" class="med-scan-list"></div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap;">
+        <button type="button" class="btn" onclick="closeMedScanModal()">İptal</button>
+        <button type="button" class="btn" id="btn-med-scan-cal" onclick="submitMedScan(true)">📅 Kaydet + Takvime Ekle</button>
+        <button type="button" class="btn btn-primary" id="btn-med-scan-save" onclick="submitMedScan(false)">💾 Kaydet</button>
+      </div>
     </div>
   </div>
 

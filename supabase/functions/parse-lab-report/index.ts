@@ -438,6 +438,122 @@ Yalnızca şu JSON şemasını döndür: {"summary": "3-4 cümlelik akıcı Tür
   return jsonResp({ ok: false, error: "AI özeti şu an oluşturulamadı." }, 502);
 }
 
+const MED_LABEL_PROMPT = `Sen bir eczane ilaç etiketi / reçete / kutu görseli ayrıştırıcısısın (Türkçe veya İngilizce).
+Fotoğrafta 1 veya birden fazla eczane etiketi/ilaç bulunabilir — GÖRÜNEN HER İLAÇ / KUTU / ETİKETİ ayrı bir öğe olarak çıkar.
+Her öğe için:
+- name: İlaç veya takviye adı + mg/gr (örn. "Arveles 25 mg", "Wilkinson Pomad %12,5")
+- dose: Kullanım dozu/miktarı (örn. "1 tablet", "ince tabaka", "1 kapsül", "1 ölçek")
+- kind: "medication" (reçeteli/eczane ilacı, ağrı kesici, pomad, antibiyotik vb.), "vitamin", veya "supplement"
+- purpose: Kısa kullanım amacı (örn. "Ağrı Kesici", "Kaşıntı - Deri Tedavisi"), görünmüyorsa null
+- times: Önerilen saatler dizisi (HH:MM). Sabah="09:00", Öğle="13:00", Akşam="21:00", Gece="23:00". Günde 1="09:00", Günde 2 / Sabah-Akşam=["09:00","21:00"], Günde 3=["08:00","14:00","21:00"], Günde 4=["08:00","12:00","18:00","22:00"]. Belirtilmemişse ["09:00"].
+- notes: Kısa kullanım talimatı (aç/tok karnına, bol su ile, yıkanmama uyarısı vb.), yoksa null (maks 140 karakter)
+- duration_days: Etikette "3 gün boyunca", "7 gün kullanınız" gibi süre yazıyorsa pozitif tam sayı, yoksa null
+- as_needed: "sadece ağrı hissettiğiniz günlerde", "gerektiğinde", "lüzum halinde" gibi sadece şikayet oldukça kullanım varsa true, düzenli günde X kez ise false
+- start_date: null (istemci bugünü seçer; geçmiş eski etiket tarihlerini kopyalama)
+
+Yalnızca şu JSON şemasını döndür:
+{"items": [{"name": string, "dose": string|null, "kind": "medication"|"vitamin"|"supplement", "purpose": string|null, "times": string[], "notes": string|null, "duration_days": number|null, "as_needed": boolean, "start_date": string|null}]}`;
+
+function sanitizeMedTimes(arr: any): string[] {
+  const valid = (Array.isArray(arr) ? arr : [])
+    .map((s) => String(s || "").trim())
+    .map((s) => {
+      const m = s.match(/^(\d{1,2})(?::(\d{2}))?$/);
+      if (!m) return null;
+      const h = Number(m[1]), mi = Number(m[2] || 0);
+      if (h > 23 || mi > 59) return null;
+      return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+    })
+    .filter((x): x is string => Boolean(x));
+  return valid.length ? [...new Set(valid)].sort().slice(0, 6) : ["09:00"];
+}
+
+function sanitizeMedItems(raw: any) {
+  const list = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : [];
+  return list
+    .map((x: any) => {
+      const durRaw = num(x?.duration_days);
+      const dur = durRaw !== null && durRaw >= 1 && durRaw <= 365 ? Math.round(durRaw) : null;
+      const kind = ["medication", "vitamin", "supplement"].includes(x?.kind) ? x.kind : "medication";
+      return {
+        name: String(x?.name || "").trim().slice(0, 80),
+        dose: x?.dose ? String(x.dose).trim().slice(0, 60) : null,
+        kind,
+        purpose: x?.purpose ? String(x.purpose).trim().slice(0, 80) : null,
+        times: sanitizeMedTimes(x?.times),
+        notes: x?.notes ? String(x.notes).trim().slice(0, 140) : null,
+        duration_days: dur,
+        as_needed: Boolean(x?.as_needed),
+        start_date: null,
+      };
+    })
+    .filter((x: any) => Boolean(x.name))
+    .slice(0, 12);
+}
+
+async function handleParseMedicationLabel(body: any, apiKey: string) {
+  let data = String(body.file_base64 || "").trim();
+  let mime = String(body.mime_type || "image/jpeg").trim();
+  const m = data.match(/^data:([^;]+);base64,(.+)$/);
+  if (m) {
+    mime = m[1];
+    data = m[2];
+  }
+  if (!data || data.length < 100) return jsonResp({ ok: false, error: "Geçerli fotoğraf verisi bulunamadı." }, 400);
+  if (!["image/jpeg", "image/png", "image/webp", "image/heic"].includes(mime)) {
+    return jsonResp({ ok: false, error: "Yalnızca görsel (JPG/PNG/WEBP/HEIC) desteklenir." }, 415);
+  }
+  if (data.length > 14_000_000) return jsonResp({ ok: false, error: "Görsel çok büyük (maks ~10 MB)." }, 413);
+
+  const debug: string[] = [];
+  for (const modelName of MODELS) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(40000),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: MED_LABEL_PROMPT }, { inline_data: { mime_type: mime, data } }] }],
+            generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+          }),
+        },
+      );
+      if (!res.ok) {
+        debug.push(`${modelName}:HTTP_${res.status}`);
+        continue;
+      }
+      const j = await res.json();
+      const parts: any[] = (j?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p?.thought);
+      const texts = parts.map((p: any) => String(p?.text || "")).filter(Boolean);
+      const raw = texts.find((t: string) => t.trim().startsWith("{")) || texts[texts.length - 1] || "";
+      if (!raw) {
+        debug.push(`${modelName}:EMPTY`);
+        continue;
+      }
+      const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (_) {
+        const mm = cleaned.match(/\{[\s\S]*\}/);
+        if (mm) parsed = JSON.parse(mm[0]);
+      }
+      const items = sanitizeMedItems(parsed);
+      if (items.length) {
+        data = "";
+        return jsonResp({ ok: true, items, model_used: modelName });
+      }
+      debug.push(`${modelName}:NO_ITEMS`);
+    } catch (e) {
+      debug.push(`${modelName}:ERR:${String(e).slice(0, 60)}`);
+    }
+  }
+  data = "";
+  return jsonResp({ ok: false, error: "Etiketteki ilaç bilgileri okunamadı. Daha net bir fotoğraf dene veya elle ekle.", debug }, 422);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResp({ ok: false, error: "Yalnızca POST desteklenir." }, 405);
@@ -460,6 +576,9 @@ Deno.serve(async (req: Request) => {
 
     if (body.action === "analyzeSummary") {
       return await handleAnalyzeSummary(supabase, authUser, body, apiKey);
+    }
+    if (body.action === "parseMedicationLabel") {
+      return await handleParseMedicationLabel(body, apiKey);
     }
 
     let data = String(body.file_base64 || "").trim();
