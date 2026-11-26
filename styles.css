@@ -255,6 +255,42 @@ html, body {
   flex-wrap: wrap;
 }
 
+.pill-score-ok {
+  color: var(--emerald);
+  border-color: rgba(0, 229, 163, 0.35);
+  background: rgba(0, 229, 163, 0.1);
+}
+
+.pill-score-warn {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.pill-score-crit {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+html[data-theme="weather_sunny"] .pill-score-ok {
+  color: #047857;
+  border-color: rgba(4, 120, 87, 0.3);
+  background: rgba(16, 185, 129, 0.14);
+}
+
+html[data-theme="weather_sunny"] .pill-score-warn {
+  color: #b45309;
+  border-color: rgba(180, 83, 9, 0.3);
+  background: rgba(245, 158, 11, 0.14);
+}
+
+html[data-theme="weather_sunny"] .pill-score-crit {
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.3);
+  background: rgba(239, 68, 68, 0.14);
+}
+
 .ribbon-actions {
   display: flex;
   align-items: center;

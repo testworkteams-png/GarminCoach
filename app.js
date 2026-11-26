@@ -331,6 +331,18 @@ function renderTopbar() {
       weatherPill.classList.add("hidden");
     }
   }
+  const readinessPill = document.getElementById("pill-readiness");
+  if (readinessPill) {
+    if (latest && latest.readiness_score != null) {
+      const sc = Math.round(Number(latest.readiness_score));
+      const cls = sc >= 75 ? "pill-score-ok" : sc >= 55 ? "pill-score-warn" : "pill-score-crit";
+      readinessPill.className = `pill mono ${cls}`;
+      readinessPill.textContent = `⚡ ${sc}`;
+      readinessPill.title = `Günlük Hazırlık Skoru: ${sc}/100`;
+    } else {
+      readinessPill.className = "pill mono hidden";
+    }
+  }
 }
 
 window.scrollToWeatherCard = function () {
