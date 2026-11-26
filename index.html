@@ -155,8 +155,11 @@
               <button type="button" class="btn btn-sm notif-bell-btn" id="btn-notif-bell" onclick="toggleNotifDrawer()" title="Bildirim Gelen Kutusu">🔔 <span id="notif-unread-badge" class="badge badge-crit hidden" style="padding:1px 6px; font-size:10px;">0</span></button>
               <div id="notif-drawer" class="notif-drawer hidden">
                 <div class="notif-drawer-head">
-                  <strong>🔔 Bildirim Gelen Kutusu</strong>
-                  <button type="button" class="btn btn-sm" onclick="markAllNotifsRead()">✓ Tümünü Oku</button>
+                  <strong>🔔 Bildirimler</strong>
+                  <div class="notif-head-actions">
+                    <button type="button" class="btn btn-sm" id="btn-notif-read-all" onclick="markAllNotifsRead()" title="Tümünü okundu işaretle">✓ Oku</button>
+                    <button type="button" class="btn btn-sm notif-clear-btn" id="btn-notif-clear-all" onclick="clearAllNotifications()" title="Tüm bildirimleri temizle">🗑 Temizle</button>
+                  </div>
                 </div>
                 <div id="notif-list" class="notif-list">
                   <p class="card-sub">Henüz bildirim yok.</p>

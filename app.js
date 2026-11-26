@@ -2374,17 +2374,23 @@ function renderMonthly() {
 function renderNotifications() {
   const listEl = document.getElementById("notif-list");
   const badgeEl = document.getElementById("notif-unread-badge");
-  const list = Array.isArray(state.notifications) ? state.notifications : [];
+  const readAllBtn = document.getElementById("btn-notif-read-all");
+  const clearAllBtn = document.getElementById("btn-notif-clear-all");
+  const cutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const rawList = Array.isArray(state.notifications) ? state.notifications : [];
+  const list = rawList.filter((n) => !n.read_at || new Date(n.created_at).getTime() >= cutoffMs);
   const unread = list.filter((n) => !n.read_at).length;
 
   if (badgeEl) {
     badgeEl.textContent = String(unread);
     badgeEl.classList.toggle("hidden", unread === 0);
   }
+  if (readAllBtn) readAllBtn.classList.toggle("hidden", unread === 0);
+  if (clearAllBtn) clearAllBtn.classList.toggle("hidden", list.length === 0);
   if (!listEl) return;
 
   if (!list.length) {
-    listEl.innerHTML = `<p class="card-sub">Henüz bildirim yok. Sabah uyku raporu veya yeni Garmin antrenmanında burada görünecek.</p>`;
+    listEl.innerHTML = `<p class="card-sub">Bildirim kutun temiz. Yeni uyku raporu veya antrenman geldiğinde burada görünecek.</p>`;
     return;
   }
 
@@ -2393,9 +2399,12 @@ function renderNotifications() {
       const timeStr = fmtIstanbulDateTime(n.created_at);
       return `
       <div class="notif-item ${n.read_at ? "" : "unread"}" onclick="openNotificationItem('${escapeHtml(n.id)}')">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
-          <strong style="font-size:12.5px;">${escapeHtml(n.title)}</strong>
-          <span class="card-sub mono" style="font-size:10px; white-space:nowrap;">${escapeHtml(timeStr)}</span>
+        <div class="notif-item-head">
+          <strong class="notif-item-title">${escapeHtml(n.title)}</strong>
+          <div class="notif-item-meta">
+            <span class="card-sub mono" style="font-size:10px; white-space:nowrap;">${escapeHtml(timeStr)}</span>
+            <button type="button" class="notif-del-btn" onclick="deleteNotificationItem(event, '${escapeHtml(n.id)}')" title="Bildirimi sil" aria-label="Bildirimi sil">×</button>
+          </div>
         </div>
         <div class="card-sub" style="color:var(--text-secondary); line-height:1.4;">${escapeHtml(n.body)}</div>
       </div>`;
@@ -2444,6 +2453,39 @@ window.markAllNotifsRead = async function () {
     state.notifications = (state.notifications || []).map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }));
     renderNotifications();
   } catch (_) {}
+};
+
+window.deleteNotificationItem = async function (ev, id) {
+  if (ev) ev.stopPropagation();
+  if (!id || !state.auth?.userId) return;
+  const prev = state.notifications || [];
+  state.notifications = prev.filter((n) => String(n.id) !== String(id));
+  renderNotifications();
+  try {
+    const { error } = await sb.from("notifications").delete().eq("id", id).eq("user_id", state.auth.userId);
+    if (error) throw error;
+  } catch (_) {
+    state.notifications = prev;
+    renderNotifications();
+    showToast("Bildirim silinemedi, tekrar dene.");
+  }
+};
+
+window.clearAllNotifications = async function () {
+  if (!state.auth?.userId) return;
+  const prev = state.notifications || [];
+  if (!prev.length) return;
+  state.notifications = [];
+  renderNotifications();
+  try {
+    const { error } = await sb.from("notifications").delete().eq("user_id", state.auth.userId);
+    if (error) throw error;
+    showToast("Bildirimler temizlendi.");
+  } catch (_) {
+    state.notifications = prev;
+    renderNotifications();
+    showToast("Bildirimler temizlenemedi, tekrar dene.");
+  }
 };
 
 window.openNotificationItem = async function (id) {
