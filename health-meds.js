@@ -258,24 +258,36 @@
         const meta = KIND_META[m.kind] || KIND_META.supplement;
         const remOn = m.reminder_enabled !== false && !m.as_needed;
         const effEnd = m.end_date || calcEndDate(m.start_date, m.duration_days);
-        const durLabel = m.as_needed
-          ? "⚡ Gerektiğinde"
-          : effEnd
-            ? `${fmtDateTr(m.start_date || todayStr())}–${fmtDateTr(effEnd)}`
-            : slotsOf(m).map(esc).join(", ");
-        const infoParts = [m.purpose, m.dose || meta.label, durLabel, m.notes].filter(Boolean);
+        const slotTxt = m.as_needed ? "⚡ Gerektiğinde" : `🕒 ${slotsOf(m).map(esc).join(", ")}`;
+        const durChip = effEnd ? `<span class="med-meta-chip">📆 ${fmtDateTr(m.start_date || todayStr())}–${fmtDateTr(effEnd)}</span>` : "";
+        const doseChip = m.dose ? `<span class="med-meta-chip">${esc(m.dose)}</span>` : "";
+        const purpChip = m.purpose ? `<span class="med-meta-chip">🎯 ${esc(m.purpose)}</span>` : "";
+        const remBtn = !m.as_needed
+          ? `<button type="button" class="btn btn-sm med-rem-btn ${remOn ? "on" : ""}" onclick="toggleMedReminder('${m.id}')" title="${remOn ? "Hatırlatıcıyı kapat" : "Hatırlatıcıyı aç"}">${remOn ? "🔔 Bildirim" : "🔕 Kapalı"}</button>`
+          : "";
         return `
         <div class="med-item ${m.active === false ? "inactive" : ""}">
-          <div class="med-row-body">
-            <strong>${meta.icon} ${esc(m.name)} <small>${esc(meta.label)}</small></strong>
-            <span>${infoParts.map(esc).join(" · ")}</span>
+          <div class="med-item-top">
+            <strong class="med-item-name">${meta.icon} ${esc(m.name)}</strong>
+            <span class="badge badge-info" style="white-space:nowrap; flex-shrink:0;">${esc(meta.label)}</span>
           </div>
-          <div class="med-item-actions">
-            ${!m.as_needed ? `<button type="button" class="btn btn-sm" onclick="toggleMedReminder('${m.id}')" title="${remOn ? "Hatırlatıcıyı kapat" : "Hatırlatıcıyı aç"}">${remOn ? "🔔" : "🔕"}</button>` : ""}
-            <button type="button" class="btn btn-sm" onclick="exportMedToCalendar('${m.id}')" title="Telefon Takvimine Ekle (.ics)">📅</button>
-            <button type="button" class="btn btn-sm" onclick="toggleMedActive('${m.id}')" title="${m.active === false ? "Başlat" : "Durdur"}">${m.active === false ? "▶" : "⏸"}</button>
-            <button type="button" class="btn btn-sm" onclick="openMedModal('${m.id}')" title="Düzenle">✏️</button>
-            <button type="button" class="btn btn-sm" onclick="deleteMed('${m.id}')" title="Sil">🗑</button>
+          <div class="med-meta-chips">
+            <span class="med-meta-chip">${slotTxt}</span>
+            ${doseChip}
+            ${purpChip}
+            ${durChip}
+          </div>
+          ${m.notes ? `<div class="med-item-note">${esc(m.notes)}</div>` : ""}
+          <div class="med-item-foot">
+            <div class="med-foot-left">
+              ${remBtn}
+              <button type="button" class="btn btn-sm" onclick="exportMedToCalendar('${m.id}')" title="Telefon Takvimine Ekle (.ics)">📅 Takvim</button>
+            </div>
+            <div class="med-foot-right">
+              <button type="button" class="btn btn-sm" onclick="toggleMedActive('${m.id}')" title="${m.active === false ? "Başlat" : "Durdur"}">${m.active === false ? "▶" : "⏸"}</button>
+              <button type="button" class="btn btn-sm" onclick="openMedModal('${m.id}')" title="Düzenle">✏️</button>
+              <button type="button" class="btn btn-sm" onclick="deleteMed('${m.id}')" title="Sil">🗑</button>
+            </div>
           </div>
         </div>`;
       })
