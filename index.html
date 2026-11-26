@@ -131,12 +131,6 @@
         <div class="ribbon-top">
           <div class="ribbon-heading">
             <div class="ribbon-title" id="page-title">Günlük Özet</div>
-            <div class="ribbon-sub-meta">
-              <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
-              <span class="pill" id="mobile-watch-pill" onclick="openWatchSettings()" style="cursor:pointer;" title="Saat modelini düzenlemek için tıklayın">⌚ Garmin Saat</span>
-              <span class="pill mono" id="pill-datetime"><span id="pill-date">--.--</span> · <span id="pill-clock">--:--</span></span>
-              <span class="pill hidden" id="pill-weather" onclick="scrollToWeatherCard()" style="cursor:pointer;" title="Hava durumu detayları">🌤 --°</span>
-            </div>
           </div>
           <div class="ribbon-actions">
             <div class="notif-wrap">
@@ -169,6 +163,12 @@
             <button type="button" class="btn btn-primary btn-sm" onclick="triggerEngine('gunlukGarminAnalizi', true)" title="Senkronize Et">↻ <span class="hide-sm">Senkronize Et</span></button>
             <button type="button" class="btn btn-sm" onclick="logoutApp()" title="Oturumu Kapat / Çıkış Yap">🔒<span class="hide-sm"> <span id="pill-auth-user">Hesabım</span> · Çıkış</span></button>
           </div>
+        </div>
+        <div class="ribbon-sub-meta">
+          <span class="pill pill-live"><span class="dot"></span> Supabase Canlı</span>
+          <span class="pill" id="mobile-watch-pill" onclick="openWatchSettings()" style="cursor:pointer;" title="Saat modelini düzenlemek için tıklayın">⌚ Garmin Saat</span>
+          <span class="pill mono" id="pill-datetime"><span id="pill-date">--.--</span> · <span id="pill-clock">--:--</span></span>
+          <span class="pill hidden" id="pill-weather" onclick="scrollToWeatherCard()" style="cursor:pointer;" title="Hava durumu detayları">🌤 --°</span>
         </div>
         <div class="ribbon-context">
           <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
