@@ -4037,3 +4037,169 @@ html[data-theme="weather_sunny"] .lab-ai-box {
   background: rgba(56, 189, 248, 0.1);
   border-color: rgba(7, 84, 128, 0.25);
 }
+
+/* Faz 2+: Tahlil AI Okuma İlerleme Ekranı */
+#lab-parse-overlay {
+  z-index: 9500;
+}
+
+.lab-parse-card {
+  max-width: 410px;
+  padding: 20px;
+}
+
+.lab-parse-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lab-parse-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  background: var(--emerald-soft);
+  border: 1px solid rgba(0, 229, 163, 0.35);
+  animation: labParsePulse 1.8s ease-in-out infinite;
+}
+
+.lab-parse-icon.is-done {
+  animation: none;
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.lab-parse-icon.is-error {
+  animation: none;
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+@keyframes labParsePulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 229, 163, 0.25); }
+  50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(0, 229, 163, 0); }
+}
+
+.lab-parse-headings {
+  flex: 1;
+  min-width: 0;
+}
+
+.lab-parse-headings .card-title {
+  font-size: 15px;
+}
+
+.lab-parse-headings .card-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lab-parse-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.18);
+  margin: 16px 0 14px;
+}
+
+.lab-parse-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #00e5a3, #38bdf8, #00e5a3);
+  background-size: 200% 100%;
+  animation: labBarShimmer 1.8s linear infinite;
+  transition: width 0.32s ease;
+}
+
+.lab-parse-bar-fill.is-error {
+  background: linear-gradient(90deg, #ef4444, #f59e0b);
+  animation: none;
+}
+
+@keyframes labBarShimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.lab-parse-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.lab-step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.lab-step-dot {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, 0.35);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.lab-step-item.active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.lab-step-item.active .lab-step-dot {
+  border-color: var(--emerald);
+  border-top-color: transparent;
+  animation: authSpin 0.8s linear infinite;
+}
+
+.lab-step-item.done {
+  color: var(--emerald);
+}
+
+.lab-step-item.done .lab-step-dot {
+  border-color: var(--emerald);
+  background: var(--emerald-soft);
+  color: var(--emerald);
+}
+
+.lab-step-item.done .lab-step-dot::after {
+  content: "✓";
+}
+
+.lab-parse-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.lab-parse-err-btns {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+html[data-theme="weather_sunny"] .lab-parse-bar-track {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme="weather_sunny"] .lab-step-item.done,
+html[data-theme="weather_sunny"] .lab-step-item.done .lab-step-dot {
+  color: #06634b;
+  border-color: #06634b;
+}

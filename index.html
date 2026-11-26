@@ -1407,6 +1407,38 @@
 
   <input type="file" id="lab-file-input" accept="application/pdf,image/*" style="display:none;" />
 
+  <!-- TAHLİL AI OKUMA İLERLEME EKRANI -->
+  <div class="modal-backdrop" id="lab-parse-overlay" role="dialog" aria-modal="true" aria-labelledby="lab-parse-title">
+    <div class="modal-card lab-parse-card">
+      <div class="lab-parse-top">
+        <div class="lab-parse-icon" id="lab-parse-icon">📄</div>
+        <div class="lab-parse-headings">
+          <div class="card-title" id="lab-parse-title">Tahlil Raporu Okunuyor</div>
+          <div class="card-sub mono" id="lab-parse-filemeta">PDF hazırlanıyor...</div>
+        </div>
+        <span class="badge badge-info mono" id="lab-parse-pct">0%</span>
+      </div>
+      <div class="lab-parse-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="lab-parse-progressbar">
+        <div class="lab-parse-bar-fill" id="lab-parse-bar-fill" style="width:0%;"></div>
+      </div>
+      <div class="lab-parse-steps" id="lab-parse-steps">
+        <div class="lab-step-item" data-step="1"><span class="lab-step-dot"></span><span>Belge alındı ve hazırlandı</span></div>
+        <div class="lab-step-item" data-step="2"><span class="lab-step-dot"></span><span>Yapay zeka sonuçları ve referansları tarıyor</span></div>
+        <div class="lab-step-item" data-step="3"><span class="lab-step-dot"></span><span>Hastane adları standart formata çevriliyor</span></div>
+        <div class="lab-step-item" data-step="4"><span class="lab-step-dot"></span><span>Kontrol ekranı açılıyor</span></div>
+      </div>
+      <div class="auth-error-box hidden" id="lab-parse-error" style="margin-top:12px; margin-bottom:0;"></div>
+      <div class="lab-parse-actions">
+        <button type="button" class="btn btn-sm" id="btn-lab-parse-cancel" onclick="cancelLabParsing()">İptal</button>
+        <div class="lab-parse-err-btns hidden" id="lab-parse-err-btns">
+          <button type="button" class="btn btn-sm" onclick="closeLabParseOverlay()">Kapat</button>
+          <button type="button" class="btn btn-sm" onclick="closeLabParseOverlay(); openLabModal();">✏️ Elle Ekle</button>
+          <button type="button" class="btn btn-sm btn-primary" onclick="closeLabParseOverlay(); triggerLabUpload();">📄 Tekrar Seç</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TAHLİL MODAL -->
   <div class="modal-backdrop" id="lab-modal">
     <div class="modal-card modal-card-wide">

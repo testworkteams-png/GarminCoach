@@ -201,6 +201,11 @@
     draft: null,
     chart: null,
     parsing: false,
+    pendingSharedFile: null,
+    pendingSharedLabel: null,
+    parseAbort: null,
+    progTimer: null,
+    progVal: 0,
   };
 
   function esc(s) {
@@ -1086,35 +1091,162 @@
     });
   }
 
-  async function handleFile(file) {
-    if (!file || st.parsing) return;
-    if (!st.auth?.authenticated) return toast("Önce giriş yapmalısın.");
-    st.parsing = true;
-    const status = document.getElementById("lab-upload-status");
-    if (status) {
-      status.textContent = "⏳ Rapor okunup standart formata dönüştürülüyor (dosya saklanmaz)...";
-      status.classList.remove("hidden");
+  function fmtSize(bytes) {
+    const b = Number(bytes || 0);
+    if (!b) return "";
+    return b >= 1024 * 1024 ? `${(b / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+  }
+
+  function stopProgressTimer() {
+    if (st.progTimer) {
+      clearInterval(st.progTimer);
+      st.progTimer = null;
     }
+  }
+
+  function setParseProgress(pct, activeStep) {
+    st.progVal = Math.max(0, Math.min(100, Number(pct) || 0));
+    const fill = document.getElementById("lab-parse-bar-fill");
+    const pctEl = document.getElementById("lab-parse-pct");
+    const bar = document.getElementById("lab-parse-progressbar");
+    if (fill) fill.style.width = `${st.progVal.toFixed(1)}%`;
+    if (pctEl) pctEl.textContent = `${Math.round(st.progVal)}%`;
+    if (bar) bar.setAttribute("aria-valuenow", String(Math.round(st.progVal)));
+
+    document.querySelectorAll("#lab-parse-steps .lab-step-item").forEach((el) => {
+      const s = Number(el.getAttribute("data-step") || 0);
+      el.classList.toggle("done", activeStep > 4 || s < activeStep);
+      el.classList.toggle("active", activeStep <= 4 && s === activeStep);
+    });
+  }
+
+  function openParseOverlay(fileName, fileSize, subNote) {
+    stopProgressTimer();
+    const overlay = document.getElementById("lab-parse-overlay");
+    const icon = document.getElementById("lab-parse-icon");
+    const title = document.getElementById("lab-parse-title");
+    const meta = document.getElementById("lab-parse-filemeta");
+    const fill = document.getElementById("lab-parse-bar-fill");
+    const errBox = document.getElementById("lab-parse-error");
+    const cancelBtn = document.getElementById("btn-lab-parse-cancel");
+    const errBtns = document.getElementById("lab-parse-err-btns");
+
+    if (icon) { icon.textContent = "📄"; icon.className = "lab-parse-icon"; }
+    if (title) title.textContent = "Tahlil Raporu Okunuyor";
+    const sizeStr = fmtSize(fileSize);
+    if (meta) meta.textContent = subNote || `${fileName || "Belge"}${sizeStr ? " · " + sizeStr : ""}`;
+    if (fill) fill.classList.remove("is-error");
+    if (errBox) { errBox.textContent = ""; errBox.classList.add("hidden"); }
+    if (cancelBtn) cancelBtn.classList.remove("hidden");
+    if (errBtns) errBtns.classList.add("hidden");
+    setParseProgress(8, 1);
+    overlay?.classList.add("open");
+  }
+
+  function startSmoothAiProgress() {
+    stopProgressTimer();
+    st.progTimer = setInterval(() => {
+      const remaining = 91 - st.progVal;
+      if (remaining <= 0.4) return;
+      const next = st.progVal + Math.max(0.4, remaining * 0.075);
+      const step = next >= 62 ? 3 : 2;
+      setParseProgress(next, step);
+    }, 280);
+  }
+
+  function showParseOverlayError(msg) {
+    stopProgressTimer();
+    const icon = document.getElementById("lab-parse-icon");
+    const title = document.getElementById("lab-parse-title");
+    const fill = document.getElementById("lab-parse-bar-fill");
+    const errBox = document.getElementById("lab-parse-error");
+    const cancelBtn = document.getElementById("btn-lab-parse-cancel");
+    const errBtns = document.getElementById("lab-parse-err-btns");
+
+    if (icon) { icon.textContent = "⚠️"; icon.className = "lab-parse-icon is-error"; }
+    if (title) title.textContent = "Rapor Okunamadı";
+    if (fill) fill.classList.add("is-error");
+    if (errBox) { errBox.textContent = msg || "Dosya okunurken hata oluştu."; errBox.classList.remove("hidden"); }
+    if (cancelBtn) cancelBtn.classList.add("hidden");
+    if (errBtns) errBtns.classList.remove("hidden");
+  }
+
+  function closeLabParseOverlay() {
+    stopProgressTimer();
+    document.getElementById("lab-parse-overlay")?.classList.remove("open");
+  }
+
+  function cancelLabParsing() {
+    if (st.parseAbort) {
+      try { st.parseAbort.abort(); } catch (_) {}
+      st.parseAbort = null;
+    }
+    st.pendingSharedFile = null;
+    st.pendingSharedLabel = null;
+    st.parsing = false;
+    closeLabParseOverlay();
+    toast("Tahlil okuma iptal edildi.");
+  }
+
+  async function handleFile(file, sourceLabel) {
+    if (!file) return;
+    const label = sourceLabel || file.name || "Tahlil Belgesi";
+    if (!st.auth?.authenticated) {
+      st.pendingSharedFile = file;
+      st.pendingSharedLabel = label;
+      openParseOverlay(label, file.size, `${label} · Oturum doğrulanıyor...`);
+      setParseProgress(12, 1);
+      return;
+    }
+    if (st.parsing) return;
+    st.parsing = true;
+    openParseOverlay(label, file.size);
+    setParseProgress(16, 1);
+
+    const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+    st.parseAbort = ac;
+
     try {
       const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
       if (isPdf && file.size > 9 * 1024 * 1024) throw new Error("PDF çok büyük (maks 9 MB).");
       const base64 = isPdf ? await fileToBase64(file) : await resizeImage(file);
+      if (ac?.signal?.aborted) return;
+
       const token = await getToken();
       if (!token) throw new Error("Oturum bulunamadı. Lütfen yeniden giriş yapın.");
+
+      setParseProgress(24, 2);
+      startSmoothAiProgress();
+
       const res = await fetch(PARSE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
         body: JSON.stringify({ file_base64: base64, mime_type: isPdf ? "application/pdf" : "image/jpeg" }),
+        signal: ac?.signal,
       });
       const json = await res.json().catch(() => ({}));
+      if (ac?.signal?.aborted) return;
       if (!res.ok || !json.ok || !json.data) throw new Error(json.error || "Rapor okunamadı.");
+
+      stopProgressTimer();
+      setParseProgress(100, 5);
+      const icon = document.getElementById("lab-parse-icon");
+      const title = document.getElementById("lab-parse-title");
+      const count = (json.data.results || []).length;
+      if (icon) { icon.textContent = "✓"; icon.className = "lab-parse-icon is-done"; }
+      if (title) title.textContent = `${count} Değer Okundu!`;
+
+      await new Promise((r) => setTimeout(r, 420));
+      closeLabParseOverlay();
       openModal({ report_date: json.data.report_date, lab_name: json.data.lab_name || "", source: "ai", rows: json.data.results });
-      toast("✓ Değerler standart formatta okundu — kontrol edip Kaydet'e bas.");
+      toast(`✓ ${count} değer standart formatta okundu — kontrol edip Kaydet'e bas.`);
     } catch (err) {
-      toast(`Okuma hatası: ${err.message} · Değerleri elle ekleyebilirsin.`);
+      if (err?.name === "AbortError" || ac?.signal?.aborted) return;
+      showParseOverlayError(err?.message || "Rapor okunamadı.");
     } finally {
+      stopProgressTimer();
+      if (st.parseAbort === ac) st.parseAbort = null;
       st.parsing = false;
-      if (status) status.classList.add("hidden");
     }
   }
 
@@ -1138,7 +1270,6 @@
 
   async function checkNativeSharedPdf() {
     try {
-      if (!st.auth?.authenticated || !st.sb) return false;
       const bridge = window.GarminNativeShare;
       if (!bridge || typeof bridge.consumeSharedPdf !== "function") return false;
       const b64 = bridge.consumeSharedPdf();
@@ -1147,11 +1278,60 @@
       const bin = atob(String(b64));
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      await handleFile(new File([bytes], "shared-report.pdf", { type: "application/pdf" }));
+      const file = new File([bytes], "shared-report.pdf", { type: "application/pdf" });
+      await handleFile(file, "Paylaşılan Tahlil PDF");
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  async function consumeWebSharedPdfIfAny() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("shared_lab") !== "1") return false;
+      params.delete("shared_lab");
+      const cleanUrl = `${window.location.pathname}${params.toString() ? "?" + params.toString() : ""}${window.location.hash || ""}`;
+      window.history.replaceState({}, "", cleanUrl);
+      if (!("caches" in window)) return false;
+      const cache = await caches.open("garmincoach-share-temp-v1");
+      const resp = await cache.match("./__shared-lab-pdf");
+      if (!resp) return false;
+      await cache.delete("./__shared-lab-pdf");
+      const blob = await resp.blob();
+      if (!blob || blob.size < 100) return false;
+      document.querySelector('[data-tab="health"]')?.click();
+      const file = new File([blob], "shared-report.pdf", { type: blob.type || "application/pdf" });
+      await handleFile(file, "Paylaşılan Tahlil PDF");
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function bindShareResumeListeners() {
+    if (window.__GC_LAB_SHARE_BOUND) return;
+    window.__GC_LAB_SHARE_BOUND = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") checkNativeSharedPdf();
+    });
+    window.addEventListener("focus", () => checkNativeSharedPdf());
+    try {
+      window.Capacitor?.Plugins?.App?.addListener?.("appStateChange", (state) => {
+        if (state?.isActive) checkNativeSharedPdf();
+      });
+    } catch (_) {}
+  }
+
+  bindShareResumeListeners();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      checkNativeSharedPdf();
+      consumeWebSharedPdfIfAny();
+    });
+  } else {
+    checkNativeSharedPdf();
+    consumeWebSharedPdfIfAny();
   }
 
   async function initForUser(auth, sb) {
@@ -1172,8 +1352,18 @@
     buildBiomarkerSeries();
     renderAll();
     if (!auth?.authenticated || !auth?.userId || !sb) return;
+
+    if (st.pendingSharedFile) {
+      const f = st.pendingSharedFile;
+      const lbl = st.pendingSharedLabel;
+      st.pendingSharedFile = null;
+      st.pendingSharedLabel = null;
+      handleFile(f, lbl);
+    } else {
+      checkNativeSharedPdf();
+      consumeWebSharedPdfIfAny();
+    }
     await refresh();
-    await checkNativeSharedPdf();
   }
 
   function reset() {
@@ -1252,6 +1442,8 @@
     }
   };
 
+  window.closeLabParseOverlay = closeLabParseOverlay;
+  window.cancelLabParsing = cancelLabParsing;
   window.goToHlSlide = goToHlSlide;
   window.moveHlCarousel = moveHlCarousel;
   window.triggerLabUpload = triggerUpload;

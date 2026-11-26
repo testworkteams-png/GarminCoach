@@ -1,6 +1,7 @@
-const CACHE_NAME = "garmincoach-shell-v41";
+const CACHE_NAME = "garmincoach-shell-v42";
 const SHARE_CACHE_NAME = "garmincoach-share-temp-v1";
 const SHARE_IMAGE_KEY = "./__shared-scale-image";
+const SHARE_PDF_KEY = "./__shared-lab-pdf";
 const SHELL_ASSETS = ["./", "./index.html", "./styles.css", "./theme-engine.js", "./ai-insights.js", "./body-scale.js", "./health-meds.js", "./lab-reports.js", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -33,20 +34,22 @@ self.addEventListener("fetch", (event) => {
   ) {
     event.respondWith(
       (async () => {
+        let isPdf = false;
         try {
           const formData = await event.request.formData();
           const file = formData.get("scale_image");
           if (file && typeof file.arrayBuffer === "function") {
+            isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
             const cache = await caches.open(SHARE_CACHE_NAME);
             await cache.put(
-              SHARE_IMAGE_KEY,
+              isPdf ? SHARE_PDF_KEY : SHARE_IMAGE_KEY,
               new Response(file, {
-                headers: { "Content-Type": file.type || "image/jpeg" },
+                headers: { "Content-Type": file.type || (isPdf ? "application/pdf" : "image/jpeg") },
               })
             );
           }
         } catch (_) {}
-        return Response.redirect("./index.html?shared_scale=1", 303);
+        return Response.redirect(isPdf ? "./index.html?shared_lab=1" : "./index.html?shared_scale=1", 303);
       })()
     );
     return;

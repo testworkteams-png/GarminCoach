@@ -16,7 +16,7 @@
       "files": [
         {
           "name": "scale_image",
-          "accept": ["image/*", ".png", ".jpg", ".jpeg", ".webp"]
+          "accept": ["image/*", ".png", ".jpg", ".jpeg", ".webp", "application/pdf", ".pdf"]
         }
       ]
     }
