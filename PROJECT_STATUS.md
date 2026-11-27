@@ -9,7 +9,7 @@
 - **GitHub Deposu:** `https://github.com/testworkteams-png/GarminCoach.git`
 - **Supabase Proje ID:** `htooqswstuuzslvrgxsx`
 - **Ana Kullanıcı (Owner) UUID:** `c4953941-0b4f-42b1-b18c-a3c8693aa32f`
-- **Güncel Service Worker Sürümü:** `garmincoach-shell-v60` (`sw.js`)
+- **Güncel Service Worker Sürümü:** `garmincoach-shell-v61` (`sw.js`)
 - **Mimari:** Sıfır derleme (zero-build) Vanilla HTML/CSS/JS + PWA + Capacitor (`capacitor.config.json`) + Supabase PostgreSQL + Deno Edge Functions + `pg_cron`
 
 ---
@@ -27,7 +27,7 @@
 | `lab-reports.js` | Kan tahlili PDF/görsel AI ayrıştırma (`parse-lab-report`), biyobelirteç eğrileri ve birleşik YZ tahlil özeti |
 | `ai-insights.js` | Günlük Active Intelligence özet kartı, beğeni geri bildirimi ve bildirim saati ayarları |
 | `theme-engine.js` | Canlı hava/özel gün tabanlı tema motoru (`weather_sunny` vb.) |
-| `sw.js` | Offline kabuk önbelleği (`CACHE_NAME = "garmincoach-shell-v60"`) ve Web Share Target (`/share-scale`) yakalayıcı |
+| `sw.js` | Offline kabuk önbelleği (`CACHE_NAME = "garmincoach-shell-v61"`) ve Web Share Target (`/share-scale`) yakalayıcı |
 | `GEMINI.md` | Antigravity çalışma alanı kuralları; her oturumda `PROJECT_STATUS.md` içeriğini otomatik yükler ve her değişiklikte güncellenmesini zorunlu tutar |
 | `PROJECT_STATUS.md` | Güncel mimari, Edge Function sürümleri, `pg_cron` zamanlayıcıları ve sürüm geçmişi referansı |
 
@@ -81,7 +81,7 @@
 ---
 
 ## 4. Geliştirme ve Yayınlama Kuralları (Yeni Sohbet Kılavuzu)
-1. **Service Worker Sürümü:** Ön yüz dosyalarında (`index.html`, `styles.css`, `*.js`) herhangi bir değişiklik yapıldığında `sw.js` içindeki `CACHE_NAME` değerini mutlaka artırın (`garmincoach-shell-v60` → `garmincoach-shell-v61`).
+1. **Service Worker Sürümü:** Ön yüz dosyalarında (`index.html`, `styles.css`, `*.js`) herhangi bir değişiklik yapıldığında `sw.js` içindeki `CACHE_NAME` değerini mutlaka artırın (`garmincoach-shell-v61` → `garmincoach-shell-v62`).
 2. **Edge Function Dağıtımı:** Supabase MCP `deploy_edge_function` çağrılarında her zaman `import_map_path: "deno.json"` (içeriği `deno.json` ile birlikte) ve `verify_jwt: false` parametrelerini verin.
 3. **Doğrulama:** Push öncesinde JavaScriptCore (`/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc`) ile sözdizimi/smoke testi ve HTML `id` eşleşme kontrolü çalıştırın; GitHub Pages yayını (~18 sn) sonrası `https://garmin.alidincerozdemir.com/sw.js` üzerinden yeni sürümü doğrulayın.
 4. **Sohbet Hijyeni:** Antigravity'de yeni bir özellik eklerken yeni sohbet açıp *"PROJECT_STATUS.md dosyasını oku, ..."* diyerek başlamak gereksiz bağlam ve token tüketimini önler.
@@ -89,7 +89,8 @@
 ---
 
 ## 5. Son Tamamlanan Sürümler
-- **`v60`:** Hava & AQI akordeonu başlığı `🌤️ Yürüyüş & AQI` olarak yenilendi; kapalı halinde başlık + saat/sıcaklık çipleri ve 4 renkli yatay AQI barı (`#weather-sum-aqi-marker`) gösterilir hale getirildi.
+- **`v61`:** `🌤️ Yürüyüş & AQI` akordeonu açıldığında üstteki saat/sıcaklık çipleri (`.weather-acc-chips`) ve yatay AQI barı (`.weather-aqi-bar-row`) gizlenerek açık görünümde tekrar kaldırıldı.
+- **`acdd0bf` (`v60`):** Hava & AQI akordeonu başlığı `🌤️ Yürüyüş & AQI` olarak yenilendi; kapalı halinde başlık + saat/sıcaklık çipleri ve 4 renkli yatay AQI barı (`#weather-sum-aqi-marker`) gösterilir hale getirildi.
 - **`bd4f6bf` (`v59` / `garmin-coach-engine v23`):** Hava/AQI saatlik şeridi şimdi + 5 saat ileri (toplam 6 saat, gece yarısında yarının ilk saatlerine taşan ve dar ekranda yatay kaydırılabilen) yapıya geçirildi; `Aktif Pencere` kutusu kaldırılarak `Gün Doğumu / Batımı` birleştirildi ve 4. KPI kutusuna `💧 Nem / ☀️ UV İndeksi` eklendi.
 - **`v58` (`garmin-coach-engine v22`):** Hava & AQI bölümü (`#evening-weather-card`) tüm günü (`00:00–23:00`) kapsayan varsayılan kapalı akordeona dönüştürüldü (kapalı halde yalnızca güncel saat, sıcaklık ve AQI görünür); saatlik şerit yalnızca mevcut saatten `23:00`'e kadar ileriye doğru akacak şekilde filtrelendi, mevcut saat `.is-current` camgöbeği çerçeveli, en uygun Altın Saat `.best` altın vurgulu yapıldı.
 - **`c78ec76` (`v57`):** `#tab-dashboard` bölüm sırası güncellendi (`#evening-weather-card` üstte, 13 slaytlı `#lab-carousel-section` altta); `⌚ Güncel Biyometri & Kondisyon` (`#home-bars-card`) varsayılan kapalı akordeona dönüştürüldü (kapalı halde yalnızca başlık ve `☀️ Günlük Rapor →` butonu görünür).

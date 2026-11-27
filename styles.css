@@ -5823,9 +5823,18 @@ html[data-theme="weather_sunny"] .yearly-month-card {
   transition: opacity 0.22s ease, padding-top 0.28s ease;
 }
 
+.weather-accordion.is-open .weather-acc-chips,
+.weather-accordion.is-open .weather-aqi-bar-row {
+  display: none;
+}
+
+.weather-accordion.is-open .weather-acc-summary {
+  gap: 0;
+}
+
 .weather-accordion.is-open .weather-acc-inner {
   opacity: 1;
-  padding-top: 14px;
+  padding-top: 8px;
 }
 
 .weather-inner-header {
