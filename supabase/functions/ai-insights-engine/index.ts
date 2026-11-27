@@ -72,13 +72,21 @@ async function callGeminiWithSystemPrompt(promptText: string, customKey?: string
   if (!apiKey) return null;
 
   const candidateModels = [
-    "models/gemini-3.6-flash",
-    "models/gemini-3.5-flash",
-    "models/gemini-3.5-flash-lite",
+    "models/gemini-2.5-flash-lite",
+    "models/gemini-2.5-flash",
+    "models/gemini-2.0-flash",
   ];
 
   for (const modelName of candidateModels) {
     try {
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0.35,
+        maxOutputTokens: 450,
+        responseMimeType: "application/json",
+      };
+      if (modelName.includes("gemini-2.5")) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`,
         {
@@ -88,10 +96,7 @@ async function callGeminiWithSystemPrompt(promptText: string, customKey?: string
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
             contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: {
-              temperature: 0.35,
-              responseMimeType: "application/json",
-            },
+            generationConfig,
           }),
         }
       );
@@ -352,8 +357,35 @@ async function generateOrFetchInsightForUser(
     return { disabled: true, cached: false, insight: null };
   }
 
+  const [{ data: pastInsights }, { data: latestActOnly }] = await Promise.all([
+    supabase
+      .from("ai_insights")
+      .select("id, date, category, title, summary, action_tip, feedback, last_activity_id, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("activities")
+      .select("activity_id")
+      .eq("user_id", userId)
+      .order("start_time_local", { ascending: false })
+      .limit(1),
+  ]);
+
+  const latestActivityId = latestActOnly?.[0]?.activity_id != null ? Number(latestActOnly[0].activity_id) : null;
+  const existingToday = (pastInsights || []).find((x: any) => x.date === dateStr) || null;
+
+  // Fast-exit deduplication: same day + no new workout added -> reuse existing insight without heavy queries or LLM calls
+  if (
+    !force &&
+    existingToday &&
+    (existingToday.last_activity_id ?? null) === latestActivityId
+  ) {
+    return { disabled: false, cached: true, insight: existingToday };
+  }
+
   const cutoff14 = shiftDateStr(dateStr, -13);
-  const [{ data: bios14 }, { data: acts14 }, { data: pastInsights }] = await Promise.all([
+  const [{ data: bios14 }, { data: acts14 }] = await Promise.all([
     supabase
       .from("daily_biometrics")
       .select("log_date, readiness_score, body_battery_max, sleep_score, sleep_seconds, deep_sleep_seconds, rem_sleep_seconds, sleep_stress_avg, hrv_nightly_avg, rhr, steps, stress_avg, active_kilocalories")
@@ -366,26 +398,9 @@ async function generateOrFetchInsightForUser(
       .eq("user_id", userId)
       .order("start_time_local", { ascending: false })
       .limit(12),
-    supabase
-      .from("ai_insights")
-      .select("id, date, category, title, summary, action_tip, feedback, last_activity_id, created_at")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(10),
   ]);
 
   const recentActs = acts14 || [];
-  const latestActivityId = recentActs[0]?.activity_id != null ? Number(recentActs[0].activity_id) : null;
-  const existingToday = (pastInsights || []).find((x: any) => x.date === dateStr) || null;
-
-  // Deduplication: same day + no new workout added -> reuse existing insight
-  if (
-    !force &&
-    existingToday &&
-    (existingToday.last_activity_id ?? null) === latestActivityId
-  ) {
-    return { disabled: false, cached: true, insight: existingToday };
-  }
 
   const recentBios = bios14 || [];
   const todayBio = recentBios.find((b: any) => b.log_date === dateStr) || recentBios[0] || null;

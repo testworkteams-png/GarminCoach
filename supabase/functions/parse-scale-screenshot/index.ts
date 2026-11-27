@@ -38,11 +38,9 @@ Yalnızca şu JSON şemasına birebir uyan geçerli JSON nesnesi döndür:
 }`;
 
 const CANDIDATE_MODELS = [
-  "models/gemini-3.6-flash",
-  "models/gemini-3.5-flash",
-  "models/gemini-3.5-flash-lite",
-  "models/gemini-3.8-flash",
+  "models/gemini-2.5-flash-lite",
   "models/gemini-2.5-flash",
+  "models/gemini-2.0-flash",
 ];
 
 const BODY_ANALYSIS_PROMPT = `Sen kanıta dayalı spor fizyolojisi ve vücut kompozisyonu koçusun. Kullanıcının boy, kilo ve akıllı tartı (Honor Scale 2) verilerini analiz et.
@@ -129,10 +127,18 @@ async function resolveGeminiApiKey(supabase: any, userId: string): Promise<strin
   );
 }
 
-async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.1, timeoutMs = 28000) {
+async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.1, timeoutMs = 28000, maxOutputTokens = 600) {
   const debugErrors: string[] = [];
   for (const modelName of CANDIDATE_MODELS) {
     try {
+      const generationConfig: Record<string, unknown> = {
+        temperature,
+        maxOutputTokens,
+        responseMimeType: "application/json",
+      };
+      if (modelName.includes("gemini-2.5")) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
       const gemRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`,
         {
@@ -141,10 +147,7 @@ async function callGeminiJson(apiKey: string, parts: unknown[], temperature = 0.
           signal: AbortSignal.timeout(timeoutMs),
           body: JSON.stringify({
             contents: [{ parts }],
-            generationConfig: {
-              temperature,
-              responseMimeType: "application/json",
-            },
+            generationConfig,
           }),
         }
       );
@@ -330,6 +333,41 @@ async function handleAnalyzeBodyComposition(supabase: any, authUser: any, body: 
     trend_count: records.length,
   };
 
+  const { data: existingNotif } = await supabase
+    .from("notifications")
+    .select("id, title, body, payload")
+    .eq("user_id", authUser.id)
+    .contains("payload", { kind: "body_ai_commentary", record_id: latest.id })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!body?.force && existingNotif?.payload?.summary) {
+    await supabase
+      .from("notifications")
+      .update({ read_at: null })
+      .eq("id", existingNotif.id)
+      .eq("user_id", authUser.id);
+
+    const cp = existingNotif.payload;
+    return jsonResp({
+      ok: true,
+      cached: true,
+      notification_id: existingNotif.id,
+      analysis: {
+        title: existingNotif.title || `⚖️ Vücut Analizi · ${fmtNumTr(latest.weight_kg, 1)} kg`,
+        summary: String(cp.summary || existingNotif.body || ""),
+        highlights: Array.isArray(cp.highlights) ? cp.highlights : [],
+        actions: Array.isArray(cp.actions) ? cp.actions : [],
+        height_cm: cp.height_cm ?? inferredHeightCm,
+        measured_at: cp.measured_at ?? latest.measured_at,
+        weight_kg: cp.weight_kg ?? latest.weight_kg,
+        bmi: cp.bmi ?? latest.bmi,
+      },
+      model_used: "cached-body-commentary",
+    });
+  }
+
   const apiKey = await resolveGeminiApiKey(supabase, authUser.id);
   const gem = apiKey
     ? await callGeminiJson(
@@ -370,15 +408,6 @@ async function handleAnalyzeBodyComposition(supabase: any, authUser: any, body: 
     highlights,
     actions,
   };
-
-  const { data: existingNotif } = await supabase
-    .from("notifications")
-    .select("id")
-    .eq("user_id", authUser.id)
-    .contains("payload", { kind: "body_ai_commentary", record_id: latest.id })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
   let savedNotifId: string | null = existingNotif?.id || null;
   if (savedNotifId) {

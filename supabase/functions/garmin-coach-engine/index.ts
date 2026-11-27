@@ -646,14 +646,21 @@ async function geminiApiCagir(
   }
 
   const candidateModels = [
-    "models/gemini-3.6-flash",
-    "models/gemini-3.5-flash",
-    "models/gemini-3.8-flash",
-    "models/gemini-3.5-flash-lite",
+    "models/gemini-2.5-flash-lite",
+    "models/gemini-2.5-flash",
+    "models/gemini-2.0-flash",
   ];
 
   for (const modelName of candidateModels) {
     try {
+      const generationConfig: Record<string, unknown> = {
+        temperature,
+        maxOutputTokens: 700,
+        responseMimeType: "application/json",
+      };
+      if (modelName.includes("gemini-2.5")) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`,
         {
@@ -662,10 +669,7 @@ async function geminiApiCagir(
           signal: AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: {
-              temperature,
-              responseMimeType: "application/json",
-            },
+            generationConfig,
           }),
         }
       );
@@ -1062,13 +1066,19 @@ function buildDeepAthleteContext(recentBios: any[], recentActs: any[], _settings
     }
   }
 
+  const topPrEntries = Object.entries(prs)
+    .sort((a, b) => b[1].volume_kg - a[1].volume_kg)
+    .slice(0, 6);
+  const compactPrs: Record<string, { muscle: string; sets_x_reps: string; weight_kg: number; volume_kg: number }> = {};
+  for (const [k, v] of topPrEntries) compactPrs[k] = v;
+
   const te = latest?.raw_payload?.telemetry_extra || {};
   return {
     sleep_7d_avg_h: avgSleepH,
     sleep_7d_debt_h: sleepDebtH,
     muscle_recovery_48h: muscleRecovery,
     recommended_rotation: { ...bestRot, recovery_pct: bestRec },
-    exercise_prs: prs,
+    exercise_prs: compactPrs,
     intraday: {
       bb_current: te.bb_current ?? latest?.body_battery_min ?? null,
       hrv_5min_high: te.hrv_5min_high ?? null,
@@ -1222,9 +1232,16 @@ function resolveGarminCredentials(integration: any) {
   return { garminKey, base, geminiKey };
 }
 
+const garminBearerCache = new Map<string, { token: string; exp: number }>();
+
 async function exchangeGarminBearerToken(base: string, garminKey: string) {
   let bearerToken = garminKey;
   if (garminKey.startsWith("GCDC_")) {
+    const cacheKey = `${base}::${garminKey}`;
+    const cached = garminBearerCache.get(cacheKey);
+    if (cached && Date.now() < cached.exp) {
+      return cached.token;
+    }
     const tokenRes = await fetch(`${base}/personalapitoken-service/personal-api/personal-api-key/token`, {
       method: "POST",
       headers: {
@@ -1238,6 +1255,7 @@ async function exchangeGarminBearerToken(base: string, garminKey: string) {
       throw new Error(`Garmin Token HTTP ${tokenRes.status}: ${errTxt.slice(0, 160)}`);
     }
     bearerToken = (await tokenRes.text()).trim();
+    garminBearerCache.set(cacheKey, { token: bearerToken, exp: Date.now() + 45 * 60 * 1000 });
   }
   return bearerToken;
 }
@@ -1247,7 +1265,8 @@ async function syncFromGarminForUser(
   userId: string,
   todayStr: string,
   settings: any,
-  integration: any
+  integration: any,
+  opts?: { onlyActivities?: boolean }
 ) {
   const { garminKey, base } = resolveGarminCredentials(integration);
   if (!garminKey) {
@@ -1273,6 +1292,9 @@ async function syncFromGarminForUser(
   const safeGet = async (path: string) => {
     try {
       const r = await fetch(`${base}${path}`, { headers, signal: AbortSignal.timeout(10000) });
+      if (r.status === 401 && garminKey.startsWith("GCDC_")) {
+        garminBearerCache.delete(`${base}::${garminKey}`);
+      }
       return r.ok ? await r.json() : null;
     } catch (_) {
       return null;
@@ -1281,6 +1303,9 @@ async function syncFromGarminForUser(
   const safeGetSt = async (path: string) => {
     try {
       const r = await fetch(`${base}${path}`, { headers, signal: AbortSignal.timeout(10000) });
+      if (r.status === 401 && garminKey.startsWith("GCDC_")) {
+        garminBearerCache.delete(`${base}::${garminKey}`);
+      }
       return { status: r.status, data: r.ok ? await r.json() : null };
     } catch (_) {
       return { status: 0, data: null };
@@ -1288,27 +1313,48 @@ async function syncFromGarminForUser(
   };
 
   try {
-    const vo2RangeBase = new Date(`${todayStr}T00:00:00Z`);
-    vo2RangeBase.setUTCDate(vo2RangeBase.getUTCDate() - 30);
-    const vo2StartStr = vo2RangeBase.toISOString().slice(0, 10);
+    const onlyActs = Boolean(opts?.onlyActivities);
+    let sleepArr: any = null,
+      hrv: any = null,
+      summary: any = null,
+      acts: any = null,
+      vo2: any = null,
+      vo2Latest: any = null,
+      vo2Range: any = null,
+      enduranceRes: any = null,
+      fitnessAge: any = null,
+      dailyHr: any = null,
+      bbReport: any = null;
+    let devicesRes: { status: number; data: any } = { status: 0, data: null };
+    let lastUsedRes: { status: number; data: any } = { status: 0, data: null };
+    let deviceInfoRes: { status: number; data: any } = { status: 0, data: null };
+    let sensorsRes: { status: number; data: any } = { status: 0, data: null };
 
-    const [sleepArr, hrv, summary, acts, vo2, vo2Latest, vo2Range, enduranceRes, fitnessAge, dailyHr, bbReport, devicesRes, lastUsedRes, deviceInfoRes, sensorsRes] = await Promise.all([
-      safeGet(`/sleep-service/sleep/dailySleepSummariesByDate?startDate=${todayStr}&endDate=${todayStr}`),
-      safeGet(`/hrv-service/hrv/${todayStr}`),
-      safeGet(`/usersummary-service/usersummary/daily?calendarDate=${todayStr}`),
-      safeGet(`/activitylist-service/activities/search/activities?limit=6`),
-      safeGet(`/metrics-service/metrics/maxmet/daily/${todayStr}/${todayStr}`),
-      safeGet(`/metrics-service/metrics/maxmet/latest/${todayStr}`),
-      safeGet(`/metrics-service/metrics/maxmet/daily/${vo2StartStr}/${todayStr}`),
-      safeGet(`/metrics-service/metrics/endurancescore?calendarDate=${todayStr}`),
-      safeGet(`/fitnessage-service/fitnessage/v2/${todayStr}`),
-      safeGet(`/wellness-service/wellness/dailyHeartRate?date=${todayStr}`),
-      safeGet(`/wellness-service/wellness/bodyBattery/reports/daily?startDate=${todayStr}&endDate=${todayStr}`),
-      safeGetSt(`/device-service/deviceregistration/devices`),
-      safeGetSt(`/device-service/deviceservice/last-used`),
-      safeGetSt(`/device-service/deviceservice/device-info/all`),
-      safeGetSt(`/device-service/sensors`),
-    ]);
+    if (onlyActs) {
+      acts = await safeGet(`/activitylist-service/activities/search/activities?limit=6`);
+    } else {
+      const vo2RangeBase = new Date(`${todayStr}T00:00:00Z`);
+      vo2RangeBase.setUTCDate(vo2RangeBase.getUTCDate() - 30);
+      const vo2StartStr = vo2RangeBase.toISOString().slice(0, 10);
+
+      [sleepArr, hrv, summary, acts, vo2, vo2Latest, vo2Range, enduranceRes, fitnessAge, dailyHr, bbReport, devicesRes, lastUsedRes, deviceInfoRes, sensorsRes] = await Promise.all([
+        safeGet(`/sleep-service/sleep/dailySleepSummariesByDate?startDate=${todayStr}&endDate=${todayStr}`),
+        safeGet(`/hrv-service/hrv/${todayStr}`),
+        safeGet(`/usersummary-service/usersummary/daily?calendarDate=${todayStr}`),
+        safeGet(`/activitylist-service/activities/search/activities?limit=6`),
+        safeGet(`/metrics-service/metrics/maxmet/daily/${todayStr}/${todayStr}`),
+        safeGet(`/metrics-service/metrics/maxmet/latest/${todayStr}`),
+        safeGet(`/metrics-service/metrics/maxmet/daily/${vo2StartStr}/${todayStr}`),
+        safeGet(`/metrics-service/metrics/endurancescore?calendarDate=${todayStr}`),
+        safeGet(`/fitnessage-service/fitnessage/v2/${todayStr}`),
+        safeGet(`/wellness-service/wellness/dailyHeartRate?date=${todayStr}`),
+        safeGet(`/wellness-service/wellness/bodyBattery/reports/daily?startDate=${todayStr}&endDate=${todayStr}`),
+        safeGetSt(`/device-service/deviceregistration/devices`),
+        safeGetSt(`/device-service/deviceservice/last-used`),
+        safeGetSt(`/device-service/deviceservice/device-info/all`),
+        safeGetSt(`/device-service/sensors`),
+      ]);
+    }
     const devices = devicesRes.data;
     const lastUsed = lastUsedRes.data;
     const deviceInfoAll = deviceInfoRes.data;
@@ -1595,6 +1641,9 @@ async function syncFromGarminForUser(
         const actId = a.activityId;
         if (!actId) continue;
         const prevRow = existingMap.get(Number(actId));
+        if (prevRow && (onlyActs || detectedDevice?.name)) {
+          continue;
+        }
         const actType = a.activityType?.typeKey || "other";
         const actName = a.activityName || "Garmin Aktivite";
 
@@ -1741,7 +1790,7 @@ async function syncFromGarminForUser(
       }
     }
 
-    if (detectedDevice) {
+    if (!onlyActs && detectedDevice) {
       const { data: latestSet } = await supabase
         .from("athlete_settings")
         .select("weather_cache")
@@ -1935,7 +1984,9 @@ async function runDailyAnalysisForUser(
   const redFlags = detectRedFlags(bio, settings);
 
   const hrvMissing = bio.hrv_nightly_avg == null;
-  const alreadyReportedToday = settings?.last_daily_report_date === ist.dateStr;
+  const alreadyReportedToday =
+    settings?.last_daily_report_date === ist.dateStr ||
+    Boolean(todayRow?.ai_daily_brief?.headline);
   let shouldGenerateFullBrief = false;
 
   if (hasRealTodayData) {
@@ -2640,7 +2691,7 @@ Deno.serve(async (req: Request) => {
             const { garminKey } = resolveGarminCredentials(integ);
             let syncedCount = 0;
             if (garminKey) {
-              const gs = await syncFromGarminForUser(supabase, uid, ist.dateStr, s, integ);
+              const gs = await syncFromGarminForUser(supabase, uid, ist.dateStr, s, integ, { onlyActivities: true });
               syncedCount = gs.activities_synced || 0;
             }
             const cutoff36h = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
@@ -2970,7 +3021,7 @@ Deno.serve(async (req: Request) => {
       const avgRhr = validRhr.length ? Math.round(validRhr.reduce((s: number, b: any) => s + Number(b.rhr), 0) / validRhr.length) : (settings?.base_rhr ?? 46);
 
       const deepContext = buildDeepAthleteContext(recentBios || [], recentActs || [], settings);
-      const prevHistory = Array.isArray(settings?.weather_cache?.coach_history) ? settings.weather_cache.coach_history.slice(-6) : [];
+      const prevHistory = Array.isArray(settings?.weather_cache?.coach_history) ? settings.weather_cache.coach_history.slice(-3) : [];
       const recentActSummaries = (recentActs || []).slice(0, 6).map((a: any) => ({
         name: a.activity_name,
         type: a.activity_type,
@@ -2980,13 +3031,24 @@ Deno.serve(async (req: Request) => {
         load: a.training_load,
         start: a.start_time_local,
       }));
+      const rawEw = todayBio.evening_weather || {};
+      const compactWeather = rawEw.city || rawEw.temp_c != null
+        ? {
+            city: rawEw.city,
+            temp_c: rawEw.temp_c,
+            aqi_max: rawEw.aqi_max,
+            dial_level: rawEw.dial_level,
+            sunset: rawEw.sunset,
+            clothing_advice: rawEw.clothing_advice,
+          }
+        : {};
 
       const firstName = formatAthleteFirstName(settings?.display_name);
       const prompt = `Sen ${firstName ? `${firstName} (${settings?.birth_year ?? 1990} doğumlu) adlı sporcunun` : `sporcunun (${settings?.birth_year ?? 1990} doğumlu)`} baş performans koçusun. Sade, teknik terimsiz, samimi Türkçe yanıt ver${firstName ? ` (uygun yerde ${firstName} diye sıcak bir şekilde hitap et)` : ""}.
 Bugün (${todayBio.log_date || ist.dateStr}): Hazırlık ${todayBio.readiness_score ?? "--"}/100, Toparlanma ${todayBio.hrv_nightly_avg ?? "--"} puan, Dinlenik Nabız ${todayBio.rhr ?? "--"} atım/dk, Uyku ${todayBio.sleep_score ?? "--"}/100, En Yüksek Enerji ${todayBio.body_battery_max ?? "--"}/100.
 7 Günlük Ort: Toparlanma ${avgHrv} puan, Nabız ${avgRhr} atım/dk, Uyku Ort ${deepContext.sleep_7d_avg_h ?? "--"} sa, Uyku Borcu ${deepContext.sleep_7d_debt_h} sa.
 Derin Analiz: ${JSON.stringify(deepContext)}
-Akşam Hava/AQI (${ist.dateStr}): ${JSON.stringify(todayBio.evening_weather || {})}
+Akşam Hava/AQI (${ist.dateStr}): ${JSON.stringify(compactWeather)}
 Son Antrenmanlar: ${JSON.stringify(recentActSummaries)}
 Sohbet Hafızası: ${JSON.stringify(prevHistory)}
 Soru: "${question}"
@@ -3193,7 +3255,7 @@ JSON döndür (başka metin ekleme): {"answer":"Kullanıcının gerçek rakamlar
     if (action === "yeniAntrenmanKontrol" || action === "sonAntrenmaniManuelAnalizEt") {
       const { garminKey } = resolveGarminCredentials(integration);
       if (garminKey) {
-        await syncFromGarminForUser(supabase, userId, ist.dateStr, settings, integration);
+        await syncFromGarminForUser(supabase, userId, ist.dateStr, settings, integration, { onlyActivities: true });
       }
 
       const { data: latestActs } = await supabase

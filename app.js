@@ -242,6 +242,16 @@ async function autoSyncGarminOnLaunch() {
   if (elapsed < MIN_RETRY_MS) return;
   if (!needsToday && elapsed < COOLDOWN_MS) return;
 
+  const latestUpdatedMs = state.biometrics?.[0]?.updated_at ? Date.parse(state.biometrics[0].updated_at) : 0;
+  if (!needsToday && Number.isFinite(latestUpdatedMs) && Date.now() - latestUpdatedMs < 15 * 60 * 1000) {
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.setItem(storageKey, String(Date.now()));
+      }
+    } catch (_) {}
+    return;
+  }
+
   state._autoSyncInFlight = true;
   const metaEl = typeof document !== "undefined" ? document.getElementById("home-live-meta") : null;
   const prevMeta = metaEl ? metaEl.textContent : "";

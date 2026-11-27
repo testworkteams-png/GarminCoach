@@ -24,11 +24,19 @@ Asla uydurma veya tahmin etme; okunamayanı atla. Yalnızca şu şemaya uyan ge�
 {"report_date": string|null, "lab_name": string|null, "results": [{"name": string, "raw_name": string|null, "value": number, "unit": string|null, "ref_low": number|null, "ref_high": number|null}]}`;
 
 const MODELS = [
-  "models/gemini-3.6-flash",
-  "models/gemini-3.5-flash",
-  "models/gemini-3.5-flash-lite",
   "models/gemini-2.5-flash",
+  "models/gemini-2.5-flash-lite",
+  "models/gemini-2.0-flash",
 ];
+
+function buildGenConfig(modelName: string, temperature: number, maxOutputTokens: number) {
+  return {
+    temperature,
+    maxOutputTokens,
+    responseMimeType: "application/json",
+    ...(modelName.includes("gemini-2.5") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+  };
+}
 
 function jsonResp(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -400,7 +408,7 @@ Yalnızca şu JSON şemasını döndür: {"summary": "3-4 cümlelik akıcı Tür
           signal: AbortSignal.timeout(35000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: focusPrompt }] }],
-            generationConfig: { temperature: 0.3, responseMimeType: "application/json" },
+            generationConfig: buildGenConfig(modelName, 0.3, 550),
           }),
         },
       );
@@ -516,7 +524,7 @@ async function handleParseMedicationLabel(body: any, apiKey: string) {
           signal: AbortSignal.timeout(40000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: MED_LABEL_PROMPT }, { inline_data: { mime_type: mime, data } }] }],
-            generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+            generationConfig: buildGenConfig(modelName, 0.1, 900),
           }),
         },
       );
@@ -605,7 +613,7 @@ Deno.serve(async (req: Request) => {
             signal: AbortSignal.timeout(50000),
             body: JSON.stringify({
               contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: mime, data } }] }],
-              generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+              generationConfig: buildGenConfig(modelName, 0.1, 2400),
             }),
           },
         );

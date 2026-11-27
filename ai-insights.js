@@ -319,6 +319,23 @@
       return;
     }
 
+    let todayIso = "";
+    try {
+      todayIso = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Istanbul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+    } catch (_) {
+      todayIso = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+    }
+    if (moduleState.insight && moduleState.insight.date === todayIso) {
+      renderInsightCard();
+      await syncLocalDailyNotification(moduleState.insight);
+      return;
+    }
+
     moduleState.loading = true;
     renderInsightCard();
 
