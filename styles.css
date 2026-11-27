@@ -1206,13 +1206,17 @@ tr:hover td { background: rgba(255, 255, 255, 0.025); }
 /* Forms & Modals */
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 10px 12px;
+  min-width: 0;
 }
 
+.field { min-width: 0; }
 .field label { display: block; font-size: 11.5px; color: var(--text-muted); margin-bottom: 5px; }
 .field input, .field select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   background: rgba(4, 7, 15, 0.85);
   border: 1px solid rgba(148, 163, 184, 0.26);
   border-radius: 10px;
@@ -1230,7 +1234,8 @@ tr:hover td { background: rgba(255, 255, 255, 0.025); }
   display: none;
   place-items: center;
   z-index: 1000;
-  padding: 16px;
+  padding: 12px;
+  overflow-y: auto;
 }
 .modal-backdrop.open { display: grid; }
 .modal-card {
@@ -1239,8 +1244,15 @@ tr:hover td { background: rgba(255, 255, 255, 0.025); }
   border-radius: var(--radius);
   padding: 22px;
   width: 100%;
-  max-width: 540px;
+  min-width: 0;
+  max-width: min(540px, calc(100vw - 24px));
+  max-height: 90vh;
+  overflow-y: auto;
+  overflow-x: hidden;
   box-shadow: var(--shadow);
+}
+@media (max-width: 520px) {
+  .modal-card { padding: 16px; }
 }
 
 .doc-entry {
@@ -3257,7 +3269,7 @@ html[data-theme="weather_sunny"] .lab-carousel-dot.active {
    FAZ 1: HIZLI EKLE BOTTOM SHEET, VÜCUT & SAĞLIK SEKMELERİ
    ============================================================================ */
 .modal-card-wide {
-  max-width: 620px;
+  max-width: min(620px, calc(100vw - 24px));
   max-height: 88vh;
   overflow-y: auto;
 }
@@ -4804,6 +4816,8 @@ button.med-day {
 .med-preset-strip {
   display: flex;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   padding-bottom: 10px;
   margin-bottom: 10px;
