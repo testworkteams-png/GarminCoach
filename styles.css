@@ -953,6 +953,7 @@ html[data-theme="weather_sunny"] .pill-score-crit {
 
 .mini-box-lbl { font-size: 11px; color: var(--text-muted); }
 .mini-box-val { font-size: 15px; font-weight: 700; margin-top: 2px; }
+.weather-kpis .mini-box-val { font-size: clamp(12.5px, 3.3vw, 15px); }
 
 .act-kpi-grid {
   display: grid;
@@ -987,7 +988,8 @@ html[data-theme="weather_sunny"] .pill-score-crit {
 }
 
 .hourly-strip .hour-pill {
-  flex: 0 0 92px;
+  flex: 1 0 92px;
+  min-width: 92px;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
@@ -1051,6 +1053,12 @@ html[data-theme="weather_sunny"] .pill-score-crit {
   background: rgba(245, 158, 11, 0.22);
   color: #fde68a;
   border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.hour-tag.next {
+  background: rgba(139, 92, 246, 0.22);
+  color: #ddd6fe;
+  border: 1px solid rgba(139, 92, 246, 0.45);
 }
 
 .clothing-box {

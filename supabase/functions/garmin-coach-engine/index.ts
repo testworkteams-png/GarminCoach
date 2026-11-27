@@ -412,7 +412,11 @@ async function havaMotoruVeAksamKadran(
   loc: { active_city: string; active_lat: number; active_lon: number },
   todayStr: string
 ) {
-  const metByHour: Record<number, { temp_c: number; wind_kmh: number; precip_prob: number }> = {};
+  const tomorrowDt = new Date(`${todayStr}T12:00:00Z`);
+  tomorrowDt.setUTCDate(tomorrowDt.getUTCDate() + 1);
+  const tomorrowStr = tomorrowDt.toISOString().slice(0, 10);
+
+  const metByKey: Record<string, { temp_c: number; wind_kmh: number; precip_prob: number; humidity: number | null }> = {};
   let primarySource = "MET Norway";
 
   try {
@@ -440,13 +444,15 @@ async function havaMotoruVeAksamKadran(
         for (const p of trParts) pm[p.type] = p.value;
         const dStr = `${pm.year}-${pm.month}-${pm.day}`;
         const h = Number(pm.hour === "24" ? 0 : pm.hour);
-        if (dStr === todayStr && entry?.data?.instant?.details) {
+        const isTarget = dStr === todayStr || (dStr === tomorrowStr && h <= 5);
+        if (isTarget && entry?.data?.instant?.details) {
           const d = entry.data.instant.details;
           const next1h = entry.data?.next_1_hours?.details?.precipitation_amount ?? 0;
-          metByHour[h] = {
+          metByKey[`${dStr}_${h}`] = {
             temp_c: Number((d.air_temperature ?? 13).toFixed(1)),
             wind_kmh: Number(((d.wind_speed ?? 3) * 3.6).toFixed(1)),
             precip_prob: next1h > 0.2 ? 75 : next1h > 0 ? 35 : 10,
+            humidity: d.relative_humidity != null ? Math.round(Number(d.relative_humidity)) : null,
           };
         }
       }
@@ -455,32 +461,38 @@ async function havaMotoruVeAksamKadran(
     primarySource = "Open-Meteo";
   }
 
-  const omByHour: Record<number, { temp_c: number; feels_like_c: number; wind_kmh: number; precip_prob: number }> = {};
+  const omByKey: Record<string, { temp_c: number; feels_like_c: number; humidity: number | null; uv_index: number | null; wind_kmh: number; precip_prob: number }> = {};
+  let sunriseStr = "07:45";
   let sunsetStr = "17:45";
   let forecast7d: any[] = [];
 
   try {
     const omRes = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${loc.active_lat}&longitude=${loc.active_lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,sunset,weather_code&timezone=Europe%2FIstanbul&forecast_days=7`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${loc.active_lat}&longitude=${loc.active_lon}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,wind_speed_10m,uv_index,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,weather_code&timezone=Europe%2FIstanbul&forecast_days=7`,
       { signal: AbortSignal.timeout(8000) }
     );
     if (omRes.ok) {
       const om = await omRes.json();
       const times: string[] = om?.hourly?.time || [];
       times.forEach((t, idx) => {
-        if (t.startsWith(todayStr)) {
-          const hr = Number(t.slice(11, 13));
-          if (hr >= 0 && hr <= 23) {
-            omByHour[hr] = {
-              temp_c: Number((om.hourly.temperature_2m[idx] ?? 13).toFixed(1)),
-              feels_like_c: Number((om.hourly.apparent_temperature[idx] ?? 12).toFixed(1)),
-              wind_kmh: Number((om.hourly.wind_speed_10m[idx] ?? 10).toFixed(1)),
-              precip_prob: Math.round(om.hourly.precipitation_probability[idx] ?? 10),
-            };
-          }
+        const dStr = t.slice(0, 10);
+        const hr = Number(t.slice(11, 13));
+        const isTarget = (dStr === todayStr && hr >= 0 && hr <= 23) || (dStr === tomorrowStr && hr >= 0 && hr <= 5);
+        if (isTarget) {
+          const rawHum = om.hourly.relative_humidity_2m?.[idx];
+          const rawUv = om.hourly.uv_index?.[idx];
+          omByKey[`${dStr}_${hr}`] = {
+            temp_c: Number((om.hourly.temperature_2m[idx] ?? 13).toFixed(1)),
+            feels_like_c: Number((om.hourly.apparent_temperature[idx] ?? 12).toFixed(1)),
+            humidity: rawHum != null ? Math.round(Number(rawHum)) : null,
+            uv_index: rawUv != null ? Number(Number(rawUv).toFixed(1)) : null,
+            wind_kmh: Number((om.hourly.wind_speed_10m[idx] ?? 10).toFixed(1)),
+            precip_prob: Math.round(om.hourly.precipitation_probability[idx] ?? 10),
+          };
         }
       });
 
+      if (om?.daily?.sunrise?.[0]) sunriseStr = om.daily.sunrise[0].slice(11, 16);
       if (om?.daily?.sunset?.[0]) sunsetStr = om.daily.sunset[0].slice(11, 16);
 
       const dTimes: string[] = om?.daily?.time || [];
@@ -501,7 +513,7 @@ async function havaMotoruVeAksamKadran(
     }
   } catch (_) {}
 
-  const aqByHour: Record<number, { aqi: number; pm25: number }> = {};
+  const aqByKey: Record<string, { aqi: number; pm25: number }> = {};
   try {
     const aqRes = await fetch(
       `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${loc.active_lat}&longitude=${loc.active_lon}&hourly=european_aqi,pm2_5&timezone=Europe%2FIstanbul&forecast_days=2`,
@@ -511,21 +523,21 @@ async function havaMotoruVeAksamKadran(
       const aq = await aqRes.json();
       const aqTimes: string[] = aq?.hourly?.time || [];
       aqTimes.forEach((t, idx) => {
-        if (t.startsWith(todayStr)) {
-          const hr = Number(t.slice(11, 13));
-          if (hr >= 0 && hr <= 23) {
-            aqByHour[hr] = {
-              aqi: Math.round(aq.hourly.european_aqi[idx] ?? 25),
-              pm25: Number((aq.hourly.pm2_5[idx] ?? 8.0).toFixed(1)),
-            };
-          }
+        const dStr = t.slice(0, 10);
+        const hr = Number(t.slice(11, 13));
+        const isTarget = (dStr === todayStr && hr >= 0 && hr <= 23) || (dStr === tomorrowStr && hr >= 0 && hr <= 5);
+        if (isTarget) {
+          aqByKey[`${dStr}_${hr}`] = {
+            aqi: Math.round(aq.hourly.european_aqi[idx] ?? 25),
+            pm25: Number((aq.hourly.pm2_5[idx] ?? 8.0).toFixed(1)),
+          };
         }
       });
     }
   } catch (_) {}
 
-  const hasLiveMet = Object.keys(metByHour).length > 0;
-  const hasLiveOm = Object.keys(omByHour).length > 0;
+  const hasLiveMet = Object.keys(metByKey).length > 0;
+  const hasLiveOm = Object.keys(omByKey).length > 0;
   const cache = settings?.weather_cache;
   const cacheFresh = cache?.cached_at && (Date.now() - new Date(cache.cached_at).getTime()) < 6 * 3600 * 1000;
 
@@ -536,20 +548,29 @@ async function havaMotoruVeAksamKadran(
     };
   }
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const hourlySlots = hours.map((h) => {
-    const m = metByHour[h];
-    const o = omByHour[h];
-    const aq = aqByHour[h] || { aqi: 28, pm25: 8.5 };
+  const slotDefs: Array<{ dStr: string; h: number; dayOffset: number }> = [
+    ...Array.from({ length: 24 }, (_, h) => ({ dStr: todayStr, h, dayOffset: 0 })),
+    ...Array.from({ length: 6 }, (_, h) => ({ dStr: tomorrowStr, h, dayOffset: 1 })),
+  ];
+  const hourlySlots = slotDefs.map(({ dStr, h, dayOffset }) => {
+    const key = `${dStr}_${h}`;
+    const m = metByKey[key];
+    const o = omByKey[key];
+    const aq = aqByKey[key] || { aqi: 28, pm25: 8.5 };
     const temp = m?.temp_c ?? o?.temp_c ?? 13.0;
     const feels = o?.feels_like_c ?? Number((temp - 0.8).toFixed(1));
+    const humidity = m?.humidity ?? o?.humidity ?? null;
+    const uvIndex = o?.uv_index ?? null;
     const wind = m?.wind_kmh ?? o?.wind_kmh ?? 11.0;
     const precip = o?.precip_prob ?? m?.precip_prob ?? 10;
     const dial = dialForAqi(aq.aqi);
     return {
       hour: `${String(h).padStart(2, "0")}:00`,
+      day_offset: dayOffset,
       temp_c: temp,
       feels_like_c: feels,
+      humidity,
+      uv_index: uvIndex,
       wind_kmh: wind,
       precip_prob: precip,
       aqi: aq.aqi,
@@ -562,6 +583,8 @@ async function havaMotoruVeAksamKadran(
   const currentSlot = hourlySlots[istNow.hour] || hourlySlots[0];
   const finalTemp = currentSlot.temp_c;
   const finalFeels = currentSlot.feels_like_c;
+  const finalHumidity = currentSlot.humidity;
+  const finalUv = currentSlot.uv_index;
   const finalWind = currentSlot.wind_kmh;
   const finalPrecip = currentSlot.precip_prob;
   const finalAqi = currentSlot.aqi;
@@ -576,8 +599,11 @@ async function havaMotoruVeAksamKadran(
     window: "00:00-23:00",
     temp_c: finalTemp,
     feels_like_c: finalFeels,
+    humidity: finalHumidity,
+    uv_index: finalUv,
     wind_kmh: finalWind,
     precip_prob: finalPrecip,
+    sunrise: sunriseStr,
     sunset: sunsetStr,
     aqi_max: finalAqi,
     pm25_max: finalPm25,

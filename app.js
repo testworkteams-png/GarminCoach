@@ -422,7 +422,7 @@ function renderTopbar() {
   if (weatherPill) {
     const nowHr = new Date().getHours();
     const liveSlot = Array.isArray(w?.hourly_slots)
-      ? w.hourly_slots.find((sl) => parseInt(String(sl?.hour || "").slice(0, 2), 10) === nowHr)
+      ? w.hourly_slots.find((sl) => (sl?.day_offset ?? 0) === 0 && parseInt(String(sl?.hour || "").slice(0, 2), 10) === nowHr)
       : null;
     const effTemp = liveSlot?.temp_c ?? w?.temp_c;
     const effFeels = liveSlot?.feels_like_c ?? w?.feels_like_c;
@@ -1177,55 +1177,78 @@ function renderDashboard() {
   `;
   renderSleepDebtAndBedtime();
 
-  // All-Day Live AQI Semicircle Gauge & Forward-Looking Hourly Strip
+  // All-Day Live AQI Semicircle Gauge & Forward-Looking 6-Hour Strip (Now + 5h)
   const w = latest.evening_weather || {};
   const nowDt = new Date();
   const nowHour = nowDt.getHours();
   const nowMin = nowDt.getMinutes();
-  const nowHourStr = `${String(nowHour).padStart(2, "0")}:00`;
   const nowTimeStr = `${String(nowHour).padStart(2, "0")}:${String(nowMin).padStart(2, "0")}`;
   const dialByAqi = (val) => (val > 75 ? "KIRMIZI" : val > 50 ? "TURUNCU" : val > 25 ? "SARI" : "YEŞİL");
   const badgeClsFor = (lvl) =>
     lvl === "YEŞİL" ? "badge-ok" : lvl === "SARI" ? "badge-warn" : lvl === "TURUNCU" ? "badge-orange" : "badge-crit";
 
   const rawSlots = Array.isArray(w.hourly_slots) ? w.hourly_slots : [];
-  let slots = rawSlots
-    .map((sl) => ({ sl, hr: parseInt(String(sl?.hour || "").slice(0, 2), 10) }))
-    .filter((x) => Number.isFinite(x.hr) && x.hr >= nowHour && x.hr <= 23)
-    .sort((a, b) => a.hr - b.hr)
-    .map((x) => x.sl);
+  const slotByAbsHour = new Map();
+  for (const sl of rawSlots) {
+    const hr = parseInt(String(sl?.hour || "").slice(0, 2), 10);
+    if (!Number.isFinite(hr)) continue;
+    const dayOffset = Number(sl?.day_offset || 0);
+    const absHr = dayOffset * 24 + hr;
+    if (!slotByAbsHour.has(absHr)) slotByAbsHour.set(absHr, sl);
+  }
 
-  if (!slots.length) {
-    const fbTemp = w.temp_c ?? 13;
-    const fbFeels = w.feels_like_c ?? fbTemp;
-    const fbWind = w.wind_kmh ?? 12;
-    const fbPrecip = w.precip_prob ?? 10;
-    const fbAqi = Number(w.aqi_max ?? 25);
-    const fbPm25 = w.pm25_max ?? null;
-    const fbDial = w.dial_level || dialByAqi(fbAqi);
-    slots = [];
-    for (let h = nowHour; h <= 23; h++) {
+  const fbTemp = w.temp_c ?? 13;
+  const fbFeels = w.feels_like_c ?? fbTemp;
+  const fbHumidity = w.humidity ?? null;
+  const fbUv = w.uv_index ?? null;
+  const fbWind = w.wind_kmh ?? 12;
+  const fbPrecip = w.precip_prob ?? 10;
+  const fbAqi = Number(w.aqi_max ?? 25);
+  const fbPm25 = w.pm25_max ?? null;
+  const fbDial = w.dial_level || dialByAqi(fbAqi);
+
+  const slots = [];
+  let lastKnown = slotByAbsHour.get(nowHour) || null;
+  for (let step = 0; step < 6; step++) {
+    const absHr = nowHour + step;
+    const h = absHr % 24;
+    const dayOffset = absHr >= 24 ? 1 : 0;
+    const found = slotByAbsHour.get(absHr);
+    if (found) {
+      lastKnown = found;
+      slots.push({ ...found, day_offset: dayOffset });
+    } else {
+      const ref = lastKnown || {};
+      const refAqi = Number(ref.aqi ?? fbAqi);
       slots.push({
         hour: `${String(h).padStart(2, "0")}:00`,
-        temp_c: fbTemp,
-        feels_like_c: fbFeels,
-        wind_kmh: fbWind,
-        precip_prob: fbPrecip,
-        aqi: fbAqi,
-        pm25: fbPm25,
-        dial_level: fbDial,
+        day_offset: dayOffset,
+        temp_c: ref.temp_c ?? fbTemp,
+        feels_like_c: ref.feels_like_c ?? fbFeels,
+        humidity: ref.humidity ?? fbHumidity,
+        uv_index: ref.uv_index ?? fbUv,
+        wind_kmh: ref.wind_kmh ?? fbWind,
+        precip_prob: ref.precip_prob ?? fbPrecip,
+        aqi: refAqi,
+        pm25: ref.pm25 ?? fbPm25,
+        dial_level: ref.dial_level || dialByAqi(refAqi),
       });
     }
   }
 
-  const currentSlot = slots.find((sl) => parseInt(String(sl?.hour || "").slice(0, 2), 10) === nowHour) || slots[0];
+  const currentSlot = slots[0];
   const curAqi = Number(currentSlot?.aqi ?? w.aqi_max ?? 25);
   const curPm25 = currentSlot?.pm25 ?? w.pm25_max ?? "--";
   const curTemp = currentSlot?.temp_c ?? w.temp_c ?? "--";
   const curFeels = currentSlot?.feels_like_c ?? w.feels_like_c ?? curTemp;
+  const curHumidity = currentSlot?.humidity ?? w.humidity ?? null;
+  const curUv = currentSlot?.uv_index ?? w.uv_index ?? null;
   const curWind = currentSlot?.wind_kmh ?? w.wind_kmh ?? "--";
   const curPrecip = currentSlot?.precip_prob ?? w.precip_prob ?? 0;
   const curDialLbl = currentSlot?.dial_level || w.dial_level || dialByAqi(curAqi);
+
+  const humText = curHumidity != null ? `%${Math.round(Number(curHumidity))}` : "--";
+  const uvText = curUv != null ? Number(curUv).toFixed(1).replace(/\.0$/, "") : "--";
 
   const sumTimeEl = document.getElementById("weather-sum-time");
   if (sumTimeEl) sumTimeEl.textContent = `🕒 ${nowTimeStr}`;
@@ -1252,8 +1275,8 @@ function renderDashboard() {
   document.getElementById("evening-weather-stats").innerHTML = `
     <div class="mini-box"><div class="mini-box-lbl">Sıcaklık / Hissedilen</div><div class="mini-box-val mono">${curTemp}° / ${curFeels}°</div></div>
     <div class="mini-box"><div class="mini-box-lbl">Rüzgar / Yağış</div><div class="mini-box-val mono">${curWind} km/s · %${curPrecip}</div></div>
-    <div class="mini-box"><div class="mini-box-lbl">Gün Batımı</div><div class="mini-box-val mono">🌇 ${w.sunset ?? "--"}</div></div>
-    <div class="mini-box"><div class="mini-box-lbl">Aktif Pencere</div><div class="mini-box-val mono">${nowHourStr}–23:00</div></div>
+    <div class="mini-box"><div class="mini-box-lbl">Gün Doğumu / Batımı</div><div class="mini-box-val mono">🌅 ${w.sunrise ?? "--"} · 🌇 ${w.sunset ?? "--"}</div></div>
+    <div class="mini-box"><div class="mini-box-lbl">Nem / UV İndeksi</div><div class="mini-box-val mono">💧 ${humText} · ☀️ UV ${uvText}</div></div>
   `;
 
   const scoreSlot = (sl) =>
@@ -1272,13 +1295,13 @@ function renderDashboard() {
     bestBanner.innerHTML = `🎯 <strong>Altın Saat (${escapeHtml(bestSlot.hour)}):</strong> AQI ${bestSlot.aqi} (${escapeHtml(bestSlot.dial_level || curDialLbl)}) · Rüzgar ${bestSlot.wind_kmh ?? "--"} km/s · ${bestSlot.temp_c}°C (Yağış %${bestSlot.precip_prob})`;
   }
   document.getElementById("hourly-walk-strip").innerHTML = slots
-    .map((slot) => {
-      const slotHr = parseInt(String(slot.hour || "").slice(0, 2), 10);
-      const isCurrent = slotHr === nowHour;
-      const isBest = slot.hour === bestSlot.hour;
+    .map((slot, idx) => {
+      const isCurrent = idx === 0;
+      const isBest = slot === bestSlot;
+      const isTomorrowStart = slot.day_offset === 1 && slot.hour === "00:00";
       const dotCol = slot.aqi <= 25 ? "#10b981" : slot.aqi <= 50 ? "#f59e0b" : slot.aqi <= 75 ? "#fb923c" : "#ef4444";
-      const tagsHtml = isCurrent || isBest
-        ? `<div class="hour-pill-tags">${isCurrent ? '<span class="hour-tag now">ŞİMDİ</span>' : ""}${isBest ? '<span class="hour-tag gold">★ ALTIN</span>' : ""}</div>`
+      const tagsHtml = isCurrent || isBest || isTomorrowStart
+        ? `<div class="hour-pill-tags">${isCurrent ? '<span class="hour-tag now">ŞİMDİ</span>' : ""}${isTomorrowStart ? '<span class="hour-tag next">YARIN</span>' : ""}${isBest ? '<span class="hour-tag gold">★ ALTIN</span>' : ""}</div>`
         : "";
       return `
       <div class="hour-pill ${isCurrent ? "is-current" : ""} ${isBest ? "best" : ""}">
