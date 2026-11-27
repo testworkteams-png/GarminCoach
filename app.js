@@ -1130,20 +1130,23 @@ function renderImmunityRadar(s) {
   }
   card.classList.remove("hidden");
 
-  const sumBadge = document.getElementById("immunity-sum-badge");
-  if (sumBadge) {
-    sumBadge.textContent = radar.level;
-    sumBadge.className = `badge mono ${radar.badgeCls}`;
-  }
-  const sumPct = document.getElementById("immunity-sum-pct");
-  if (sumPct) sumPct.textContent = `%${radar.score}`;
-  const sumMarker = document.getElementById("immunity-sum-marker");
-  if (sumMarker) sumMarker.style.left = `${Math.min(97, Math.max(3, radar.score))}%`;
-
   const innerBadge = document.getElementById("immunity-inner-badge");
   if (innerBadge) {
     innerBadge.textContent = `%${radar.score} · ${radar.level}`;
     innerBadge.className = `badge mono ${radar.badgeCls}`;
+  }
+  const dialVal = document.getElementById("immunity-dial-val");
+  if (dialVal) dialVal.textContent = `%${radar.score}`;
+  const needle = document.getElementById("immunity-needle");
+  if (needle) {
+    const clampedScore = Math.min(100, Math.max(0, radar.score));
+    const angle = -82 + (clampedScore / 100) * 164;
+    needle.setAttribute("transform", `rotate(${angle.toFixed(1)} 75 74)`);
+  }
+  const needleDot = document.getElementById("immunity-needle-dot");
+  if (needleDot) {
+    const dotColor = radar.score >= 75 ? "#ef4444" : radar.score >= 50 ? "#fb923c" : radar.score >= 25 ? "#f59e0b" : "#10b981";
+    needleDot.setAttribute("fill", dotColor);
   }
   const metaSub = document.getElementById("immunity-meta-sub");
   if (metaSub) {

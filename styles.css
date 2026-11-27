@@ -6019,177 +6019,64 @@ html[data-theme="weather_sunny"] .lab-acc-chevron {
   background: rgba(15, 23, 42, 0.07);
 }
 
-/* Ana Ekran: Bağışıklık Radarı Akordeonu */
-.immunity-accordion {
-  padding: 12px 16px;
+/* Ana Ekran: Bağışıklık Radarı Kartı (Her Zaman Açık + 180° Kadran) */
+.immunity-card-panel {
+  padding: 14px 16px;
 }
 
-.immunity-acc-head {
-  display: flex;
-  align-items: center;
-}
-
-.immunity-acc-toggle {
-  width: 100%;
+.immunity-head-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  background: transparent;
-  border: none;
-  padding: 2px 0;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  -webkit-tap-highlight-color: transparent;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.immunity-acc-toggle:focus-visible {
-  outline: 2px solid var(--cyan);
-  outline-offset: 4px;
-  border-radius: 8px;
-}
-
-.immunity-acc-summary {
+.immunity-head-info {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  flex: 1;
+  gap: 5px;
   min-width: 0;
+  flex: 1;
 }
 
-.immunity-acc-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.immunity-acc-title {
+.immunity-panel-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.25;
 }
 
-.immunity-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
+.immunity-head-badge-wrap {
+  margin-top: 2px;
 }
 
-.immunity-bar-track {
+.immunity-gauge-box {
   position: relative;
-  flex: 1;
-  height: 8px;
-  border-radius: 999px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 1px;
+  width: 136px;
+  height: 78px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
-.immunity-bar-seg {
-  height: 100%;
-  border-radius: 999px;
-  opacity: 0.88;
+.immunity-gauge-box svg {
+  display: block;
 }
 
-.immunity-bar-seg.seg-green { background: #10b981; }
-.immunity-bar-seg.seg-yellow { background: #f59e0b; }
-.immunity-bar-seg.seg-orange { background: #fb923c; }
-.immunity-bar-seg.seg-red { background: #ef4444; }
-
-.immunity-bar-marker {
+.immunity-gauge-val {
   position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #f8fafc;
-  border: 2.5px solid #0b1120;
-  box-shadow: 0 0 0 2px rgba(248, 250, 252, 0.35), 0 2px 6px rgba(0, 0, 0, 0.45);
-  transform: translate(-50%, -50%);
-  transition: left 0.35s ease;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
   pointer-events: none;
 }
 
-.immunity-bar-pct {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--text-secondary);
-  min-width: 34px;
-  text-align: right;
-}
-
-.immunity-acc-chevron {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  position: relative;
-  flex-shrink: 0;
-  transition: transform 0.3s ease, background 0.2s ease;
-}
-
-.immunity-acc-chevron::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 7px;
-  height: 7px;
-  border-right: 2px solid var(--text-secondary);
-  border-bottom: 2px solid var(--text-secondary);
-  transform: translateY(-2px) rotate(45deg);
-}
-
-.immunity-accordion.is-open .immunity-acc-chevron {
-  transform: rotate(180deg);
-}
-
-.immunity-accordion.is-open .immunity-bar-row,
-.immunity-accordion.is-open #immunity-sum-badge {
-  display: none;
-}
-
-.immunity-accordion.is-open .immunity-acc-summary {
-  gap: 0;
-}
-
-.immunity-acc-body {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.3s ease;
-}
-
-.immunity-accordion.is-open .immunity-acc-body {
-  grid-template-rows: 1fr;
-}
-
-.immunity-acc-inner {
-  min-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  padding-top: 0;
-  transition: opacity 0.22s ease, padding-top 0.28s ease;
-}
-
-.immunity-accordion.is-open .immunity-acc-inner {
-  opacity: 1;
-  padding-top: 10px;
-}
-
-.immunity-meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
+html[data-theme="weather_sunny"] #immunity-needle line {
+  stroke: #0f172a;
 }
 
 .immunity-signals-row {
@@ -6316,11 +6203,19 @@ html[data-theme="weather_sunny"] .immunity-signal-chip.crit {
 }
 
 @media (max-width: 480px) {
-  .immunity-accordion {
-    padding: 11px 14px;
+  .immunity-card-panel {
+    padding: 12px 14px;
   }
-  .immunity-acc-title {
-    font-size: 14px;
+  .immunity-panel-title {
+    font-size: 15px;
+  }
+  .immunity-gauge-box {
+    width: 120px;
+    height: 70px;
+  }
+  .immunity-gauge-box svg {
+    width: 120px;
+    height: 70px;
   }
   .immunity-grid {
     gap: 8px;
