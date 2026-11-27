@@ -1288,12 +1288,19 @@ async function syncFromGarminForUser(
   };
 
   try {
-    const [sleepArr, hrv, summary, acts, vo2, fitnessAge, dailyHr, bbReport, devicesRes, lastUsedRes, deviceInfoRes, sensorsRes] = await Promise.all([
+    const vo2RangeBase = new Date(`${todayStr}T00:00:00Z`);
+    vo2RangeBase.setUTCDate(vo2RangeBase.getUTCDate() - 30);
+    const vo2StartStr = vo2RangeBase.toISOString().slice(0, 10);
+
+    const [sleepArr, hrv, summary, acts, vo2, vo2Latest, vo2Range, enduranceRes, fitnessAge, dailyHr, bbReport, devicesRes, lastUsedRes, deviceInfoRes, sensorsRes] = await Promise.all([
       safeGet(`/sleep-service/sleep/dailySleepSummariesByDate?startDate=${todayStr}&endDate=${todayStr}`),
       safeGet(`/hrv-service/hrv/${todayStr}`),
       safeGet(`/usersummary-service/usersummary/daily?calendarDate=${todayStr}`),
       safeGet(`/activitylist-service/activities/search/activities?limit=6`),
       safeGet(`/metrics-service/metrics/maxmet/daily/${todayStr}/${todayStr}`),
+      safeGet(`/metrics-service/metrics/maxmet/latest/${todayStr}`),
+      safeGet(`/metrics-service/metrics/maxmet/daily/${vo2StartStr}/${todayStr}`),
+      safeGet(`/metrics-service/metrics/endurancescore?calendarDate=${todayStr}`),
       safeGet(`/fitnessage-service/fitnessage/v2/${todayStr}`),
       safeGet(`/wellness-service/wellness/dailyHeartRate?date=${todayStr}`),
       safeGet(`/wellness-service/wellness/bodyBattery/reports/daily?startDate=${todayStr}&endDate=${todayStr}`),
@@ -1536,7 +1543,40 @@ async function syncFromGarminForUser(
       if (hrv.hrvSummary.weeklyAvg != null) patch.hrv_weekly_avg = hrv.hrvSummary.weeklyAvg;
       if (hrv.hrvSummary.status != null) patch.hrv_status = hrv.hrvSummary.status;
     }
-    if (vo2?.[0]?.generic?.vo2MaxPreciseValue != null) patch.vo2_max = vo2[0].generic.vo2MaxPreciseValue;
+    const pickVo2FromEntry = (entry: any) =>
+      entry?.generic?.vo2MaxPreciseValue ??
+      entry?.generic?.vo2MaxValue ??
+      entry?.cycling?.vo2MaxPreciseValue ??
+      entry?.cycling?.vo2MaxValue ??
+      null;
+    const latestFromRange = Array.isArray(vo2Range)
+      ? [...vo2Range].reverse().map(pickVo2FromEntry).find((v) => v != null) ?? null
+      : null;
+    const latestFromEndpoint = Array.isArray(vo2Latest)
+      ? [...vo2Latest].reverse().map(pickVo2FromEntry).find((v) => v != null) ?? null
+      : pickVo2FromEntry(vo2Latest);
+    const vo2TodayVal = Array.isArray(vo2)
+      ? pickVo2FromEntry(vo2[0])
+      : pickVo2FromEntry(vo2);
+    const resolvedVo2 = vo2TodayVal ?? latestFromEndpoint ?? latestFromRange;
+    if (resolvedVo2 != null && Number.isFinite(Number(resolvedVo2)) && Number(resolvedVo2) > 0) {
+      patch.vo2_max = Number(resolvedVo2);
+    }
+
+    const resolvedEndurance =
+      enduranceRes?.overallScore ??
+      enduranceRes?.enduranceScore ??
+      enduranceRes?.value ??
+      enduranceRes?.enduranceScoreDTO?.overallScore ??
+      (Array.isArray(enduranceRes)
+        ? [...enduranceRes]
+            .reverse()
+            .map((e: any) => e?.overallScore ?? e?.enduranceScore ?? e?.value ?? e?.enduranceScoreDTO?.overallScore ?? null)
+            .find((v) => v != null) ?? null
+        : null);
+    if (resolvedEndurance != null && Number.isFinite(Number(resolvedEndurance)) && Number(resolvedEndurance) > 0) {
+      patch.endurance_score = Math.round(Number(resolvedEndurance));
+    }
     if (fitnessAge?.fitnessAge != null) patch.fitness_age = Math.round(fitnessAge.fitnessAge);
 
     if (Array.isArray(acts) && acts.length > 0) {
@@ -1869,6 +1909,25 @@ async function runDailyAnalysisForUser(
     ...(todayRow || {}),
     ...(patchData || {}),
   };
+
+  if (bio.vo2_max == null || bio.endurance_score == null) {
+    const { data: recentBioMeta } = await supabase
+      .from("daily_biometrics")
+      .select("vo2_max, endurance_score")
+      .eq("user_id", userId)
+      .order("log_date", { ascending: false })
+      .limit(15);
+    if (Array.isArray(recentBioMeta)) {
+      if (bio.vo2_max == null) {
+        const prevVo2 = recentBioMeta.find((r: any) => r?.vo2_max != null)?.vo2_max;
+        if (prevVo2 != null) bio.vo2_max = prevVo2;
+      }
+      if (bio.endurance_score == null) {
+        const prevEndurance = recentBioMeta.find((r: any) => r?.endurance_score != null)?.endurance_score;
+        if (prevEndurance != null) bio.endurance_score = prevEndurance;
+      }
+    }
+  }
 
   // Preserve baseline preview only if user has zero biometrics at all yet
   const readiness = calculateReadinessScore(bio.body_battery_max ?? null, bio.sleep_score ?? null, bio.hrv_nightly_avg ?? null, bio.rhr ?? null, settings);
@@ -3114,7 +3173,7 @@ JSON döndür (başka metin ekleme): {"answer":"Kullanıcının gerçek rakamlar
 
     if (action === "gunlukGarminAnalizi" || action === "dokumaniSessizGuncelle") {
       const res = await runDailyAnalysisForUser(supabase, userId, settings, integration, ist, {
-        isSilent: action === "dokumaniSessizGuncelle",
+        isSilent: action === "dokumaniSessizGuncelle" || Boolean(body.silent),
         force,
         isCron: false,
       });

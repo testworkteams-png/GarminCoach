@@ -206,6 +206,74 @@ function setupTabs() {
   });
 }
 
+function getIstanbulTodayIso() {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch (_) {
+    return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+}
+
+async function autoSyncGarminOnLaunch() {
+  if (!state.auth.authenticated || !state.auth.userId) return;
+  if (state._autoSyncInFlight) return;
+
+  const COOLDOWN_MS = 10 * 60 * 1000;
+  const MIN_RETRY_MS = 60 * 1000;
+  const uid = state.auth.userId;
+  const storageKey = `garmin_auto_sync_${uid}`;
+  const todayStr = getIstanbulTodayIso();
+  const latestDate = state.biometrics?.[0]?.log_date || "";
+  const needsToday = latestDate !== todayStr;
+
+  let lastSyncTs = 0;
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      lastSyncTs = Number(sessionStorage.getItem(storageKey) || 0);
+    }
+  } catch (_) {}
+
+  const elapsed = Number.isFinite(lastSyncTs) && lastSyncTs > 0 ? Date.now() - lastSyncTs : Infinity;
+  if (elapsed < MIN_RETRY_MS) return;
+  if (!needsToday && elapsed < COOLDOWN_MS) return;
+
+  state._autoSyncInFlight = true;
+  const metaEl = typeof document !== "undefined" ? document.getElementById("home-live-meta") : null;
+  const prevMeta = metaEl ? metaEl.textContent : "";
+  if (metaEl) metaEl.textContent = "↻ Saat verileri güncelleniyor...";
+
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(storageKey, String(Date.now()));
+    }
+  } catch (_) {}
+
+  try {
+    const res = await apiCall({ action: "gunlukGarminAnalizi", silent: true, force: true });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok !== false) {
+      const [bioRes, actRes] = await Promise.all([
+        sb.from("daily_biometrics").select("*").eq("user_id", uid).order("log_date", { ascending: false }).limit(365),
+        sb.from("activities").select("*").eq("user_id", uid).order("start_time_local", { ascending: false }).limit(200),
+      ]);
+      if (Array.isArray(bioRes.data)) state.biometrics = bioRes.data;
+      if (Array.isArray(actRes.data)) state.activities = actRes.data;
+      renderAll();
+    } else if (metaEl && prevMeta) {
+      metaEl.textContent = prevMeta;
+    }
+  } catch (_) {
+    if (metaEl && prevMeta) metaEl.textContent = prevMeta;
+  } finally {
+    state._autoSyncInFlight = false;
+  }
+}
+
 async function loadAllData() {
   if (!state.auth.authenticated || !state.auth.userId) return;
   const uid = state.auth.userId;
@@ -247,6 +315,8 @@ async function loadAllData() {
     state._autoGpsChecked = true;
     detectLiveBrowserGps(true);
   }
+
+  autoSyncGarminOnLaunch();
 }
 
 function renderAll() {
@@ -519,25 +589,34 @@ function renderHomeLiveCockpit(latest) {
   const stressVal = latest.stress_avg != null ? Number(latest.stress_avg) : null;
   const stressStatus = stressVal == null ? "Veri yok" : stressVal <= 25 ? "Düşük" : stressVal <= 50 ? "Orta" : "Yüksek";
 
-  const vo2Val = latest.vo2_max != null ? Number(latest.vo2_max) : null;
+  const allBio = Array.isArray(state.biometrics) && state.biometrics.length ? state.biometrics : [latest];
+
+  const vo2Rec = allBio.find((r) => r && r.vo2_max != null) || latest;
+  const vo2Val = vo2Rec.vo2_max != null ? Number(vo2Rec.vo2_max) : null;
   const vo2Status = vo2Val == null ? "Veri yok" : vo2Val >= 50 ? "Üstün" : vo2Val >= 42 ? "İyi" : "Orta";
-  const shortDate = String(latest.log_date || "").length >= 10
-    ? `${String(latest.log_date).slice(8, 10)}.${String(latest.log_date).slice(5, 7)}`
+  const shortVo2Date = String(vo2Rec.log_date || "").length >= 10
+    ? `${String(vo2Rec.log_date).slice(8, 10)}.${String(vo2Rec.log_date).slice(5, 7)}`
     : "--";
 
-  const endVal = latest.endurance_score != null ? Number(latest.endurance_score) : null;
+  const endRec = allBio.find((r) => r && r.endurance_score != null) || latest;
+  const endVal = endRec.endurance_score != null ? Number(endRec.endurance_score) : null;
+  const shortEndDate = String(endRec.log_date || "").length >= 10
+    ? `${String(endRec.log_date).slice(8, 10)}.${String(endRec.log_date).slice(5, 7)}`
+    : "--";
   const endTierText = endVal == null
     ? "Veri yok"
     : endVal >= 6600
-      ? "Üstün (6.600+)"
+      ? `Üstün (6.600+) · ${shortEndDate}`
       : endVal >= 5800
-        ? "İyi (5.800 – 6.599)"
+        ? `İyi (5.800 – 6.599) · ${shortEndDate}`
         : endVal >= 5100
-          ? "Ara (5.100 – 5.799)"
-          : "Başlangıç (<5.100)";
+          ? `Ara (5.100 – 5.799) · ${shortEndDate}`
+          : `Başlangıç (<5.100) · ${shortEndDate}`;
 
-  const fitAge = fa.current_age ?? latest.fitness_age ?? null;
-  const chronoAge = Number(fa.chronological_age ?? (new Date().getFullYear() - Number(s.birth_year || 1988)));
+  const fitAgeRec = allBio.find((r) => r && (r.raw_payload?.telemetry_extra?.fitness_age?.current_age != null || r.fitness_age != null)) || latest;
+  const fitFa = fitAgeRec.raw_payload?.telemetry_extra?.fitness_age || fa;
+  const fitAge = fitFa.current_age ?? fitAgeRec.fitness_age ?? null;
+  const chronoAge = Number(fitFa.chronological_age ?? fa.chronological_age ?? (new Date().getFullYear() - Number(s.birth_year || 1988)));
   const ageDiff = fitAge != null && Number.isFinite(chronoAge) ? Number((chronoAge - Number(fitAge)).toFixed(1)) : null;
   const ageDiffText = ageDiff != null && Math.abs(ageDiff) > 0
     ? ` (${String(Math.abs(ageDiff)).replace(".", ",")} yaş ${ageDiff >= 0 ? "genç" : "yüksek"})`
@@ -556,6 +635,23 @@ function renderHomeLiveCockpit(latest) {
     latest.sleep_respiration_avg != null ? `${String(latest.sleep_respiration_avg).replace(".", ",")} dk⁻¹` : "Gece Takibi",
     spo2Val != null ? `SpO₂ %${Math.round(spo2Val)}` : null,
   ].filter(Boolean);
+
+  const todayRec = latest;
+  const todayTe = todayRec.raw_payload?.telemetry_extra || {};
+  const todayMet = todayTe.metabolism || {};
+  const todayFl = todayTe.floors || {};
+  const todaySteps = Number(todayRec.steps || 0);
+  const todayStepPct = Math.min(100, Math.round((todaySteps / 10000) * 100));
+  const todayActiveKcal = todayRec.active_kilocalories ?? todayMet.active_kcal ?? null;
+  const todayTotalKcal =
+    todayMet.total_kcal ??
+    (todayActiveKcal != null ? Number(todayActiveKcal) + Number(todayMet.bmr_kcal || 1680) : null);
+  const todayFloors = todayFl.ascended ?? 0;
+  const todayCalText = todayTotalKcal != null
+    ? `${Number(todayTotalKcal).toLocaleString("tr-TR")} kcal${todayActiveKcal != null ? ` · ${Number(todayActiveKcal).toLocaleString("tr-TR")} aktif` : ""}`
+    : todayActiveKcal != null
+      ? `${Number(todayActiveKcal).toLocaleString("tr-TR")} aktif kcal`
+      : "-- kcal";
 
   const closingRec = prev || latest;
   const closingTe = closingRec.raw_payload?.telemetry_extra || {};
@@ -631,7 +727,7 @@ function renderHomeLiveCockpit(latest) {
       key: "vo2",
       label: "🏃 VO₂ Maks",
       val: vo2Val != null ? String(vo2Val).replace(".", ",") : "--",
-      meta: `${vo2Status} · ${shortDate}`,
+      meta: `${vo2Status} · ${shortVo2Date}`,
       pct: vo2Val != null ? clampPct(((vo2Val - 25) / 40) * 100, 18, 100) : 15,
       color: "#10b981",
     },
@@ -660,20 +756,32 @@ function renderHomeLiveCockpit(latest) {
       color: "#06b6d4",
     },
     {
-      key: "steps",
-      label: prev ? "👣 Dünün Kapanışı" : "👣 Günün Özeti",
-      val: `${closingSteps.toLocaleString("tr-TR")} adım`,
-      meta: `${closingTotalKcal != null ? `${Number(closingTotalKcal).toLocaleString("tr-TR")} kcal` : "-- kcal"} · ${closingFloors} kat · Hedef %${closingStepPct}`,
-      pct: clampPct(closingStepPct, 8, 100),
-      color: "#22c55e",
+      key: "today_live",
+      label: "⚡ Bugün (Anlık)",
+      val: `${todaySteps.toLocaleString("tr-TR")} adım`,
+      meta: `${todayCalText} · ${todayFloors} kat · %${todayStepPct}`,
+      pct: clampPct(todayStepPct, 8, 100),
+      color: "#38bdf8",
     },
+    ...(prev
+      ? [
+          {
+            key: "steps",
+            label: "👣 Dünün Kapanışı",
+            val: `${closingSteps.toLocaleString("tr-TR")} adım`,
+            meta: `${closingTotalKcal != null ? `${Number(closingTotalKcal).toLocaleString("tr-TR")} kcal` : "-- kcal"} · ${closingFloors} kat · Hedef %${closingStepPct}`,
+            pct: clampPct(closingStepPct, 8, 100),
+            color: "#22c55e",
+          },
+        ]
+      : []),
   ];
 
   liveGridEl.innerHTML = `
     <div class="home-bars-section-title">TOPARLANMA &amp; SİNİR SİSTEMİ</div>
     ${group1.map(renderBarRow).join("")}
     <div class="home-bars-divider"></div>
-    <div class="home-bars-section-title">KONDİSYON, SAĞLIK &amp; DÜNÜN KAPANIŞI</div>
+    <div class="home-bars-section-title">KONDİSYON, SAĞLIK &amp; GÜNLÜK HAREKET</div>
     ${group2.map(renderBarRow).join("")}`;
 }
 
@@ -687,6 +795,7 @@ window.focusHomeMetric = function (key) {
   const carousel = document.getElementById("lab-carousel-section");
   if (!carousel) return;
   const map = {
+    today_live: { slide: 0, trend: "steps" },
     steps: { slide: 0, trend: "steps" },
     sleep: { slide: 0, trend: "readiness" },
     vo2: { slide: 0, trend: "hrv" },
