@@ -370,9 +370,16 @@
                 <div class="card-header">
                   <div>
                     <div class="card-title">🧘 Stres Seviyesi &amp; Sinir Sistemi Yükü</div>
-                    <div class="card-sub">Gün içi stres dağılımı ve 14 günlük gündüz / gece uyku stresi</div>
+                    <div class="card-sub">Gün içi stres dağılımı, 7G dağılım ve 14G gündüz / gece uyku stresi</div>
                   </div>
-                  <span class="badge badge-warn mono" id="lab-stress-badge">--</span>
+                  <div class="lab-card-head-right">
+                    <div class="chip-group">
+                      <button type="button" class="chip active" data-stress-mode="trend14" onclick="switchStressChartMode('trend14', this)">14G Gündüz/Gece</button>
+                      <button type="button" class="chip" data-stress-mode="breakdown7" onclick="switchStressChartMode('breakdown7', this)">7G Dağılım</button>
+                      <button type="button" class="chip hidden" id="btn-stress-intraday" data-stress-mode="intraday" onclick="switchStressChartMode('intraday', this)">Canlı</button>
+                    </div>
+                    <span class="badge badge-warn mono" id="lab-stress-badge">--</span>
+                  </div>
                 </div>
                 <div class="lab-kpi-grid lab-kpi-3" id="lab-stress-kpis"></div>
                 <div class="sleep-strip-wrap">
@@ -419,6 +426,7 @@
                 </div>
                 <div id="lab-endurance-scale"></div>
                 <div class="lab-kpi-grid lab-kpi-3 mt-12" id="lab-endurance-kpis"></div>
+                <div id="lab-endurance-contributors" class="mt-12"></div>
                 <div class="chart-wrap mt-12" style="height:190px;">
                   <canvas id="labEnduranceChart"></canvas>
                 </div>
@@ -479,6 +487,13 @@
                 </div>
                 <div class="lab-compare-strip" id="lab-move-compare"></div>
                 <div class="lab-kpi-grid lab-kpi-2 mt-12" id="lab-move-kpis"></div>
+                <div class="lab-subbar mt-12">
+                  <span class="card-sub" style="font-weight:600;">14 Günlük Grafik</span>
+                  <div class="chip-group">
+                    <button type="button" class="chip active" data-move-chart="steps" onclick="switchMoveChartMode('steps', this)">👣 Adım &amp; Kalori</button>
+                    <button type="button" class="chip" data-move-chart="floors" onclick="switchMoveChartMode('floors', this)">🪜 Kat &amp; Tırmanış</button>
+                  </div>
+                </div>
                 <div class="chart-wrap mt-12" style="height:195px;">
                   <canvas id="labMoveChart"></canvas>
                 </div>

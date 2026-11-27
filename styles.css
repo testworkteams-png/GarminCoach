@@ -3425,6 +3425,29 @@ html[data-theme="weather_sunny"] .alerts-drawer-item strong {
   flex-wrap: wrap;
 }
 
+.lab-subbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lab-contrib-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html[data-theme="weather_sunny"] .lab-contrib-box {
+  background: rgba(15, 23, 42, 0.045);
+  border-color: rgba(15, 23, 42, 0.16);
+}
+
 html[data-theme="weather_sunny"] .lab-scale-wrap {
   background: rgba(15, 23, 42, 0.045);
   border-color: rgba(15, 23, 42, 0.16);

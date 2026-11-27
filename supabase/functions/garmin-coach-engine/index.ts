@@ -172,6 +172,47 @@ function downsamplePairs(pairs: any[], maxPoints: number, valKey: string) {
   return out.slice(0, maxPoints);
 }
 
+function resolveEnduranceContributorLabel(c: any): string {
+  const txt = [c?.activityTypeName, c?.typeKey, c?.groupName, typeof c?.group === "string" ? c.group : ""]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+  if (txt.includes("RUN") || txt.includes("KOŞU")) return "Koşu";
+  if (txt.includes("CYCL") || txt.includes("BIK") || txt.includes("BİSİKLET")) return "Bisiklet";
+  if (txt.includes("HIKE") || txt.includes("HIKING") || txt.includes("TREK")) return "Doğa Yürüyüşü";
+  if (txt.includes("WALK") || txt.includes("YÜRÜYÜŞ")) return "Yürüyüş";
+  if (txt.includes("STRENGTH") || txt.includes("FITNESS") || txt.includes("KUVVET")) return "Kuvvet / Fitness";
+  if (txt.includes("SWIM") || txt.includes("YÜZME")) return "Yüzme";
+  if (txt.includes("CARDIO") || txt.includes("KARDİYO")) return "Kardiyo";
+  if (txt.includes("OTHER") || txt.includes("ALL")) return "Diğer Aktiviteler";
+
+  const typeId = Number(c?.activityTypeId);
+  const typeMap: Record<number, string> = {
+    1: "Koşu",
+    2: "Bisiklet",
+    3: "Doğa Yürüyüşü",
+    4: "Diğer Aktiviteler",
+    5: "Bisiklet",
+    9: "Yürüyüş",
+    10: "Kardiyo",
+    13: "Kuvvet / Fitness",
+    26: "Yüzme",
+    29: "Kuvvet / Fitness",
+  };
+  if (Number.isFinite(typeId) && typeMap[typeId]) return typeMap[typeId];
+
+  const grp = Number(c?.group);
+  const groupMap: Record<number, string> = {
+    1: "Koşu",
+    2: "Bisiklet",
+    3: "Yüzme",
+    4: "Yürüyüş & Diğer",
+    5: "Kuvvet & Fitness",
+  };
+  if (Number.isFinite(grp) && groupMap[grp]) return groupMap[grp];
+  return "Diğer Aktiviteler";
+}
+
 async function reverseGeocodeTr(lat: number, lon: number, fallbackName?: string | null): Promise<string> {
   try {
     const phRes = await fetch(
@@ -1324,7 +1365,8 @@ async function syncFromGarminForUser(
       enduranceRes: any = null,
       fitnessAge: any = null,
       dailyHr: any = null,
-      bbReport: any = null;
+      bbReport: any = null,
+      dailyStress: any = null;
     let devicesRes: { status: number; data: any } = { status: 0, data: null };
     let lastUsedRes: { status: number; data: any } = { status: 0, data: null };
     let deviceInfoRes: { status: number; data: any } = { status: 0, data: null };
@@ -1337,7 +1379,7 @@ async function syncFromGarminForUser(
       vo2RangeBase.setUTCDate(vo2RangeBase.getUTCDate() - 30);
       const vo2StartStr = vo2RangeBase.toISOString().slice(0, 10);
 
-      [sleepArr, hrv, summary, acts, vo2, vo2Latest, vo2Range, enduranceRes, fitnessAge, dailyHr, bbReport, devicesRes, lastUsedRes, deviceInfoRes, sensorsRes] = await Promise.all([
+      [sleepArr, hrv, summary, acts, vo2, vo2Latest, vo2Range, enduranceRes, fitnessAge, dailyHr, bbReport, dailyStress, devicesRes, lastUsedRes, deviceInfoRes, sensorsRes] = await Promise.all([
         safeGet(`/sleep-service/sleep/dailySleepSummariesByDate?startDate=${todayStr}&endDate=${todayStr}`),
         safeGet(`/hrv-service/hrv/${todayStr}`),
         safeGet(`/usersummary-service/usersummary/daily?calendarDate=${todayStr}`),
@@ -1349,11 +1391,16 @@ async function syncFromGarminForUser(
         safeGet(`/fitnessage-service/fitnessage/v2/${todayStr}`),
         safeGet(`/wellness-service/wellness/dailyHeartRate?date=${todayStr}`),
         safeGet(`/wellness-service/wellness/bodyBattery/reports/daily?startDate=${todayStr}&endDate=${todayStr}`),
+        safeGet(`/wellness-service/wellness/dailyStress/${todayStr}`),
         safeGetSt(`/device-service/deviceregistration/devices`),
         safeGetSt(`/device-service/deviceservice/last-used`),
         safeGetSt(`/device-service/deviceservice/device-info/all`),
         safeGetSt(`/device-service/sensors`),
       ]);
+      if (!dailyStress || !Array.isArray(dailyStress.stressValuesArray) || dailyStress.stressValuesArray.length === 0) {
+        const stressFallback = await safeGet(`/wellness-service/wellness/dailyStress?date=${todayStr}`);
+        if (stressFallback) dailyStress = stressFallback;
+      }
     }
     const devices = devicesRes.data;
     const lastUsed = lastUsedRes.data;
@@ -1489,8 +1536,65 @@ async function syncFromGarminForUser(
     }));
 
     const bbSeriesRaw = bbReport?.[0]?.bodyBatteryValuesArray || [];
-    const bbSeries = downsamplePairs(bbSeriesRaw, 36, "bb");
+    let bbSeries = downsamplePairs(bbSeriesRaw, 36, "bb");
+    if (bbSeries.length < 10 && Array.isArray(dailyStress?.bodyBatteryValuesArray)) {
+      const bbFromStress = dailyStress.bodyBatteryValuesArray
+        .map((p: any) => (Array.isArray(p) ? [p[0], typeof p[2] === "number" ? p[2] : p[1]] : null))
+        .filter((p: any) => p && p[0] != null && p[1] != null && Number(p[1]) >= 0 && Number(p[1]) <= 100);
+      if (bbFromStress.length > bbSeries.length) {
+        bbSeries = downsamplePairs(bbFromStress, 36, "bb");
+      }
+    }
+    const stressRaw = (dailyStress?.stressValuesArray || []).filter(
+      (p: any) => Array.isArray(p) && p[0] != null && p[1] != null && Number(p[1]) >= 0 && Number(p[1]) <= 100
+    );
+    const stressSeries = downsamplePairs(stressRaw, 48, "stress");
     const intradayHr = downsamplePairs(dailyHr?.heartRateValues || [], 48, "hr");
+
+    const endRaw = Array.isArray(enduranceRes) ? [...enduranceRes].reverse().find(Boolean) : enduranceRes;
+    const endObj = endRaw?.enduranceScoreDTO || endRaw || null;
+    const endContribsRaw = Array.isArray(endObj?.contributors) ? endObj.contributors : [];
+    const enduranceDetail = endObj
+      ? {
+          classification: endObj.classification ?? null,
+          feedback_phrase: endObj.feedbackPhrase ?? null,
+          limits: {
+            intermediate: endObj.classificationLowerLimitIntermediate ?? null,
+            trained: endObj.classificationLowerLimitTrained ?? null,
+            well_trained: endObj.classificationLowerLimitWellTrained ?? null,
+            expert: endObj.classificationLowerLimitExpert ?? null,
+            superior: endObj.classificationLowerLimitSuperior ?? null,
+            elite: endObj.classificationLowerLimitElite ?? null,
+          },
+          contributors: endContribsRaw
+            .map((c: any) => {
+              const rawPct = c?.contribution ?? c?.percentage ?? c?.pct ?? c?.value ?? null;
+              const numPct = rawPct != null && Number.isFinite(Number(rawPct)) ? Number(rawPct) : 0;
+              return {
+                activity_type_id: c?.activityTypeId ?? null,
+                group: c?.group ?? null,
+                label: resolveEnduranceContributorLabel(c),
+                pct: Number(numPct.toFixed(1)),
+              };
+            })
+            .filter((c: any) => c.pct > 0)
+            .sort((a: any, b: any) => b.pct - a.pct),
+        }
+      : null;
+
+    const faCompsRaw = fitnessAge?.components || {};
+    const faComponents: Record<string, any> = {};
+    for (const [k, v] of Object.entries(faCompsRaw)) {
+      if (v && typeof v === "object") {
+        const comp = v as any;
+        faComponents[k] = {
+          value: comp.value ?? null,
+          target: comp.targetValue ?? null,
+          potential_age: comp.potentialAge ?? null,
+          stale: Boolean(comp.stale),
+        };
+      }
+    }
 
     const telemetryExtra = {
       bb_current: summary?.bodyBatteryMostRecentValue ?? (bbSeries.length ? bbSeries[bbSeries.length - 1].bb : null),
@@ -1499,11 +1603,12 @@ async function syncFromGarminForUser(
       bb_feedback: summary?.bodyBatteryDynamicFeedbackEvent?.feedbackShortType ?? bbReport?.[0]?.bodyBatteryDynamicFeedbackEvent?.feedbackShortType ?? null,
       bb_events: bbEvents,
       bb_series: bbSeries,
+      stress_series: stressSeries,
       hrv_5min_high: hrv?.hrvSummary?.lastNight5MinHigh ?? null,
       hrv_baseline: hrv?.hrvSummary?.baseline ?? null,
       hrv_readings: hrvReadings,
       stress_breakdown: {
-        max_stress: summary?.maxStressLevel ?? null,
+        max_stress: summary?.maxStressLevel ?? dailyStress?.maxStressLevel ?? null,
         rest_pct: summary?.restStressPercentage ?? null,
         low_pct: summary?.lowStressPercentage ?? null,
         med_pct: summary?.mediumStressPercentage ?? null,
@@ -1520,12 +1625,22 @@ async function syncFromGarminForUser(
         meters_up: summary?.floorsAscendedInMeters != null ? Number(summary.floorsAscendedInMeters.toFixed(1)) : null,
         altitude_m: summary?.averageMonitoringEnvironmentAltitude ?? null,
       },
+      endurance_detail: enduranceDetail,
       fitness_age_detail: {
         chronological_age: fitnessAge?.chronologicalAge ?? null,
         current_age: fitnessAge?.fitnessAge != null ? Number(fitnessAge.fitnessAge.toFixed(1)) : null,
         achievable_age: fitnessAge?.achievableFitnessAge != null ? Number(fitnessAge.achievableFitnessAge.toFixed(1)) : null,
         vigorous_days: fitnessAge?.components?.vigorousDaysAvg?.value ?? null,
         vigorous_target: fitnessAge?.components?.vigorousDaysAvg?.targetValue ?? 3,
+        vigorous_minutes: fitnessAge?.components?.vigorousMinutesAvg?.value ?? null,
+        vigorous_minutes_target: fitnessAge?.components?.vigorousMinutesAvg?.targetValue ?? 75,
+        rhr_value: fitnessAge?.components?.rhr?.value ?? null,
+        rhr_target: fitnessAge?.components?.rhr?.targetValue ?? null,
+        bmi_value: fitnessAge?.components?.bmi?.value ?? null,
+        bmi_target: fitnessAge?.components?.bmi?.targetValue ?? null,
+        body_fat_value: fitnessAge?.components?.bodyFat?.value ?? null,
+        body_fat_target: fitnessAge?.components?.bodyFat?.targetValue ?? null,
+        components: faComponents,
       },
       metabolism: {
         total_kcal: summary?.totalKilocalories != null ? Math.round(summary.totalKilocalories) : null,

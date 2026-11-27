@@ -32,7 +32,9 @@ const state = {
   hrvChartMode: "night",
   hrChartMode: "intraday",
   bbChartMode: "intraday",
+  stressChartMode: "trend14",
   moveDayMode: "today",
+  moveChartMode: "steps",
   ceoMode: "daily",
   _activeAlertSig: null,
   _labSlideIndex: 0,
@@ -677,7 +679,14 @@ function renderHomeLiveCockpit(latest) {
   const todayTotalKcal =
     todayMet.total_kcal ??
     (todayActiveKcal != null ? Number(todayActiveKcal) + Number(todayMet.bmr_kcal || 1680) : null);
-  const todayFloors = todayFl.ascended ?? 0;
+  const todayFloorGoal = Number(todayFl.goal ?? 10);
+  const todayFloorsNum = todayFl.ascended != null ? Number(todayFl.ascended) : null;
+  const todayFloorPct = todayFloorsNum != null ? Math.round((todayFloorsNum / Math.max(1, todayFloorGoal)) * 100) : 0;
+  const todayFloorMetaParts = [
+    todayFl.meters_up != null ? `+${String(todayFl.meters_up).replace(".", ",")} m` : null,
+    todayFl.descended != null ? `İniş ${String(todayFl.descended).replace(".", ",")}` : null,
+    todayFloorsNum != null ? `Hedef %${todayFloorPct}` : "Veri bekleniyor",
+  ].filter(Boolean);
   const todayCalText = todayTotalKcal != null
     ? `${Number(todayTotalKcal).toLocaleString("tr-TR")} kcal${todayActiveKcal != null ? ` · ${Number(todayActiveKcal).toLocaleString("tr-TR")} aktif` : ""}`
     : todayActiveKcal != null
@@ -791,9 +800,17 @@ function renderHomeLiveCockpit(latest) {
       key: "today_live",
       label: "⚡ Bugün (Anlık)",
       val: `${todaySteps.toLocaleString("tr-TR")} adım`,
-      meta: `${todayCalText} · ${todayFloors} kat · %${todayStepPct}`,
+      meta: `${todayCalText} · Hedef %${todayStepPct}`,
       pct: clampPct(todayStepPct, 8, 100),
       color: "#38bdf8",
+    },
+    {
+      key: "floors",
+      label: "🪜 Çıkılan Kat",
+      val: todayFloorsNum != null ? `${String(todayFloorsNum).replace(".", ",")} / ${todayFloorGoal} kat` : "--",
+      meta: todayFloorMetaParts.join(" · "),
+      pct: todayFloorsNum != null ? clampPct((todayFloorsNum / Math.max(1, todayFloorGoal)) * 100, 8, 100) : 10,
+      color: "#a78bfa",
     },
     ...(prev
       ? [
@@ -836,12 +853,16 @@ window.focusHomeMetric = function (key) {
     endurance: { slide: 6 },
     fitness_age: { slide: 7 },
     resp_spo2: { slide: 8 },
-    today_live: { slide: 9, moveDay: "today" },
-    steps: { slide: 9, moveDay: "yesterday" },
-    calories: { slide: 9, moveDay: "today" },
-    intensity: { slide: 9, moveDay: "today" },
+    today_live: { slide: 9, moveDay: "today", moveChart: "steps" },
+    floors: { slide: 9, moveDay: "today", moveChart: "floors" },
+    steps: { slide: 9, moveDay: "yesterday", moveChart: "steps" },
+    calories: { slide: 9, moveDay: "today", moveChart: "steps" },
+    intensity: { slide: 9, moveDay: "today", moveChart: "steps" },
   };
   const cfg = map[key] || { slide: 0 };
+  if (cfg.moveChart) {
+    window.switchMoveChartMode?.(cfg.moveChart);
+  }
   if (cfg.moveDay) {
     window.switchMoveDay?.(cfg.moveDay);
   }
@@ -919,6 +940,7 @@ function clearLabCarouselEmpty() {
   setText("lab-endurance-badge", "--");
   setHtml("lab-endurance-scale", "");
   setHtml("lab-endurance-kpis", "");
+  setHtml("lab-endurance-contributors", "");
 
   setText("lab-fitage-badge", "--");
   setHtml("lab-fitage-trio", "");
@@ -2375,6 +2397,16 @@ function renderLabBbSlide(latest) {
   if (bbListEl) bbListEl.innerHTML = bbSummaryHtml + bbEventsHtml;
 }
 
+window.switchStressChartMode = function (mode, btn) {
+  const te = state.biometrics[0]?.raw_payload?.telemetry_extra || {};
+  const hasIntraday = Array.isArray(te.stress_series) && te.stress_series.length > 0;
+  state.stressChartMode =
+    mode === "breakdown7" ? "breakdown7" : mode === "intraday" && hasIntraday ? "intraday" : "trend14";
+  setActiveChipGroup("data-stress-mode", state.stressChartMode);
+  if (state.biometrics[0]) renderLabStressSlide(state.biometrics[0]);
+  requestAnimationFrame(syncLabCarouselHeight);
+};
+
 function renderLabStressSlide(latest) {
   const te = latest?.raw_payload?.telemetry_extra || {};
   const sbData = te.stress_breakdown || {};
@@ -2442,42 +2474,127 @@ function renderLabStressSlide(latest) {
     `;
   }
 
-  const last14 = [...state.biometrics].slice(0, 14).reverse();
-  renderLabChart("labStress", "labStressChart", {
-    type: "line",
-    data: {
-      labels: last14.map((d) => String(d.log_date || "").slice(5)),
-      datasets: [
-        {
-          label: "Günlük Ort Stres",
-          data: last14.map((d) => (d.stress_avg != null ? Number(d.stress_avg) : null)),
-          borderColor: "#f59e0b",
-          backgroundColor: "rgba(245,158,11,0.14)",
-          fill: true,
-          tension: 0.35,
-          pointRadius: 2.5,
-          spanGaps: true,
-        },
-        {
-          label: "Gece Uyku Stresi",
-          data: last14.map((d) => (d.sleep_stress_avg != null ? Number(d.sleep_stress_avg) : null)),
-          borderColor: "#38bdf8",
-          tension: 0.35,
-          pointRadius: 2,
-          spanGaps: true,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
-      scales: {
-        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
-        y: { min: 0, max: 100, ticks: { color: "#f59e0b" }, grid: { color: "rgba(148,163,184,0.08)" } },
+  const stressSeries = Array.isArray(te.stress_series) ? te.stress_series : [];
+  const intradayBtn = document.getElementById("btn-stress-intraday");
+  if (intradayBtn) intradayBtn.classList.toggle("hidden", stressSeries.length === 0);
+  if (stressSeries.length === 0 && state.stressChartMode === "intraday") {
+    state.stressChartMode = "trend14";
+  }
+  setActiveChipGroup("data-stress-mode", state.stressChartMode);
+
+  if (state.stressChartMode === "intraday" && stressSeries.length > 0) {
+    renderLabChart("labStress", "labStressChart", {
+      type: "line",
+      data: {
+        labels: stressSeries.map((p) => p.time),
+        datasets: [
+          {
+            label: "Canlı Stres",
+            data: stressSeries.map((p) => p.stress),
+            borderColor: "#f59e0b",
+            backgroundColor: "rgba(245,158,11,0.16)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 1,
+          },
+        ],
       },
-    },
-  });
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 9 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { min: 0, max: 100, ticks: { color: "#f59e0b" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  } else if (state.stressChartMode === "breakdown7") {
+    const sbDays = [...state.biometrics]
+      .filter((d) => d?.raw_payload?.telemetry_extra?.stress_breakdown?.rest_pct != null)
+      .slice(0, 7)
+      .reverse();
+    const chartDays = sbDays.length ? sbDays : [...state.biometrics].slice(0, 7).reverse();
+    renderLabChart("labStress", "labStressChart", {
+      type: "bar",
+      data: {
+        labels: chartDays.map((d) => String(d.log_date || "").slice(5)),
+        datasets: [
+          {
+            label: "Dinlenme %",
+            data: chartDays.map((d) => Math.round(Number(d?.raw_payload?.telemetry_extra?.stress_breakdown?.rest_pct ?? 0))),
+            backgroundColor: "rgba(56,189,248,0.82)",
+          },
+          {
+            label: "Düşük %",
+            data: chartDays.map((d) => Math.round(Number(d?.raw_payload?.telemetry_extra?.stress_breakdown?.low_pct ?? 0))),
+            backgroundColor: "rgba(0,229,163,0.82)",
+          },
+          {
+            label: "Orta %",
+            data: chartDays.map((d) => Math.round(Number(d?.raw_payload?.telemetry_extra?.stress_breakdown?.med_pct ?? 0))),
+            backgroundColor: "rgba(245,158,11,0.85)",
+          },
+          {
+            label: "Yüksek %",
+            data: chartDays.map((d) => Math.round(Number(d?.raw_payload?.telemetry_extra?.stress_breakdown?.high_pct ?? 0))),
+            backgroundColor: "rgba(239,68,68,0.85)",
+          },
+          {
+            label: "Aktivite %",
+            data: chartDays.map((d) => Math.round(Number(d?.raw_payload?.telemetry_extra?.stress_breakdown?.activity_pct ?? 0))),
+            backgroundColor: "rgba(167,139,250,0.85)",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 10 } } },
+        scales: {
+          x: { stacked: true, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { stacked: true, min: 0, max: 100, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  } else {
+    const last14 = [...state.biometrics].slice(0, 14).reverse();
+    renderLabChart("labStress", "labStressChart", {
+      type: "line",
+      data: {
+        labels: last14.map((d) => String(d.log_date || "").slice(5)),
+        datasets: [
+          {
+            label: "Günlük Ort Stres",
+            data: last14.map((d) => (d.stress_avg != null ? Number(d.stress_avg) : null)),
+            borderColor: "#f59e0b",
+            backgroundColor: "rgba(245,158,11,0.14)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2.5,
+            spanGaps: true,
+          },
+          {
+            label: "Gece Uyku Stresi",
+            data: last14.map((d) => (d.sleep_stress_avg != null ? Number(d.sleep_stress_avg) : null)),
+            borderColor: "#38bdf8",
+            tension: 0.35,
+            pointRadius: 2,
+            spanGaps: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { min: 0, max: 100, ticks: { color: "#f59e0b" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  }
 }
 
 function renderLabVo2Slide(latest) {
@@ -2589,32 +2706,46 @@ function renderLabVo2Slide(latest) {
 function renderLabEnduranceSlide(latest) {
   const allBio = state.biometrics.length ? state.biometrics : [latest];
   const endRec = allBio.find((r) => r && r.endurance_score != null) || latest;
+  const endDetail =
+    endRec?.raw_payload?.telemetry_extra?.endurance_detail ||
+    latest?.raw_payload?.telemetry_extra?.endurance_detail ||
+    null;
   const endVal = endRec?.endurance_score != null ? Number(endRec.endurance_score) : null;
+  const limInt = Number(endDetail?.limits?.intermediate ?? 5100);
+  const limTr = Number(endDetail?.limits?.trained ?? 5800);
+  const limWell = Number(endDetail?.limits?.well_trained ?? 6600);
+  const limSup = Number(endDetail?.limits?.superior ?? 7500);
+  const validLimits = limInt < limTr && limTr < limWell && limWell < limSup;
+  const t1 = validLimits ? limInt : 5100;
+  const t2 = validLimits ? limTr : 5800;
+  const t3 = validLimits ? limWell : 6600;
+  const t4 = validLimits ? limSup : 7500;
+
   const endTier =
     endVal == null
       ? "Veri yok"
-      : endVal >= 7500
+      : endVal >= t4
         ? "Elit"
-        : endVal >= 6600
+        : endVal >= t3
           ? "Üstün"
-          : endVal >= 5800
+          : endVal >= t2
             ? "İyi"
-            : endVal >= 5100
+            : endVal >= t1
               ? "Ara"
               : "Başlangıç";
 
   const badge = document.getElementById("lab-endurance-badge");
   if (badge) {
     badge.textContent = endVal != null ? `${endVal.toLocaleString("tr-TR")} · ${endTier}` : "--";
-    badge.className = `badge mono ${endVal == null ? "badge-info" : endVal >= 5800 ? "badge-ok" : "badge-warn"}`;
+    badge.className = `badge mono ${endVal == null ? "badge-info" : endVal >= t2 ? "badge-ok" : "badge-warn"}`;
   }
 
   const endBands = [
-    { label: "Başlangıç", min: 3500, max: 5100, color: "#94a3b8" },
-    { label: "Ara", min: 5100, max: 5800, color: "#38bdf8" },
-    { label: "İyi", min: 5800, max: 6600, color: "#f97316" },
-    { label: "Üstün", min: 6600, max: 7500, color: "#00e5a3" },
-    { label: "Elit", min: 7500, max: 8800, color: "#a78bfa" },
+    { label: "Başlangıç", min: Math.max(2000, t1 - 1600), max: t1, color: "#94a3b8" },
+    { label: "Ara", min: t1, max: t2, color: "#38bdf8" },
+    { label: "İyi", min: t2, max: t3, color: "#f97316" },
+    { label: "Üstün", min: t3, max: t4, color: "#00e5a3" },
+    { label: "Elit", min: t4, max: t4 + 1300, color: "#a78bfa" },
   ];
   let nextText = "";
   if (endVal != null) {
@@ -2670,6 +2801,64 @@ function renderLabEnduranceSlide(latest) {
         color: "#00e5a3",
       },
     ]);
+  }
+
+  const contribEl = document.getElementById("lab-endurance-contributors");
+  if (contribEl) {
+    let contribList = Array.isArray(endDetail?.contributors) && endDetail.contributors.length > 0 ? endDetail.contributors : null;
+    let contribNote = "Garmin Endurance Score katkıları";
+
+    if (!contribList && Array.isArray(state.activities) && state.activities.length > 0) {
+      const actsWindow = state.activities.filter((a) => {
+        const t = new Date(a.start_time_local).getTime();
+        return Number.isFinite(t) && (refMs - t) / 86400000 <= 30;
+      });
+      const pool = actsWindow.length ? actsWindow : state.activities;
+      const typeLabels = {
+        walking: "Yürüyüş",
+        running: "Koşu",
+        strength_training: "Kuvvet / Dambıl",
+        cycling: "Bisiklet",
+        hiking: "Doğa Yürüyüşü",
+      };
+      const buckets = {};
+      let totalW = 0;
+      for (const a of pool) {
+        const lbl = typeLabels[a.activity_type] || "Diğer Aktiviteler";
+        const w = Number(a.training_load) > 0 ? Number(a.training_load) : Math.max(10, Math.round(Number(a.duration_seconds || 0) / 60));
+        buckets[lbl] = (buckets[lbl] || 0) + w;
+        totalW += w;
+      }
+      if (totalW > 0) {
+        contribList = Object.entries(buckets)
+          .map(([label, w]) => ({ label, pct: Number(((w / totalW) * 100).toFixed(1)) }))
+          .sort((a, b) => b.pct - a.pct);
+        contribNote = `Son ${actsWindow.length ? "30 günlük" : "kayıtlı"} antrenman yükü dağılımı`;
+      }
+    }
+
+    if (contribList?.length) {
+      const barColors = ["#f97316", "#38bdf8", "#00e5a3", "#a78bfa", "#f59e0b"];
+      contribEl.innerHTML = `
+        <div class="lab-contrib-box">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <strong style="font-size:12.5px;">Aktivite Katkı Dağılımı</strong>
+            <span class="card-sub">${escapeHtml(contribNote)}</span>
+          </div>
+          ${contribList
+            .map((c, idx) => {
+              const col = barColors[idx % barColors.length];
+              return `
+              <div>
+                <div class="bar-row-head"><span>${escapeHtml(c.label)}</span><strong class="mono" style="color:${col};">%${Math.round(Number(c.pct))}</strong></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, Math.max(4, Math.round(Number(c.pct))))}%; background:${col};"></div></div>
+              </div>`;
+            })
+            .join("")}
+        </div>`;
+    } else {
+      contribEl.innerHTML = "";
+    }
   }
 
   const last30 = [...state.biometrics].slice(0, 30).reverse();
@@ -2756,31 +2945,81 @@ function renderLabFitAgeSlide(latest) {
   const vigDays = fa.vigorous_days != null ? Number(fa.vigorous_days) : null;
   const vigTarget = Number(fa.vigorous_target ?? 3);
   const vigPct = vigDays != null ? Math.min(100, Math.round((vigDays / Math.max(1, vigTarget)) * 100)) : 0;
+  const vigDaysPot = fa.components?.vigorousDaysAvg?.potential_age;
 
-  const rhrVal = latest.rhr != null ? Number(latest.rhr) : null;
-  const baseRhr = Number(s.base_rhr ?? 46);
-  const rhrPct = rhrVal != null ? Math.max(25, Math.min(100, Math.round(((70 - rhrVal) / Math.max(10, 70 - baseRhr)) * 100))) : 50;
-
+  const vigMin = fa.vigorous_minutes != null ? Number(fa.vigorous_minutes) : null;
+  const vigMinTarget = Number(fa.vigorous_minutes_target ?? 75);
+  const vigMinPot = fa.components?.vigorousMinutesAvg?.potential_age;
   const weeklyIntMin = state.biometrics
     .slice(0, 7)
     .reduce((sum, d) => sum + Number(d.moderate_intensity_minutes || 0) + 2 * Number(d.vigorous_intensity_minutes || 0), 0);
-  const intPct = Math.min(100, Math.round((weeklyIntMin / 150) * 100));
+  const activeMinVal = vigMin != null ? vigMin : weeklyIntMin;
+  const activeMinTarget = vigMin != null ? vigMinTarget : 150;
+  const activeMinPct = Math.min(100, Math.round((activeMinVal / Math.max(1, activeMinTarget)) * 100));
+
+  const rhrVal = fa.rhr_value != null ? Number(fa.rhr_value) : (latest.rhr != null ? Number(latest.rhr) : null);
+  const baseRhr = Number(s.base_rhr ?? 46);
+  const rhrTarget = fa.rhr_target != null ? Number(fa.rhr_target) : baseRhr;
+  const rhrPct = rhrVal != null ? Math.max(25, Math.min(100, Math.round(((70 - rhrVal) / Math.max(10, 70 - rhrTarget)) * 100))) : 50;
+
+  const factorRows = [
+    {
+      label: "Yoğun Gün Ortalaması",
+      right: `${vigDays != null ? String(vigDays).replace(".", ",") : "--"} / ${vigTarget} gün${vigDaysPot != null ? ` · Potansiyel ${String(Number(vigDaysPot).toFixed(1)).replace(".", ",")}` : ""}`,
+      pct: vigPct,
+      color: "#a78bfa",
+    },
+    {
+      label: vigMin != null ? "Haftalık Yoğun Dakika" : "7G Yoğunluk Dakikası",
+      right: `${activeMinVal} / ${activeMinTarget} dk${vigMinPot != null ? ` · Potansiyel ${String(Number(vigMinPot).toFixed(1)).replace(".", ",")}` : ""}`,
+      pct: activeMinPct,
+      color: "#38bdf8",
+    },
+    {
+      label: "Dinlenik Nabız Katkısı",
+      right: `${rhrVal != null ? `${rhrVal} bpm` : "--"} (${fa.rhr_target != null ? `Hedef ≤${rhrTarget}` : `Baz ${baseRhr}`})`,
+      pct: rhrPct,
+      color: "#00e5a3",
+    },
+  ];
+
+  if (fa.body_fat_value != null) {
+    const bfVal = Number(fa.body_fat_value);
+    const bfTarget = fa.body_fat_target != null ? Number(fa.body_fat_target) : 17;
+    const bfPot = fa.components?.bodyFat?.potential_age;
+    const bfPct = Math.max(18, Math.min(100, Math.round((bfTarget / Math.max(5, bfVal)) * 100)));
+    factorRows.push({
+      label: "Vücut Yağ Oranı",
+      right: `%${String(bfVal).replace(".", ",")} → Hedef %${String(bfTarget).replace(".", ",")}${bfPot != null ? ` · Potansiyel ${String(Number(bfPot).toFixed(1)).replace(".", ",")}` : ""}`,
+      pct: bfPct,
+      color: "#f59e0b",
+    });
+  }
+
+  if (fa.bmi_value != null) {
+    const bmiVal = Number(fa.bmi_value);
+    const bmiTarget = fa.bmi_target != null ? Number(fa.bmi_target) : 22.5;
+    const bmiPot = fa.components?.bmi?.potential_age;
+    const bmiPct = Math.max(20, Math.min(100, Math.round((bmiTarget / Math.max(12, bmiVal)) * 100)));
+    factorRows.push({
+      label: "Vücut Kitle İndeksi (VKİ)",
+      right: `${String(bmiVal).replace(".", ",")} → Hedef ${String(bmiTarget).replace(".", ",")}${bmiPot != null ? ` · Potansiyel ${String(Number(bmiPot).toFixed(1)).replace(".", ",")}` : ""}`,
+      pct: bmiPct,
+      color: "#06b6d4",
+    });
+  }
 
   const factorsEl = document.getElementById("lab-fitage-factors");
   if (factorsEl) {
-    factorsEl.innerHTML = `
+    factorsEl.innerHTML = factorRows
+      .map(
+        (fr) => `
       <div>
-        <div class="bar-row-head"><span>Yoğun Gün Ortalaması</span><strong class="mono" style="color:#a78bfa;">${vigDays != null ? String(vigDays).replace(".", ",") : "--"} / ${vigTarget} gün</strong></div>
-        <div class="bar-track"><div class="bar-fill" style="width:${vigPct}%; background:#a78bfa;"></div></div>
-      </div>
-      <div>
-        <div class="bar-row-head"><span>Dinlenik Nabız Katkısı</span><strong class="mono" style="color:#00e5a3;">${rhrVal != null ? `${rhrVal} bpm` : "--"} (Hedef ≤${baseRhr})</strong></div>
-        <div class="bar-track"><div class="bar-fill" style="width:${rhrPct}%; background:#00e5a3;"></div></div>
-      </div>
-      <div>
-        <div class="bar-row-head"><span>7G Yoğunluk Dakikası</span><strong class="mono" style="color:#38bdf8;">${weeklyIntMin} / 150 dk</strong></div>
-        <div class="bar-track"><div class="bar-fill" style="width:${intPct}%; background:#38bdf8;"></div></div>
-      </div>`;
+        <div class="bar-row-head"><span>${escapeHtml(fr.label)}</span><strong class="mono" style="color:${fr.color};">${escapeHtml(fr.right)}</strong></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${fr.pct}%; background:${fr.color};"></div></div>
+      </div>`
+      )
+      .join("");
   }
 
   const last30 = [...state.biometrics].slice(0, 30).reverse();
@@ -2931,6 +3170,13 @@ window.switchMoveDay = function (dayMode, btn) {
   requestAnimationFrame(syncLabCarouselHeight);
 };
 
+window.switchMoveChartMode = function (mode, btn) {
+  state.moveChartMode = mode === "floors" ? "floors" : "steps";
+  setActiveChipGroup("data-move-chart", state.moveChartMode);
+  if (state.biometrics[0]) renderLabMoveSlide(state.biometrics[0]);
+  requestAnimationFrame(syncLabCarouselHeight);
+};
+
 function renderLabMoveSlide(latest) {
   const todayRec = latest;
   const yestRec = state.biometrics[1] || null;
@@ -3019,49 +3265,100 @@ function renderLabMoveSlide(latest) {
 
   const last14 = [...state.biometrics].slice(0, 14).reverse();
   const selDate = rec.log_date;
-  renderLabChart("labMove", "labMoveChart", {
-    type: "bar",
-    data: {
-      labels: last14.map((d) => String(d.log_date || "").slice(5)),
-      datasets: [
-        {
-          type: "line",
-          label: "Aktif kcal",
-          order: 0,
-          data: last14.map((d) => {
-            const k = d.active_kilocalories ?? d.raw_payload?.telemetry_extra?.metabolism?.active_kcal ?? null;
-            return k != null ? Number(k) : null;
-          }),
-          borderColor: "#f97316",
-          tension: 0.35,
-          pointRadius: 2.5,
-          spanGaps: true,
-          yAxisID: "y1",
-        },
-        {
-          type: "bar",
-          label: "Adım",
-          order: 1,
-          data: last14.map((d) => (d.steps != null ? Number(d.steps) : null)),
-          backgroundColor: last14.map((d) => (d.log_date === selDate ? "rgba(0,229,163,0.75)" : "rgba(56,189,248,0.4)")),
-          borderColor: last14.map((d) => (d.log_date === selDate ? "#00e5a3" : "#38bdf8")),
-          borderWidth: 1,
-          borderRadius: 5,
-          yAxisID: "y",
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
-      scales: {
-        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
-        y: { position: "left", ticks: { color: "#38bdf8" }, grid: { color: "rgba(148,163,184,0.08)" } },
-        y1: { position: "right", ticks: { color: "#f97316" }, grid: { drawOnChartArea: false } },
+  setActiveChipGroup("data-move-chart", state.moveChartMode);
+
+  if (state.moveChartMode === "floors") {
+    renderLabChart("labMove", "labMoveChart", {
+      type: "bar",
+      data: {
+        labels: last14.map((d) => String(d.log_date || "").slice(5)),
+        datasets: [
+          {
+            type: "line",
+            label: "Tırmanış (m)",
+            order: 0,
+            data: last14.map((d) => {
+              const m = d.raw_payload?.telemetry_extra?.floors?.meters_up ?? null;
+              return m != null ? Number(m) : null;
+            }),
+            borderColor: "#38bdf8",
+            tension: 0.35,
+            pointRadius: 2.5,
+            spanGaps: true,
+            yAxisID: "y1",
+          },
+          {
+            type: "bar",
+            label: "Çıkılan Kat",
+            order: 1,
+            data: last14.map((d) => {
+              const asc = d.raw_payload?.telemetry_extra?.floors?.ascended ?? null;
+              return asc != null ? Number(asc) : null;
+            }),
+            backgroundColor: last14.map((d) => (d.log_date === selDate ? "rgba(0,229,163,0.75)" : "rgba(167,139,250,0.52)")),
+            borderColor: last14.map((d) => (d.log_date === selDate ? "#00e5a3" : "#a78bfa")),
+            borderWidth: 1,
+            borderRadius: 5,
+            yAxisID: "y",
+          },
+        ],
       },
-    },
-  });
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { position: "left", beginAtZero: true, ticks: { color: "#a78bfa" }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y1: { position: "right", beginAtZero: true, ticks: { color: "#38bdf8" }, grid: { drawOnChartArea: false } },
+        },
+      },
+    });
+  } else {
+    renderLabChart("labMove", "labMoveChart", {
+      type: "bar",
+      data: {
+        labels: last14.map((d) => String(d.log_date || "").slice(5)),
+        datasets: [
+          {
+            type: "line",
+            label: "Aktif kcal",
+            order: 0,
+            data: last14.map((d) => {
+              const k = d.active_kilocalories ?? d.raw_payload?.telemetry_extra?.metabolism?.active_kcal ?? null;
+              return k != null ? Number(k) : null;
+            }),
+            borderColor: "#f97316",
+            tension: 0.35,
+            pointRadius: 2.5,
+            spanGaps: true,
+            yAxisID: "y1",
+          },
+          {
+            type: "bar",
+            label: "Adım",
+            order: 1,
+            data: last14.map((d) => (d.steps != null ? Number(d.steps) : null)),
+            backgroundColor: last14.map((d) => (d.log_date === selDate ? "rgba(0,229,163,0.75)" : "rgba(56,189,248,0.4)")),
+            borderColor: last14.map((d) => (d.log_date === selDate ? "#00e5a3" : "#38bdf8")),
+            borderWidth: 1,
+            borderRadius: 5,
+            yAxisID: "y",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { position: "left", ticks: { color: "#38bdf8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y1: { position: "right", ticks: { color: "#f97316" }, grid: { drawOnChartArea: false } },
+        },
+      },
+    });
+  }
 }
 
 function renderDeepTelemetry(latest) {
