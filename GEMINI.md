@@ -26,7 +26,7 @@ Bu çalışma alanındaki her yeni oturumda aşağıdaki kurallar otomatik olara
 - **GitHub Deposu:** `https://github.com/testworkteams-png/GarminCoach.git`
 - **Supabase Proje ID:** `htooqswstuuzslvrgxsx`
 - **Ana Kullanıcı (Owner) UUID:** `c4953941-0b4f-42b1-b18c-a3c8693aa32f`
-- **Güncel Service Worker Sürümü:** `garmincoach-shell-v62` (`sw.js`)
+- **Güncel Service Worker Sürümü:** `garmincoach-shell-v63` (`sw.js`)
 - **Mimari:** Sıfır derleme (zero-build) Vanilla HTML/CSS/JS + PWA + Capacitor (`capacitor.config.json`) + Supabase PostgreSQL + Deno Edge Functions + `pg_cron`
 
 ---
@@ -44,12 +44,13 @@ Bu çalışma alanındaki her yeni oturumda aşağıdaki kurallar otomatik olara
 | `lab-reports.js` | Kan tahlili PDF/görsel AI ayrıştırma (`parse-lab-report`), biyobelirteç eğrileri ve birleşik YZ tahlil özeti |
 | `ai-insights.js` | Günlük Active Intelligence özet kartı, beğeni geri bildirimi ve bildirim saati ayarları |
 | `theme-engine.js` | Canlı hava/özel gün tabanlı tema motoru (`weather_sunny` vb.) |
-| `sw.js` | Offline kabuk önbelleği (`CACHE_NAME = "garmincoach-shell-v62"`) ve Web Share Target (`/share-scale`) yakalayıcı |
+| `sw.js` | Offline kabuk önbelleği (`CACHE_NAME = "garmincoach-shell-v63"`) ve Web Share Target (`/share-scale`) yakalayıcı |
 | `GEMINI.md` | Antigravity çalışma alanı kuralları; her oturumda `PROJECT_STATUS.md` içeriğini otomatik yükler ve her değişiklikte güncellenmesini zorunlu tutar |
 | `PROJECT_STATUS.md` | Güncel mimari, Edge Function sürümleri, `pg_cron` zamanlayıcıları ve sürüm geçmişi referansı |
 
 ### Sekme Yapısı (`index.html`)
 1. **`#tab-dashboard` (`🏠 Ana Ekran`)**:
+   - **Akordeon `🛡️ Bağışıklık Radarı` (`#immunity-radar-card`):** Varsayılan kapalı durumdadır; kapalı halinde başlık, günlük durum rozeti (`GÜVENDE` / `HAFİF SİNYAL` / `DİKKAT / RİSK` / `YÜKSEK RİSK`) ve 4 renkli yatay risk barı (`#immunity-sum-marker` + `#immunity-sum-pct`) görünür. 14 günlük kişisel medyan bazlarına göre 3 bağımsız sistemi (Isı & Solunum, Kalp & Otonom, Gece Onarım) değerlendirir; tek metrik tavan koruması (gereksiz alarm önleme), 2+ gün süreklilik çarpanı ve son 36 saatlik ağır antrenman filtresiyle açıldığında **4 kartlık 2×2 grid** (`🌡️ Isı & Solunum`, `💓 Kalp & Otonom`, `🔋 Gece Onarım`, `🧭 Ayırıcı Karar`) gösterir.
    - **Akordeon `⌚ Güncel Biyometri & Kondisyon` (`#home-bars-card`):** Varsayılan kapalı durumdadır; kapalı halinde yalnızca başlık ve `☀️ Günlük Rapor →` butonu görünür. Açıldığında **12'li Stacked Progress Bar Kokpiti (`#home-live-grid`)** listelenir:
      - *Toparlanma & Sinir Sistemi (5 bar):* `😴 Uyku`, `💓 HRV`, `🫀 Dinlenik Nabız`, `🔋 Body Battery`, `🧘 Stres Seviyesi`.
      - *Kondisyon, Sağlık & Günlük Hareket (7 bar):* `🏃 VO₂ Maks` (boş günlerde geriye dönük en güncel kayıt), `🏆 Dayanıklılık Puanı`, `🧬 Sağlık Yaşı`, `🫁 Solunum & Pulse Ox`, `⚡ Bugün (Anlık)` (güncel adım + toplam/aktif kcal + hedef %), `🪜 Çıkılan Kat` (kat/hedef + tırmanış metre + iniş + hedef %; tıklanınca `⚡ Hareket` slaytında `🪜 Kat & Tırmanış` 14G grafiğini açar), `👣 Dünün Kapanışı`.
@@ -98,7 +99,7 @@ Bu çalışma alanındaki her yeni oturumda aşağıdaki kurallar otomatik olara
 ---
 
 ## 4. Geliştirme ve Yayınlama Kuralları (Yeni Sohbet Kılavuzu)
-1. **Service Worker Sürümü:** Ön yüz dosyalarında (`index.html`, `styles.css`, `*.js`) herhangi bir değişiklik yapıldığında `sw.js` içindeki `CACHE_NAME` değerini mutlaka artırın (`garmincoach-shell-v62` → `garmincoach-shell-v63`).
+1. **Service Worker Sürümü:** Ön yüz dosyalarında (`index.html`, `styles.css`, `*.js`) herhangi bir değişiklik yapıldığında `sw.js` içindeki `CACHE_NAME` değerini mutlaka artırın (`garmincoach-shell-v63` → `garmincoach-shell-v64`).
 2. **Edge Function Dağıtımı:** Supabase MCP `deploy_edge_function` çağrılarında her zaman `import_map_path: "deno.json"` (içeriği `deno.json` ile birlikte) ve `verify_jwt: false` parametrelerini verin.
 3. **Doğrulama:** Push öncesinde JavaScriptCore (`/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc`) ile sözdizimi/smoke testi ve HTML `id` eşleşme kontrolü çalıştırın; GitHub Pages yayını (~18 sn) sonrası `https://garmin.alidincerozdemir.com/sw.js` üzerinden yeni sürümü doğrulayın.
 4. **Sohbet Hijyeni:** Antigravity'de yeni bir özellik eklerken yeni sohbet açıp *"PROJECT_STATUS.md dosyasını oku, ..."* diyerek başlamak gereksiz bağlam ve token tüketimini önler.
@@ -106,7 +107,8 @@ Bu çalışma alanındaki her yeni oturumda aşağıdaki kurallar otomatik olara
 ---
 
 ## 5. Son Tamamlanan Sürümler
-- **`v62`:** `🔬 Biyometri, Enerji & Akıllı Özet` karusel bölümü (`#lab-carousel-section`) varsayılan kapalı akordeona alındı (kapalıyken yalnızca başlık ve `13 Kart` rozeti görünür; üstteki 12 bar satırından biri tıklandığında otomatik açılıp ilgili slayta gider).
+- **`v63`:** Ana ekranın en üstüne varsayılan kapalı **`🛡️ Bağışıklık Radarı`** (`#immunity-radar-card`) akordeonu eklendi; 14G kişisel medyan bazları, tek-sistem yanlış alarm koruması, 2G süreklilik çarpanı ve 36 saatlik ağır antrenman yorgunluğu filtresiyle günlük hastalık risk yüzdesini hesaplar ve açıldığında 4 kart (`🌡️ Isı & Solunum`, `💓 Kalp & Otonom`, `🔋 Gece Onarım`, `🧭 Ayırıcı Karar`) sunar.
+- **`617625d` (`v62`):** `🔬 Biyometri, Enerji & Akıllı Özet` karusel bölümü (`#lab-carousel-section`) varsayılan kapalı akordeona alındı (kapalıyken yalnızca başlık ve `13 Kart` rozeti görünür; üstteki 12 bar satırından biri tıklandığında otomatik açılıp ilgili slayta gider).
 - **`258ee29` (`v61`):** `🌤️ Yürüyüş & AQI` akordeonu açıldığında üstteki saat/sıcaklık çipleri (`.weather-acc-chips`) ve yatay AQI barı (`.weather-aqi-bar-row`) gizlenerek açık görünümde tekrar kaldırıldı.
 - **`acdd0bf` (`v60`):** Hava & AQI akordeonu başlığı `🌤️ Yürüyüş & AQI` olarak yenilendi; kapalı halinde başlık + saat/sıcaklık çipleri ve 4 renkli yatay AQI barı (`#weather-sum-aqi-marker`) gösterilir hale getirildi.
 - **`bd4f6bf` (`v59` / `garmin-coach-engine v23`):** Hava/AQI saatlik şeridi şimdi + 5 saat ileri (toplam 6 saat, gece yarısında yarının ilk saatlerine taşan ve dar ekranda yatay kaydırılabilen) yapıya geçirildi; `Aktif Pencere` kutusu kaldırılarak `Gün Doğumu / Batımı` birleştirildi ve 4. KPI kutusuna `💧 Nem / ☀️ UV İndeksi` eklendi.

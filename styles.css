@@ -6018,3 +6018,314 @@ html[data-theme="weather_sunny"] .best-slot-banner {
 html[data-theme="weather_sunny"] .lab-acc-chevron {
   background: rgba(15, 23, 42, 0.07);
 }
+
+/* Ana Ekran: Bağışıklık Radarı Akordeonu */
+.immunity-accordion {
+  padding: 12px 16px;
+}
+
+.immunity-acc-head {
+  display: flex;
+  align-items: center;
+}
+
+.immunity-acc-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.immunity-acc-toggle:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.immunity-acc-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.immunity-acc-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.immunity-acc-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.immunity-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.immunity-bar-track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px;
+}
+
+.immunity-bar-seg {
+  height: 100%;
+  border-radius: 999px;
+  opacity: 0.88;
+}
+
+.immunity-bar-seg.seg-green { background: #10b981; }
+.immunity-bar-seg.seg-yellow { background: #f59e0b; }
+.immunity-bar-seg.seg-orange { background: #fb923c; }
+.immunity-bar-seg.seg-red { background: #ef4444; }
+
+.immunity-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 2.5px solid #0b1120;
+  box-shadow: 0 0 0 2px rgba(248, 250, 252, 0.35), 0 2px 6px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+  transition: left 0.35s ease;
+  pointer-events: none;
+}
+
+.immunity-bar-pct {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  min-width: 34px;
+  text-align: right;
+}
+
+.immunity-acc-chevron {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  position: relative;
+  flex-shrink: 0;
+  transition: transform 0.3s ease, background 0.2s ease;
+}
+
+.immunity-acc-chevron::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.immunity-accordion.is-open .immunity-acc-chevron {
+  transform: rotate(180deg);
+}
+
+.immunity-accordion.is-open .immunity-bar-row,
+.immunity-accordion.is-open #immunity-sum-badge {
+  display: none;
+}
+
+.immunity-accordion.is-open .immunity-acc-summary {
+  gap: 0;
+}
+
+.immunity-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+
+.immunity-accordion.is-open .immunity-acc-body {
+  grid-template-rows: 1fr;
+}
+
+.immunity-acc-inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  padding-top: 0;
+  transition: opacity 0.22s ease, padding-top 0.28s ease;
+}
+
+.immunity-accordion.is-open .immunity-acc-inner {
+  opacity: 1;
+  padding-top: 10px;
+}
+
+.immunity-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.immunity-signals-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.immunity-signal-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+}
+
+.immunity-signal-chip.crit {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.42);
+  color: #fecaca;
+}
+
+.immunity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.immunity-card {
+  background: rgba(255, 255, 255, 0.032);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.immunity-card.st-warn {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.immunity-card.st-orange {
+  border-color: rgba(251, 146, 60, 0.5);
+  background: rgba(251, 146, 60, 0.07);
+}
+
+.immunity-card.st-crit {
+  border-color: rgba(239, 68, 68, 0.55);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.immunity-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.immunity-card-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.immunity-card-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #10b981;
+}
+
+.immunity-card-dot.warn { background: #f59e0b; }
+.immunity-card-dot.orange { background: #fb923c; }
+.immunity-card-dot.crit { background: #ef4444; }
+
+.immunity-card-val {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.immunity-card-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.38;
+}
+
+html[data-theme="weather_sunny"] .immunity-acc-chevron {
+  background: rgba(15, 23, 42, 0.07);
+}
+
+html[data-theme="weather_sunny"] .immunity-bar-track {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="weather_sunny"] .immunity-bar-marker {
+  background: #0f172a;
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.2), 0 2px 6px rgba(15, 23, 42, 0.25);
+}
+
+html[data-theme="weather_sunny"] .immunity-card {
+  background: rgba(15, 23, 42, 0.035);
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+html[data-theme="weather_sunny"] .immunity-signal-chip {
+  color: #92400e;
+  background: rgba(217, 119, 6, 0.14);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+html[data-theme="weather_sunny"] .immunity-signal-chip.crit {
+  color: #991b1b;
+  background: rgba(220, 38, 38, 0.14);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+@media (max-width: 480px) {
+  .immunity-accordion {
+    padding: 11px 14px;
+  }
+  .immunity-acc-title {
+    font-size: 14px;
+  }
+  .immunity-grid {
+    gap: 8px;
+  }
+  .immunity-card {
+    padding: 9px 10px;
+  }
+}

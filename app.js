@@ -849,6 +849,339 @@ window.toggleHomeBarsAccordion = function (forceOpen) {
   if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
 };
 
+window.toggleImmunityAccordion = function (forceOpen) {
+  const card = document.getElementById("immunity-radar-card");
+  const btn = document.getElementById("immunity-acc-toggle");
+  if (!card) return;
+  const nextOpen = typeof forceOpen === "boolean" ? forceOpen : !card.classList.contains("is-open");
+  card.classList.toggle("is-open", nextOpen);
+  if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+};
+
+function computeImmunityRadar(bios, acts, settings) {
+  const list = Array.isArray(bios) ? bios : [];
+  const latest = list[0] || null;
+  if (!latest) return null;
+
+  const medianOf = (arr) => {
+    const nums = arr.map(Number).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+    if (!nums.length) return null;
+    const mid = Math.floor(nums.length / 2);
+    return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+  };
+
+  const hist = list.slice(1, 15);
+  const baseRhr = medianOf(hist.map((d) => d?.rhr).filter((v) => v > 0)) ?? Number(settings?.base_rhr ?? 46);
+  const baseHrv =
+    medianOf(hist.map((d) => d?.hrv_nightly_avg).filter((v) => v > 0)) ??
+    Math.round((Number(settings?.base_hrv_min ?? 59) + Number(settings?.base_hrv_max ?? 74)) / 2);
+  const baseResp = medianOf(hist.map((d) => d?.sleep_respiration_avg).filter((v) => v > 0)) ?? 15.5;
+  const baseStress = medianOf(hist.map((d) => d?.sleep_stress_avg).filter((v) => v > 0)) ?? 16;
+  const baseSpo2 = medianOf(hist.map((d) => d?.spo2_avg).filter((v) => v > 0)) ?? 96;
+  const baseBbCharge =
+    medianOf(
+      hist
+        .map((d) => d?.raw_payload?.telemetry_extra?.bb_during_sleep ?? d?.body_battery_charged)
+        .filter((v) => v > 0)
+    ) ?? 55;
+
+  const respWarn = Number(settings?.resp_warn_threshold ?? 18.0);
+  const stressWarn = Number(settings?.sleep_stress_threshold ?? 23);
+
+  const curTemp = latest.skin_temp_deviation != null ? Number(latest.skin_temp_deviation) : null;
+  const curResp = latest.sleep_respiration_avg != null ? Number(latest.sleep_respiration_avg) : null;
+  const curSpo2 = latest.spo2_avg != null ? Number(latest.spo2_avg) : null;
+  const curRhr = latest.rhr != null ? Number(latest.rhr) : null;
+  const curHrv = latest.hrv_nightly_avg != null ? Number(latest.hrv_nightly_avg) : null;
+  const curStress = latest.sleep_stress_avg != null ? Number(latest.sleep_stress_avg) : null;
+  const curBbCharge =
+    latest?.raw_payload?.telemetry_extra?.bb_during_sleep ??
+    (latest.body_battery_charged != null ? Number(latest.body_battery_charged) : null);
+
+  // 7-day sleep debt
+  const sleep7 = list.slice(0, 7).filter((d) => Number(d?.sleep_seconds || 0) > 0);
+  const sleepDebtH = sleep7.length
+    ? Math.max(0, sleep7.reduce((sum, d) => sum + (7.5 - Number(d.sleep_seconds) / 3600), 0))
+    : 0;
+
+  // System A: Infection-specific (Skin temp, Respiration, SpO2)
+  let sysAPts = 0;
+  let highTempAlone = false;
+  const signals = [];
+
+  if (curTemp != null) {
+    if (curTemp >= 0.7) {
+      sysAPts += 34;
+      highTempAlone = true;
+      signals.push({ label: `Deri Isısı +${curTemp.toFixed(1)}°C`, crit: true });
+    } else if (curTemp >= 0.45) {
+      sysAPts += 22;
+      if (curTemp >= 0.6) highTempAlone = true;
+      signals.push({ label: `Deri Isısı +${curTemp.toFixed(1)}°C`, crit: false });
+    } else if (curTemp >= 0.3) {
+      sysAPts += 10;
+      signals.push({ label: `Deri Isısı +${curTemp.toFixed(1)}°C`, crit: false });
+    }
+  }
+
+  const respDelta = curResp != null ? curResp - baseResp : 0;
+  if (curResp != null) {
+    if (respDelta >= 2.0 || curResp >= respWarn + 1.0) {
+      sysAPts += 22;
+      signals.push({ label: `Solunum ${curResp.toFixed(1)}/dk (+${respDelta.toFixed(1)})`, crit: true });
+    } else if (respDelta >= 1.2 || curResp >= respWarn) {
+      sysAPts += 12;
+      signals.push({ label: `Solunum ${curResp.toFixed(1)}/dk`, crit: false });
+    }
+  }
+
+  const spo2Drop = curSpo2 != null ? baseSpo2 - curSpo2 : 0;
+  if (curSpo2 != null) {
+    if (curSpo2 <= 91 || spo2Drop >= 3.0) {
+      sysAPts += 18;
+      signals.push({ label: `SpO₂ %${curSpo2.toFixed(0)}`, crit: true });
+    } else if (curSpo2 <= 93 || spo2Drop >= 2.0) {
+      sysAPts += 9;
+      signals.push({ label: `SpO₂ %${curSpo2.toFixed(0)}`, crit: false });
+    }
+  }
+
+  // System B: Autonomic / Cardiac (RHR, HRV vs 14d median)
+  let sysBPts = 0;
+  const rhrDelta = curRhr != null ? curRhr - baseRhr : 0;
+  if (curRhr != null) {
+    if (rhrDelta >= 6) {
+      sysBPts += 24;
+      signals.push({ label: `RHR ${curRhr} (+${Math.round(rhrDelta)})`, crit: true });
+    } else if (rhrDelta >= 4) {
+      sysBPts += 14;
+      signals.push({ label: `RHR ${curRhr} (+${Math.round(rhrDelta)})`, crit: false });
+    } else if (rhrDelta >= 2.5) {
+      sysBPts += 6;
+    }
+  }
+
+  const hrvDropPct = curHrv != null && baseHrv > 0 ? ((baseHrv - curHrv) / baseHrv) * 100 : 0;
+  if (curHrv != null) {
+    if (hrvDropPct >= 22) {
+      sysBPts += 22;
+      signals.push({ label: `HRV ${curHrv} (-%${Math.round(hrvDropPct)})`, crit: true });
+    } else if (hrvDropPct >= 14) {
+      sysBPts += 13;
+      signals.push({ label: `HRV ${curHrv} (-%${Math.round(hrvDropPct)})`, crit: false });
+    } else if (hrvDropPct >= 9) {
+      sysBPts += 5;
+    }
+  }
+
+  // System C: Nightly Recovery & Resistance (Sleep stress, BB sleep charge, 7d sleep debt)
+  let sysCPts = 0;
+  const stressDelta = curStress != null ? curStress - baseStress : 0;
+  if (curStress != null) {
+    if (curStress >= stressWarn + 7 || stressDelta >= 9) {
+      sysCPts += 16;
+      signals.push({ label: `Uyku Stresi ${curStress}`, crit: true });
+    } else if (curStress >= stressWarn || stressDelta >= 5) {
+      sysCPts += 8;
+      signals.push({ label: `Uyku Stresi ${curStress}`, crit: false });
+    }
+  }
+  if (curBbCharge != null && curBbCharge < baseBbCharge * 0.65 && curBbCharge < 40) {
+    sysCPts += 8;
+    signals.push({ label: `Düşük Gece Şarjı +${curBbCharge}`, crit: false });
+  }
+  if (sleepDebtH >= 5.0) {
+    sysCPts += 6;
+  }
+
+  // Heavy workout filter (last 36 hours)
+  const latestMs = latest.log_date ? new Date(`${latest.log_date}T23:59:59+03:00`).getTime() : Date.now();
+  const recentHeavyActs = (Array.isArray(acts) ? acts : []).filter((a) => {
+    const tMs = new Date(a?.start_time_local || 0).getTime();
+    if (!Number.isFinite(tMs)) return false;
+    const diffH = (latestMs - tMs) / 3600000;
+    if (diffH < -2 || diffH > 40) return false;
+    return Number(a?.training_load || 0) >= 75 || Number(a?.duration_seconds || 0) >= 3600 || Number(a?.anaerobic_te || 0) >= 2.5;
+  });
+  const hasHeavyWorkout = recentHeavyActs.length > 0;
+  const workoutDampened = hasHeavyWorkout && sysAPts === 0 && (sysBPts > 0 || sysCPts > 0);
+
+  // Consecutive-day persistence check (yesterday also had >= 2 metric deviations)
+  const prev = list[1] || null;
+  let prevDeviations = 0;
+  if (prev) {
+    if (prev.skin_temp_deviation != null && Number(prev.skin_temp_deviation) >= 0.35) prevDeviations++;
+    if (prev.rhr != null && Number(prev.rhr) - baseRhr >= 3) prevDeviations++;
+    if (prev.hrv_nightly_avg != null && baseHrv > 0 && ((baseHrv - Number(prev.hrv_nightly_avg)) / baseHrv) * 100 >= 12) prevDeviations++;
+    if (prev.sleep_respiration_avg != null && Number(prev.sleep_respiration_avg) - baseResp >= 1.2) prevDeviations++;
+    if (prev.sleep_stress_avg != null && Number(prev.sleep_stress_avg) >= stressWarn) prevDeviations++;
+  }
+  const multiDayTrend = prevDeviations >= 2;
+
+  const activeSystems = [sysAPts >= 10, sysBPts >= 12, sysCPts >= 8].filter(Boolean).length;
+
+  let rawScore = sysAPts + (workoutDampened ? (sysBPts + sysCPts) * 0.62 : sysBPts + sysCPts);
+  if (multiDayTrend && activeSystems >= 2) {
+    rawScore *= 1.18;
+  }
+
+  // Conservative false-positive caps
+  let score = Math.round(Math.min(98, Math.max(4, rawScore)));
+  if (activeSystems === 0) {
+    score = Math.min(12, Math.max(4, Math.round(rawScore * 0.7) + 4));
+  } else if (activeSystems === 1) {
+    const cap = highTempAlone ? 44 : 24;
+    score = Math.min(cap, score);
+  } else if (activeSystems === 2 && !multiDayTrend && sysAPts < 22) {
+    score = Math.min(68, score);
+  }
+
+  let level = "GÜVENDE";
+  let badgeCls = "badge-ok";
+  if (score >= 75) {
+    level = "YÜKSEK RİSK";
+    badgeCls = "badge-crit";
+  } else if (score >= 50) {
+    level = "DİKKAT / RİSK";
+    badgeCls = "badge-orange";
+  } else if (score >= 25) {
+    level = "HAFİF SİNYAL";
+    badgeCls = "badge-warn";
+  }
+
+  const cardStatus = (pts, warnTh, orangeTh, critTh) =>
+    pts >= critTh ? "crit" : pts >= orangeTh ? "orange" : pts >= warnTh ? "warn" : "ok";
+
+  const stA = cardStatus(sysAPts, 10, 22, 34);
+  const stB = cardStatus(sysBPts, 12, 22, 34);
+  const stC = cardStatus(sysCPts, 8, 16, 22);
+  const stD = score >= 75 ? "crit" : score >= 50 ? "orange" : score >= 25 ? "warn" : "ok";
+
+  let verdictTitle = "Hastalık sinyali yok";
+  let verdictSub = "Tüm sistemler 14G kişisel bazınızla uyumlu. Normal antrenman ve rutine devam edebilirsiniz.";
+  if (score >= 75) {
+    verdictTitle = multiDayTrend ? "Ardışık çoklu bağışıklık yükü" : "Yüksek enfeksiyon / hastalık riski";
+    verdictSub = "Birden fazla fizyolojik sistemde belirgin sapma var. Ağır antrenmanı iptal edip dinlenme, sıvı ve semptom (ateş/boğaz) takibi yapın.";
+  } else if (score >= 50) {
+    verdictTitle = multiDayTrend ? "2+ günlük bağışıklık sinyali" : "Orta-yüksek bağışıklık yükü";
+    verdictSub = "En az iki sistemde baz dışı sinyal mevcut. Bugün yoğun yüklenmeyi erteleyip Z2 hafif yürüyüş ve erken uyku seçin.";
+  } else if (score >= 25) {
+    verdictTitle = highTempAlone ? "Deri ısısı yükseldi — izle" : workoutDampened ? "Antrenman yorgunluğu + hafif sinyal" : "Hafif erken sinyal";
+    verdictSub = workoutDampened
+      ? "Son antrenman yükü toparlanmayı zorlamış; yine de yarın sabah ısı/RHR trendini kontrol edin."
+      : "Kesin hastalık tablosu yok, ancak bugün ekstra su, kaliteli uyku ve kontrollü tempo önerilir.";
+  } else if (workoutDampened) {
+    verdictTitle = "Antrenman yorgunluğu ağırlıklı";
+    verdictSub = `Son 36 saatteki yüksek yük (${recentHeavyActs[0]?.activity_name || "antrenman"}) kaynaklı normal toparlanma tepkisi; ısı ve solunum temiz.`;
+  }
+
+  const tempStr = curTemp != null ? `${curTemp >= 0 ? "+" : ""}${curTemp.toFixed(1)}°C` : "--";
+  const respStr = curResp != null ? `${curResp.toFixed(1)}/dk` : "--";
+  const spo2Str = curSpo2 != null ? `%${Math.round(curSpo2)}` : "--";
+  const rhrDiffStr = curRhr != null ? `${rhrDelta >= 0 ? "+" : ""}${Math.round(rhrDelta)}` : "--";
+  const hrvDiffStr = curHrv != null && baseHrv > 0 ? `${Math.round(curHrv - baseHrv) >= 0 ? "+" : ""}${Math.round(curHrv - baseHrv)}` : "--";
+
+  const cards = [
+    {
+      title: "🌡️ Isı & Solunum",
+      status: stA,
+      val: `${tempStr} · ${respStr}`,
+      sub: `SpO₂ ${spo2Str} · Baz solunum ${baseResp.toFixed(1)}/dk`,
+    },
+    {
+      title: "💓 Kalp & Otonom",
+      status: stB,
+      val: `RHR ${curRhr ?? "--"} · HRV ${curHrv ?? "--"}`,
+      sub: `14G baz: RHR ${Math.round(baseRhr)} (${rhrDiffStr}) · HRV ${Math.round(baseHrv)} (${hrvDiffStr})`,
+    },
+    {
+      title: "🔋 Gece Onarım",
+      status: stC,
+      val: `Stres ${curStress ?? "--"} · Şarj +${curBbCharge ?? "--"}`,
+      sub: `7G uyku borcu ${sleepDebtH.toFixed(1)} sa · Baz stres ${Math.round(baseStress)}`,
+    },
+    {
+      title: "🧭 Ayırıcı Karar",
+      status: stD,
+      val: verdictTitle,
+      sub: verdictSub,
+    },
+  ];
+
+  return {
+    score,
+    level,
+    badgeCls,
+    signals,
+    cards,
+    baseDays: hist.length,
+    multiDayTrend,
+    workoutDampened,
+  };
+}
+
+function renderImmunityRadar(s) {
+  const card = document.getElementById("immunity-radar-card");
+  if (!card) return;
+  const radar = computeImmunityRadar(state.biometrics, state.activities, s);
+  if (!radar) {
+    card.classList.add("hidden");
+    return;
+  }
+  card.classList.remove("hidden");
+
+  const sumBadge = document.getElementById("immunity-sum-badge");
+  if (sumBadge) {
+    sumBadge.textContent = radar.level;
+    sumBadge.className = `badge mono ${radar.badgeCls}`;
+  }
+  const sumPct = document.getElementById("immunity-sum-pct");
+  if (sumPct) sumPct.textContent = `%${radar.score}`;
+  const sumMarker = document.getElementById("immunity-sum-marker");
+  if (sumMarker) sumMarker.style.left = `${Math.min(97, Math.max(3, radar.score))}%`;
+
+  const innerBadge = document.getElementById("immunity-inner-badge");
+  if (innerBadge) {
+    innerBadge.textContent = `%${radar.score} · ${radar.level}`;
+    innerBadge.className = `badge mono ${radar.badgeCls}`;
+  }
+  const metaSub = document.getElementById("immunity-meta-sub");
+  if (metaSub) {
+    const baseTxt = radar.baseDays >= 3 ? `Son ${radar.baseDays}G kişisel medyan bazına göre` : "Kişisel eşik bazına göre";
+    metaSub.textContent = `${baseTxt}${radar.multiDayTrend ? " · 2G süreklilik aktif" : ""}`;
+  }
+
+  const sigRow = document.getElementById("immunity-signals-row");
+  if (sigRow) {
+    if (radar.signals.length > 0 && radar.score >= 25) {
+      sigRow.classList.remove("hidden");
+      sigRow.innerHTML = radar.signals
+        .map((sg) => `<span class="immunity-signal-chip ${sg.crit ? "crit" : ""}">⚠️ ${escapeHtml(sg.label)}</span>`)
+        .join("");
+    } else {
+      sigRow.classList.add("hidden");
+      sigRow.innerHTML = "";
+    }
+  }
+
+  const grid = document.getElementById("immunity-cards-grid");
+  if (grid) {
+    grid.innerHTML = radar.cards
+      .map(
+        (c) => `
+      <div class="immunity-card st-${c.status}">
+        <div class="immunity-card-head">
+          <span class="immunity-card-title">${escapeHtml(c.title)}</span>
+          <span class="immunity-card-dot ${c.status}"></span>
+        </div>
+        <div class="immunity-card-val mono">${escapeHtml(c.val)}</div>
+        <div class="immunity-card-sub">${escapeHtml(c.sub)}</div>
+      </div>`
+      )
+      .join("");
+  }
+}
+
 window.toggleWeatherAccordion = function (forceOpen) {
   const card = document.getElementById("evening-weather-card");
   const btn = document.getElementById("weather-acc-toggle");
@@ -1005,6 +1338,7 @@ function clearLabCarouselEmpty() {
 function renderDashboard() {
   const latest = state.biometrics[0];
   const s = state.settings || {};
+  renderImmunityRadar(s);
   renderHomeLiveCockpit(latest);
   if (!latest) {
     clearRedAlertUi();

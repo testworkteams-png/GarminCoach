@@ -228,7 +228,42 @@
 
       <!-- TAB 1: ANA EKRAN (GÜNCEL VERİLER) -->
       <section id="tab-dashboard" class="tab-panel active">
-        <div class="card card-glow home-bars-card home-bars-accordion" id="home-bars-card">
+        <!-- Immunity Radar Accordion -->
+        <div class="card immunity-accordion" id="immunity-radar-card">
+          <div class="immunity-acc-head">
+            <button type="button" class="immunity-acc-toggle" id="immunity-acc-toggle" onclick="toggleImmunityAccordion()" aria-expanded="false" aria-controls="immunity-acc-body">
+              <div class="immunity-acc-summary">
+                <div class="immunity-acc-top-row">
+                  <span class="card-title immunity-acc-title">🛡️ Bağışıklık Radarı</span>
+                  <span class="badge badge-ok mono" id="immunity-sum-badge">-- · Hesaplanıyor</span>
+                </div>
+                <div class="immunity-bar-row" aria-label="Bağışıklık Risk Çubuğu">
+                  <div class="immunity-bar-track">
+                    <span class="immunity-bar-seg seg-green"></span>
+                    <span class="immunity-bar-seg seg-yellow"></span>
+                    <span class="immunity-bar-seg seg-orange"></span>
+                    <span class="immunity-bar-seg seg-red"></span>
+                    <span class="immunity-bar-marker" id="immunity-sum-marker" style="left:8%;"></span>
+                  </div>
+                  <span class="mono immunity-bar-pct" id="immunity-sum-pct">%--</span>
+                </div>
+              </div>
+              <span class="immunity-acc-chevron" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="immunity-acc-body" id="immunity-acc-body">
+            <div class="immunity-acc-inner">
+              <div class="immunity-meta-row">
+                <span class="card-sub" id="immunity-meta-sub">14 günlük kişisel baz çizgisine göre günlük tarama</span>
+                <span class="badge badge-ok mono" id="immunity-inner-badge">%-- · Güvende</span>
+              </div>
+              <div class="immunity-signals-row hidden" id="immunity-signals-row"></div>
+              <div class="immunity-grid" id="immunity-cards-grid"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-glow home-bars-card home-bars-accordion mt-18" id="home-bars-card">
           <div class="home-bars-acc-head">
             <button type="button" class="home-bars-acc-toggle" id="home-bars-acc-toggle" onclick="toggleHomeBarsAccordion()" aria-expanded="false" aria-controls="home-bars-acc-body">
               <span class="card-title">⌚ Güncel Biyometri &amp; Kondisyon</span>
