@@ -249,9 +249,23 @@
           <div class="weather-acc-head">
             <button type="button" class="weather-acc-toggle" id="weather-acc-toggle" onclick="toggleWeatherAccordion()" aria-expanded="false" aria-controls="weather-acc-body">
               <div class="weather-acc-summary" id="weather-acc-summary">
-                <span class="weather-sum-chip mono" id="weather-sum-time">🕒 --:--</span>
-                <span class="weather-sum-chip mono" id="weather-sum-temp">🌡️ --°C</span>
-                <span class="badge badge-ok mono" id="weather-sum-aqi">-- AQI</span>
+                <div class="weather-acc-top-row">
+                  <span class="card-title weather-acc-title">🌤️ Yürüyüş &amp; AQI</span>
+                  <div class="weather-acc-chips">
+                    <span class="weather-sum-chip mono" id="weather-sum-time">🕒 --:--</span>
+                    <span class="weather-sum-chip mono" id="weather-sum-temp">🌡️ --°C</span>
+                  </div>
+                </div>
+                <div class="weather-aqi-bar-row" aria-label="Hava Kalitesi Çubuğu">
+                  <div class="weather-aqi-bar-track">
+                    <span class="weather-aqi-bar-seg seg-green"></span>
+                    <span class="weather-aqi-bar-seg seg-yellow"></span>
+                    <span class="weather-aqi-bar-seg seg-orange"></span>
+                    <span class="weather-aqi-bar-seg seg-red"></span>
+                    <span class="weather-aqi-bar-marker" id="weather-sum-aqi-marker" style="left:25%;"></span>
+                  </div>
+                  <span class="badge badge-ok mono weather-aqi-bar-val" id="weather-sum-aqi">-- AQI</span>
+                </div>
               </div>
               <span class="weather-acc-chevron" aria-hidden="true"></span>
             </button>
@@ -259,10 +273,7 @@
           <div class="weather-acc-body" id="weather-acc-body">
             <div class="weather-acc-inner">
               <div class="card-header weather-inner-header">
-                <div>
-                  <div class="card-title">🌤️ Gün Boyu Yürüyüş &amp; Hava Kalitesi Kadranı</div>
-                  <div class="card-sub" id="weather-source-label">MET Norway + Open-Meteo AQI</div>
-                </div>
+                <div class="card-sub" id="weather-source-label">MET Norway + Open-Meteo AQI</div>
                 <button type="button" class="btn btn-cyan btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">⟳ Havayı Yenile</button>
               </div>
               <div class="aqi-dial-row">

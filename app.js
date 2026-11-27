@@ -1257,7 +1257,12 @@ function renderDashboard() {
   const sumAqiEl = document.getElementById("weather-sum-aqi");
   if (sumAqiEl) {
     sumAqiEl.textContent = `${curAqi} AQI · ${curDialLbl}`;
-    sumAqiEl.className = `badge mono ${badgeClsFor(curDialLbl)}`;
+    sumAqiEl.className = `badge mono weather-aqi-bar-val ${badgeClsFor(curDialLbl)}`;
+  }
+  const sumAqiMarkerEl = document.getElementById("weather-sum-aqi-marker");
+  if (sumAqiMarkerEl) {
+    const markerPct = Math.min(97, Math.max(3, curAqi));
+    sumAqiMarkerEl.style.left = `${markerPct}%`;
   }
 
   document.getElementById("weather-source-label").textContent = `${w.city || s.active_city || s.default_city || "--"} · ${w.source || "MET Norway + Open-Meteo AQI"}`;

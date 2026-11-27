@@ -5689,23 +5689,94 @@ html[data-theme="weather_sunny"] .yearly-month-card {
 
 .weather-acc-summary {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.weather-acc-top-row {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
-  min-width: 0;
+}
+
+.weather-acc-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.weather-acc-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .weather-sum-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
-  padding: 4px 9px;
+  padding: 3px 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.055);
   border: 1px solid var(--border);
   color: var(--text);
+}
+
+.weather-aqi-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.weather-aqi-bar-track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px;
+}
+
+.weather-aqi-bar-seg {
+  height: 100%;
+  border-radius: 999px;
+  opacity: 0.88;
+}
+
+.weather-aqi-bar-seg.seg-green { background: #10b981; }
+.weather-aqi-bar-seg.seg-yellow { background: #f59e0b; }
+.weather-aqi-bar-seg.seg-orange { background: #fb923c; }
+.weather-aqi-bar-seg.seg-red { background: #ef4444; }
+
+.weather-aqi-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 2.5px solid #0b1120;
+  box-shadow: 0 0 0 2px rgba(248, 250, 252, 0.35), 0 2px 6px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+  transition: left 0.35s ease;
+  pointer-events: none;
+}
+
+.weather-aqi-bar-val {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 3px 8px;
 }
 
 .weather-acc-chevron {
@@ -5769,6 +5840,16 @@ html[data-theme="weather_sunny"] .weather-sum-chip {
   background: rgba(15, 23, 42, 0.065);
   border-color: rgba(15, 23, 42, 0.18);
   color: var(--text);
+}
+
+html[data-theme="weather_sunny"] .weather-aqi-bar-track {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="weather_sunny"] .weather-aqi-bar-marker {
+  background: #0f172a;
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.2), 0 2px 6px rgba(15, 23, 42, 0.25);
 }
 
 html[data-theme="weather_sunny"] .hour-pill.is-current {
