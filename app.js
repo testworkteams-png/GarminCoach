@@ -420,13 +420,18 @@ function renderTopbar() {
   const weatherPill = document.getElementById("pill-weather");
   const w = latest?.evening_weather || null;
   if (weatherPill) {
-    if (w && w.temp_c != null) {
-      const prob = Number(w.precip_prob ?? 0);
-      const hr = new Date().getHours();
-      const icon = prob >= 50 ? "🌧" : prob >= 25 ? "🌦" : (hr >= 20 || hr < 6) ? "🌙" : "☀️";
-      const tempVal = Math.round(Number(w.temp_c));
+    const nowHr = new Date().getHours();
+    const liveSlot = Array.isArray(w?.hourly_slots)
+      ? w.hourly_slots.find((sl) => parseInt(String(sl?.hour || "").slice(0, 2), 10) === nowHr)
+      : null;
+    const effTemp = liveSlot?.temp_c ?? w?.temp_c;
+    const effFeels = liveSlot?.feels_like_c ?? w?.feels_like_c;
+    const effProb = Number(liveSlot?.precip_prob ?? w?.precip_prob ?? 0);
+    if (w && effTemp != null) {
+      const icon = effProb >= 50 ? "🌧" : effProb >= 25 ? "🌦" : (nowHr >= 20 || nowHr < 6) ? "🌙" : "☀️";
+      const tempVal = Math.round(Number(effTemp));
       weatherPill.textContent = `${icon} ${tempVal}°C`;
-      weatherPill.title = `${w.city || s?.active_city || ""} · Hissedilen ${w.feels_like_c ?? tempVal}°C · Yağış %${prob}`;
+      weatherPill.title = `${w.city || s?.active_city || ""} · Hissedilen ${effFeels ?? tempVal}°C · Yağış %${effProb}`;
       weatherPill.classList.remove("hidden");
     } else {
       weatherPill.classList.add("hidden");
@@ -451,9 +456,10 @@ window.scrollToWeatherCard = function () {
   if (dashBtn && !document.getElementById("tab-dashboard")?.classList.contains("active")) {
     dashBtn.click();
   }
+  window.toggleWeatherAccordion?.(true);
   setTimeout(() => {
-    const el = document.getElementById("evening-weather-stats") || document.getElementById("weather-source-label");
-    el?.closest(".card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const el = document.getElementById("evening-weather-card") || document.getElementById("evening-weather-stats") || document.getElementById("weather-source-label");
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, 120);
 };
 
@@ -843,6 +849,15 @@ window.toggleHomeBarsAccordion = function (forceOpen) {
   if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
 };
 
+window.toggleWeatherAccordion = function (forceOpen) {
+  const card = document.getElementById("evening-weather-card");
+  const btn = document.getElementById("weather-acc-toggle");
+  if (!card) return;
+  const nextOpen = typeof forceOpen === "boolean" ? forceOpen : !card.classList.contains("is-open");
+  card.classList.toggle("is-open", nextOpen);
+  if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+};
+
 window.openDailyReportView = function () {
   document.querySelector('[data-tab="weekly"]')?.click();
   window.switchCeoMode?.("daily");
@@ -1162,38 +1177,85 @@ function renderDashboard() {
   `;
   renderSleepDebtAndBedtime();
 
-  // 180° AQI Semicircle Gauge & Hourly Strip
+  // All-Day Live AQI Semicircle Gauge & Forward-Looking Hourly Strip
   const w = latest.evening_weather || {};
-  const aqi = Number(w.aqi_max ?? 25);
+  const nowDt = new Date();
+  const nowHour = nowDt.getHours();
+  const nowMin = nowDt.getMinutes();
+  const nowHourStr = `${String(nowHour).padStart(2, "0")}:00`;
+  const nowTimeStr = `${String(nowHour).padStart(2, "0")}:${String(nowMin).padStart(2, "0")}`;
+  const dialByAqi = (val) => (val > 75 ? "KIRMIZI" : val > 50 ? "TURUNCU" : val > 25 ? "SARI" : "YEŞİL");
+  const badgeClsFor = (lvl) =>
+    lvl === "YEŞİL" ? "badge-ok" : lvl === "SARI" ? "badge-warn" : lvl === "TURUNCU" ? "badge-orange" : "badge-crit";
+
+  const rawSlots = Array.isArray(w.hourly_slots) ? w.hourly_slots : [];
+  let slots = rawSlots
+    .map((sl) => ({ sl, hr: parseInt(String(sl?.hour || "").slice(0, 2), 10) }))
+    .filter((x) => Number.isFinite(x.hr) && x.hr >= nowHour && x.hr <= 23)
+    .sort((a, b) => a.hr - b.hr)
+    .map((x) => x.sl);
+
+  if (!slots.length) {
+    const fbTemp = w.temp_c ?? 13;
+    const fbFeels = w.feels_like_c ?? fbTemp;
+    const fbWind = w.wind_kmh ?? 12;
+    const fbPrecip = w.precip_prob ?? 10;
+    const fbAqi = Number(w.aqi_max ?? 25);
+    const fbPm25 = w.pm25_max ?? null;
+    const fbDial = w.dial_level || dialByAqi(fbAqi);
+    slots = [];
+    for (let h = nowHour; h <= 23; h++) {
+      slots.push({
+        hour: `${String(h).padStart(2, "0")}:00`,
+        temp_c: fbTemp,
+        feels_like_c: fbFeels,
+        wind_kmh: fbWind,
+        precip_prob: fbPrecip,
+        aqi: fbAqi,
+        pm25: fbPm25,
+        dial_level: fbDial,
+      });
+    }
+  }
+
+  const currentSlot = slots.find((sl) => parseInt(String(sl?.hour || "").slice(0, 2), 10) === nowHour) || slots[0];
+  const curAqi = Number(currentSlot?.aqi ?? w.aqi_max ?? 25);
+  const curPm25 = currentSlot?.pm25 ?? w.pm25_max ?? "--";
+  const curTemp = currentSlot?.temp_c ?? w.temp_c ?? "--";
+  const curFeels = currentSlot?.feels_like_c ?? w.feels_like_c ?? curTemp;
+  const curWind = currentSlot?.wind_kmh ?? w.wind_kmh ?? "--";
+  const curPrecip = currentSlot?.precip_prob ?? w.precip_prob ?? 0;
+  const curDialLbl = currentSlot?.dial_level || w.dial_level || dialByAqi(curAqi);
+
+  const sumTimeEl = document.getElementById("weather-sum-time");
+  if (sumTimeEl) sumTimeEl.textContent = `🕒 ${nowTimeStr}`;
+  const sumTempEl = document.getElementById("weather-sum-temp");
+  if (sumTempEl) sumTempEl.textContent = `🌡️ ${curTemp !== "--" ? `${curTemp}°C` : "--°C"}`;
+  const sumAqiEl = document.getElementById("weather-sum-aqi");
+  if (sumAqiEl) {
+    sumAqiEl.textContent = `${curAqi} AQI · ${curDialLbl}`;
+    sumAqiEl.className = `badge mono ${badgeClsFor(curDialLbl)}`;
+  }
+
   document.getElementById("weather-source-label").textContent = `${w.city || s.active_city || s.default_city || "--"} · ${w.source || "MET Norway + Open-Meteo AQI"}`;
 
   // Map AQI 0..100 to -82deg..+82deg
-  const clampedAqi = Math.min(100, Math.max(0, aqi));
+  const clampedAqi = Math.min(100, Math.max(0, curAqi));
   const angle = -82 + (clampedAqi / 100) * 164;
   document.getElementById("aqi-needle").setAttribute("transform", `rotate(${angle.toFixed(1)} 105 102)`);
-  document.getElementById("aqi-dial-val").textContent = `${aqi} AQI`;
+  document.getElementById("aqi-dial-val").textContent = `${curAqi} AQI`;
 
-  const dialLbl = w.dial_level || "YEŞİL";
   const dialBadge = document.getElementById("aqi-dial-badge");
-  dialBadge.textContent = `${dialLbl} · PM2.5 ${w.pm25_max ?? "--"}`;
-  dialBadge.className = `badge ${dialLbl === "YEŞİL" ? "badge-ok" : dialLbl === "SARI" ? "badge-warn" : dialLbl === "TURUNCU" ? "badge-orange" : "badge-crit"}`;
+  dialBadge.textContent = `${curDialLbl} · PM2.5 ${curPm25}`;
+  dialBadge.className = `badge ${badgeClsFor(curDialLbl)}`;
 
   document.getElementById("evening-weather-stats").innerHTML = `
-    <div class="mini-box"><div class="mini-box-lbl">Sıcaklık / Hissedilen</div><div class="mini-box-val mono">${w.temp_c ?? "--"}° / ${w.feels_like_c ?? "--"}°</div></div>
-    <div class="mini-box"><div class="mini-box-lbl">Rüzgar / Yağış</div><div class="mini-box-val mono">${w.wind_kmh ?? "--"} km/s · %${w.precip_prob ?? 0}</div></div>
+    <div class="mini-box"><div class="mini-box-lbl">Sıcaklık / Hissedilen</div><div class="mini-box-val mono">${curTemp}° / ${curFeels}°</div></div>
+    <div class="mini-box"><div class="mini-box-lbl">Rüzgar / Yağış</div><div class="mini-box-val mono">${curWind} km/s · %${curPrecip}</div></div>
     <div class="mini-box"><div class="mini-box-lbl">Gün Batımı</div><div class="mini-box-val mono">🌇 ${w.sunset ?? "--"}</div></div>
-    <div class="mini-box"><div class="mini-box-lbl">Pencere</div><div class="mini-box-val mono">17:00–21:00</div></div>
+    <div class="mini-box"><div class="mini-box-lbl">Aktif Pencere</div><div class="mini-box-val mono">${nowHourStr}–23:00</div></div>
   `;
 
-  const slots = Array.isArray(w.hourly_slots) && w.hourly_slots.length
-    ? w.hourly_slots
-    : [
-        { hour: "17:00", temp_c: w.temp_c ?? 13, wind_kmh: w.wind_kmh ?? 12, precip_prob: w.precip_prob ?? 15, aqi: w.aqi_max ?? 28, dial_level: dialLbl },
-        { hour: "18:00", temp_c: w.temp_c ?? 13, wind_kmh: w.wind_kmh ?? 12, precip_prob: w.precip_prob ?? 15, aqi: w.aqi_max ?? 28, dial_level: dialLbl },
-        { hour: "19:00", temp_c: w.temp_c ?? 12, wind_kmh: w.wind_kmh ?? 12, precip_prob: w.precip_prob ?? 15, aqi: w.aqi_max ?? 28, dial_level: dialLbl },
-        { hour: "20:00", temp_c: w.temp_c ?? 12, wind_kmh: w.wind_kmh ?? 12, precip_prob: w.precip_prob ?? 15, aqi: w.aqi_max ?? 28, dial_level: dialLbl },
-        { hour: "21:00", temp_c: w.temp_c ?? 11, wind_kmh: w.wind_kmh ?? 12, precip_prob: w.precip_prob ?? 15, aqi: w.aqi_max ?? 28, dial_level: dialLbl },
-      ];
   const scoreSlot = (sl) =>
     (sl.aqi ?? 30) * 1.2 +
     (sl.precip_prob ?? 10) * 0.65 +
@@ -1207,14 +1269,20 @@ function renderDashboard() {
   }
   const bestBanner = document.getElementById("best-walk-slot-banner");
   if (bestBanner && bestSlot) {
-    bestBanner.innerHTML = `🎯 <strong>Altın Saat (${escapeHtml(bestSlot.hour)}):</strong> AQI ${bestSlot.aqi} (${escapeHtml(bestSlot.dial_level || dialLbl)}) · Rüzgar ${bestSlot.wind_kmh ?? "--"} km/s · ${bestSlot.temp_c}°C (Yağış %${bestSlot.precip_prob})`;
+    bestBanner.innerHTML = `🎯 <strong>Altın Saat (${escapeHtml(bestSlot.hour)}):</strong> AQI ${bestSlot.aqi} (${escapeHtml(bestSlot.dial_level || curDialLbl)}) · Rüzgar ${bestSlot.wind_kmh ?? "--"} km/s · ${bestSlot.temp_c}°C (Yağış %${bestSlot.precip_prob})`;
   }
   document.getElementById("hourly-walk-strip").innerHTML = slots
     .map((slot) => {
+      const slotHr = parseInt(String(slot.hour || "").slice(0, 2), 10);
+      const isCurrent = slotHr === nowHour;
       const isBest = slot.hour === bestSlot.hour;
       const dotCol = slot.aqi <= 25 ? "#10b981" : slot.aqi <= 50 ? "#f59e0b" : slot.aqi <= 75 ? "#fb923c" : "#ef4444";
+      const tagsHtml = isCurrent || isBest
+        ? `<div class="hour-pill-tags">${isCurrent ? '<span class="hour-tag now">ŞİMDİ</span>' : ""}${isBest ? '<span class="hour-tag gold">★ ALTIN</span>' : ""}</div>`
+        : "";
       return `
-      <div class="hour-pill ${isBest ? "best" : ""}">
+      <div class="hour-pill ${isCurrent ? "is-current" : ""} ${isBest ? "best" : ""}">
+        ${tagsHtml}
         <div class="mono" style="font-weight:700;">${escapeHtml(slot.hour)}</div>
         <div class="mono" style="color:var(--text-secondary); margin:2px 0;">${slot.temp_c}°C</div>
         <div style="font-size:10px; color:var(--text-muted);">💧%${slot.precip_prob} · ${slot.wind_kmh ?? "--"}km</div>

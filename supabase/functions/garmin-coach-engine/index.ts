@@ -440,7 +440,7 @@ async function havaMotoruVeAksamKadran(
         for (const p of trParts) pm[p.type] = p.value;
         const dStr = `${pm.year}-${pm.month}-${pm.day}`;
         const h = Number(pm.hour === "24" ? 0 : pm.hour);
-        if (dStr === todayStr && h >= 17 && h <= 21 && entry?.data?.instant?.details) {
+        if (dStr === todayStr && entry?.data?.instant?.details) {
           const d = entry.data.instant.details;
           const next1h = entry.data?.next_1_hours?.details?.precipitation_amount ?? 0;
           metByHour[h] = {
@@ -470,7 +470,7 @@ async function havaMotoruVeAksamKadran(
       times.forEach((t, idx) => {
         if (t.startsWith(todayStr)) {
           const hr = Number(t.slice(11, 13));
-          if (hr >= 17 && hr <= 21) {
+          if (hr >= 0 && hr <= 23) {
             omByHour[hr] = {
               temp_c: Number((om.hourly.temperature_2m[idx] ?? 13).toFixed(1)),
               feels_like_c: Number((om.hourly.apparent_temperature[idx] ?? 12).toFixed(1)),
@@ -513,7 +513,7 @@ async function havaMotoruVeAksamKadran(
       aqTimes.forEach((t, idx) => {
         if (t.startsWith(todayStr)) {
           const hr = Number(t.slice(11, 13));
-          if (hr >= 17 && hr <= 21) {
+          if (hr >= 0 && hr <= 23) {
             aqByHour[hr] = {
               aqi: Math.round(aq.hourly.european_aqi[idx] ?? 25),
               pm25: Number((aq.hourly.pm2_5[idx] ?? 8.0).toFixed(1)),
@@ -536,7 +536,7 @@ async function havaMotoruVeAksamKadran(
     };
   }
 
-  const hours = [17, 18, 19, 20, 21];
+  const hours = Array.from({ length: 24 }, (_, i) => i);
   const hourlySlots = hours.map((h) => {
     const m = metByHour[h];
     const o = omByHour[h];
@@ -558,12 +558,14 @@ async function havaMotoruVeAksamKadran(
     };
   });
 
-  const finalTemp = Number((hourlySlots.reduce((s, x) => s + x.temp_c, 0) / hourlySlots.length).toFixed(1));
-  const finalFeels = Number((hourlySlots.reduce((s, x) => s + x.feels_like_c, 0) / hourlySlots.length).toFixed(1));
-  const finalWind = Number(Math.max(...hourlySlots.map((x) => x.wind_kmh)).toFixed(1));
-  const finalPrecip = Math.round(Math.max(...hourlySlots.map((x) => x.precip_prob)));
-  const finalAqi = Math.round(Math.max(...hourlySlots.map((x) => x.aqi)));
-  const finalPm25 = Number(Math.max(...hourlySlots.map((x) => x.pm25)).toFixed(1));
+  const istNow = getIstanbulNow();
+  const currentSlot = hourlySlots[istNow.hour] || hourlySlots[0];
+  const finalTemp = currentSlot.temp_c;
+  const finalFeels = currentSlot.feels_like_c;
+  const finalWind = currentSlot.wind_kmh;
+  const finalPrecip = currentSlot.precip_prob;
+  const finalAqi = currentSlot.aqi;
+  const finalPm25 = currentSlot.pm25;
   const mainDial = dialForAqi(finalAqi);
 
   const eveningWeather = {
@@ -571,7 +573,7 @@ async function havaMotoruVeAksamKadran(
     lat: loc.active_lat,
     lon: loc.active_lon,
     source: hasLiveMet ? "MET Norway + Open-Meteo AQI" : primarySource,
-    window: "17:00-21:00",
+    window: "00:00-23:00",
     temp_c: finalTemp,
     feels_like_c: finalFeels,
     wind_kmh: finalWind,
