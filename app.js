@@ -1077,7 +1077,7 @@ function renderDashboard() {
     .join("");
 
   document.getElementById("evening-clothing-advice").innerHTML =
-    `🧥 <strong>Katman Reçetesi:</strong> ${escapeHtml(w.clothing_advice || "Hafif katmanlı yürüyüş kıyafeti.")}`;
+    `<div class="clothing-side-title">🧥 Giyim Tavsiyesi</div><div class="clothing-side-text">${escapeHtml(w.clothing_advice || "Hafif katmanlı yürüyüş kıyafeti.")}</div>`;
 
   // 6 Baseline Corridors (Compact Mobile-First)
   const rhrWarn = s.rhr_warn_threshold ?? 51;
