@@ -28,6 +28,8 @@
 | `ai-insights.js` | Günlük Active Intelligence özet kartı, beğeni geri bildirimi ve bildirim saati ayarları |
 | `theme-engine.js` | Canlı hava/özel gün tabanlı tema motoru (`weather_sunny` vb.) |
 | `sw.js` | Offline kabuk önbelleği (`CACHE_NAME = "garmincoach-shell-v54"`) ve Web Share Target (`/share-scale`) yakalayıcı |
+| `GEMINI.md` | Antigravity çalışma alanı kuralları; her oturumda `PROJECT_STATUS.md` içeriğini otomatik yükler ve her değişiklikte güncellenmesini zorunlu tutar |
+| `PROJECT_STATUS.md` | Güncel mimari, Edge Function sürümleri, `pg_cron` zamanlayıcıları ve sürüm geçmişi referansı |
 
 ### Sekme Yapısı (`index.html`)
 1. **`#tab-dashboard` (`🏠 Ana Ekran`)**:
