@@ -29,6 +29,10 @@ const state = {
   selectedActivityId: null,
   activityFilter: "ALL",
   trendMode: "hrv",
+  hrvChartMode: "night",
+  hrChartMode: "intraday",
+  bbChartMode: "intraday",
+  moveDayMode: "today",
   ceoMode: "daily",
   _activeAlertSig: null,
   _labSlideIndex: 0,
@@ -42,6 +46,13 @@ const state = {
     bbIntraday: null,
     hrvNight: null,
     intradayHr: null,
+    labSleep: null,
+    labStress: null,
+    labVo2: null,
+    labEndurance: null,
+    labFitAge: null,
+    labRespSpo2: null,
+    labMove: null,
   },
   map: null,
   tileLayer: null,
@@ -480,8 +491,8 @@ function computeClientReadinessComponents(bio) {
   ];
 }
 
-function renderSleepDebtAndBedtime() {
-  const box = document.getElementById("sleep-debt-box");
+function renderSleepDebtAndBedtime(targetId = "sleep-debt-box") {
+  const box = document.getElementById(targetId);
   if (!box) return;
   const recentSleep = state.biometrics.slice(0, 7).filter((d) => Number(d.sleep_seconds || 0) > 0);
   if (!recentSleep.length) {
@@ -623,8 +634,18 @@ function renderHomeLiveCockpit(latest) {
           ? `Ara (5.100 – 5.799) · ${shortEndDate}`
           : `Başlangıç (<5.100) · ${shortEndDate}`;
 
-  const fitAgeRec = allBio.find((r) => r && (r.raw_payload?.telemetry_extra?.fitness_age?.current_age != null || r.fitness_age != null)) || latest;
-  const fitFa = fitAgeRec.raw_payload?.telemetry_extra?.fitness_age || fa;
+  const fitAgeRec =
+    allBio.find(
+      (r) =>
+        r &&
+        (r.raw_payload?.telemetry_extra?.fitness_age_detail?.current_age != null ||
+          r.raw_payload?.telemetry_extra?.fitness_age?.current_age != null ||
+          r.fitness_age != null)
+    ) || latest;
+  const fitFa =
+    fitAgeRec.raw_payload?.telemetry_extra?.fitness_age_detail ||
+    fitAgeRec.raw_payload?.telemetry_extra?.fitness_age ||
+    fa;
   const fitAge = fitFa.current_age ?? fitAgeRec.fitness_age ?? null;
   const chronoAge = Number(fitFa.chronological_age ?? fa.chronological_age ?? (new Date().getFullYear() - Number(s.birth_year || 1988)));
   const ageDiff = fitAge != null && Number.isFinite(chronoAge) ? Number((chronoAge - Number(fitAge)).toFixed(1)) : null;
@@ -682,6 +703,7 @@ function renderHomeLiveCockpit(latest) {
         <span class="home-bar-value">
           <strong class="mono">${escapeHtml(row.val)}</strong>
           ${row.meta ? ` <span class="home-bar-meta">(${escapeHtml(row.meta)})</span>` : ""}
+          <span class="home-bar-chevron" aria-hidden="true">›</span>
         </span>
       </div>
       <div class="home-bar-track">
@@ -805,28 +827,115 @@ window.focusHomeMetric = function (key) {
   const carousel = document.getElementById("lab-carousel-section");
   if (!carousel) return;
   const map = {
-    today_live: { slide: 0, trend: "steps" },
-    steps: { slide: 0, trend: "steps" },
-    sleep: { slide: 0, trend: "readiness" },
-    vo2: { slide: 0, trend: "hrv" },
-    bb: { slide: 1 },
-    hrv: { slide: 2 },
-    stress: { slide: 2 },
-    hr: { slide: 3 },
-    calories: { slide: 4 },
-    intensity: { slide: 4 },
-    resp_spo2: { slide: 4 },
-    endurance: { slide: 4 },
-    fitness_age: { slide: 4 },
+    sleep: { slide: 0 },
+    hrv: { slide: 1 },
+    hr: { slide: 2 },
+    bb: { slide: 3 },
+    stress: { slide: 4 },
+    vo2: { slide: 5 },
+    endurance: { slide: 6 },
+    fitness_age: { slide: 7 },
+    resp_spo2: { slide: 8 },
+    today_live: { slide: 9, moveDay: "today" },
+    steps: { slide: 9, moveDay: "yesterday" },
+    calories: { slide: 9, moveDay: "today" },
+    intensity: { slide: 9, moveDay: "today" },
   };
   const cfg = map[key] || { slide: 0 };
-  if (cfg.trend) {
-    const trendBtn = document.querySelector(`#lab-carousel-section [onclick*="'${cfg.trend}'"]`);
-    window.switchTrendMode?.(cfg.trend, trendBtn);
+  if (cfg.moveDay) {
+    window.switchMoveDay?.(cfg.moveDay);
   }
   window.goToLabSlide?.(cfg.slide);
-  carousel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  carousel.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const targetCard = carousel.querySelector(`.lab-carousel-slide[data-slide="${cfg.slide}"] > .card`);
+  if (targetCard) {
+    targetCard.classList.remove("lab-slide-pulse");
+    void targetCard.offsetWidth;
+    targetCard.classList.add("lab-slide-pulse");
+    clearTimeout(targetCard._pulseTimer);
+    targetCard._pulseTimer = setTimeout(() => {
+      targetCard.classList.remove("lab-slide-pulse");
+    }, 980);
+  }
 };
+
+function clearLabCarouselEmpty() {
+  const labChartKeys = [
+    "bbIntraday",
+    "hrvNight",
+    "intradayHr",
+    "labSleep",
+    "labStress",
+    "labVo2",
+    "labEndurance",
+    "labFitAge",
+    "labRespSpo2",
+    "labMove",
+  ];
+  for (const k of labChartKeys) {
+    if (state.charts[k]) {
+      state.charts[k].destroy();
+      state.charts[k] = null;
+    }
+  }
+  const setHtml = (id, html) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  };
+  const setText = (id, txt) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  };
+  setText("lab-sleep-badge", "Skor --");
+  setHtml("lab-sleep-kpis", "");
+  setText("lab-sleep-total-label", "--");
+  setHtml("lab-sleep-hypnogram", "");
+  setHtml("lab-sleep-legend", "");
+  setHtml("lab-sleep-debt-box", "");
+  const sleepIns = document.getElementById("lab-sleep-insight-box");
+  if (sleepIns) { sleepIns.textContent = ""; sleepIns.classList.add("hidden"); }
+
+  setText("hrv-peak-badge", "Tepe -- ms");
+  setHtml("lab-hrv-kpis", "");
+  setHtml("lab-hrv-corridor", "");
+
+  setText("intraday-rhr-badge", "7G RHR: --");
+  setHtml("lab-hr-kpis", "");
+
+  setText("bb-current-badge", "🔋 --");
+  setHtml("bb-events-list", `<p class="card-sub">Henüz Body Battery verisi yok.</p>`);
+
+  setText("lab-stress-badge", "--");
+  setHtml("lab-stress-kpis", "");
+  setText("stress-max-label", "Maks --");
+  setHtml("stress-breakdown-bar", "");
+  setHtml("stress-breakdown-legend", "");
+
+  setText("lab-vo2-badge", "--");
+  setHtml("lab-vo2-scale", "");
+  setHtml("lab-vo2-kpis", "");
+
+  setText("lab-endurance-badge", "--");
+  setHtml("lab-endurance-scale", "");
+  setHtml("lab-endurance-kpis", "");
+
+  setText("lab-fitage-badge", "--");
+  setHtml("lab-fitage-trio", "");
+  setHtml("lab-fitage-factors", "");
+
+  setText("lab-resp-badge", "--");
+  setHtml("lab-resp-kpis", "");
+  const tempNote = document.getElementById("lab-resp-temp-note");
+  if (tempNote) { tempNote.textContent = ""; tempNote.classList.add("hidden"); }
+
+  setText("lab-move-badge", "--");
+  setHtml("lab-move-compare", "");
+  setHtml("lab-move-kpis", "");
+
+  setHtml("active-intel-3x", `<p class="card-sub">Günlük veriler geldikçe özet kartlar burada görünür.</p>`);
+  setHtml("correlation-matrix-grid", `<p class="card-sub">Etki analizi için en az 3 günlük kayıt gerekir.</p>`);
+}
 
 function renderDashboard() {
   const latest = state.biometrics[0];
@@ -848,10 +957,7 @@ function renderDashboard() {
     document.getElementById("sleep-legend").innerHTML = "";
     document.getElementById("sleep-debt-box").innerHTML = "";
     document.getElementById("ai-daily-blocks").innerHTML = `<p class="card-sub">Henüz günlük rapor oluşmadı.</p>`;
-    document.getElementById("bb-events-list").innerHTML = `<p class="card-sub">Henüz Body Battery verisi yok.</p>`;
-    document.getElementById("deep-telemetry-cards").innerHTML = "";
-    document.getElementById("active-intel-3x").innerHTML = `<p class="card-sub">Günlük veriler geldikçe özet kartlar burada görünür.</p>`;
-    document.getElementById("correlation-matrix-grid").innerHTML = `<p class="card-sub">Etki analizi için en az 3 günlük kayıt gerekir.</p>`;
+    clearLabCarouselEmpty();
     return;
   }
 
@@ -1578,15 +1684,532 @@ function formatBbDurationTr(mins) {
   return rem > 0 ? `${h} sa ${rem} dk` : `${h} sa`;
 }
 
-function renderDeepTelemetry(latest) {
-  const te = latest?.raw_payload?.telemetry_extra;
-  if (!te) {
-    document.getElementById("bb-events-list").innerHTML = `<p class="card-sub">Derin Garmin telemetrisi için sağ üstten "↻ Senkronize Et" butonuna basın.</p>`;
-    document.getElementById("deep-telemetry-cards").innerHTML = "";
-    return;
+function translateStressQualifier(q) {
+  const key = String(q || "").trim().toUpperCase();
+  const map = {
+    BALANCED: "Dengeli",
+    CALM: "Sakin",
+    STRESSFUL: "Stresli",
+    VERY_STRESSFUL: "Çok Stresli",
+    MODERATE: "Orta",
+    RESTFUL: "Dinlendirici",
+    LOW: "Düşük",
+    HIGH: "Yüksek",
+  };
+  return map[key] || "Normal";
+}
+
+function translateSleepInsight(feedback, insight) {
+  const fbMap = {
+    POSITIVE_LONG_AND_RECOVERING: "Uzun ve toparlayıcı uyku — sinir sistemi iyi dinlendi",
+    POSITIVE_LONG_AND_DEEP: "Uzun ve derin uyku — fiziksel onarım güçlü gerçekleşti",
+    POSITIVE_LONG_AND_CONTINUOUS: "Uzun ve kesintisiz uyku — uyku bütünlüğü yüksek",
+    POSITIVE_REFRESHING: "Dinlendirici uyku — sabah taze uyanma sağladı",
+    POSITIVE_OPTIMAL_STRUCTURE: "Dengeli uyku evresi dağılımı (Derin + REM uyumlu)",
+    POSITIVE_GOOD_SLEEP: "Kaliteli ve dengeli bir gece uykusu",
+    POSITIVE_RECOVERY: "Gece boyunca toparlanma odaklı uyku",
+    NEGATIVE_SHORT: "Uyku süresi hedefin altında kaldı — erken yatış faydalı olur",
+    NEGATIVE_RESTLESS: "Gece uykusu yer yer bölünmüş — uyku öncesi ekranı azalt",
+    NEGATIVE_LOW_REM: "REM uykusu düşük kaldı — zihinsel toparlanma sınırlı",
+    NEGATIVE_LOW_DEEP: "Derin uyku oranı düşük — akşam kafein ve geç öğünü sınırla",
+    NEGATIVE_HIGH_STRESS: "Gece uyku stresi yüksek — dinlenme kalitesi düşmüş",
+    NEGATIVE_POOR: "Yetersiz uyku kalitesi — bugün temponu kontrollü tut",
+  };
+  const inMap = {
+    POSITIVE_STRESSFUL_DAY: "Stresli bir günü iyi bir gece uykusuyla dengeledin.",
+    POSITIVE_ACTIVE_DAY: "Aktif bir günün ardından vücut güzel toparlandı.",
+    POSITIVE_EXERCISE: "Antrenman sonrası onarım uykusu verimli geçti.",
+    NEGATIVE_STRESSFUL_DAY: "Gün içi yoğun stres gece uykusuna da bir miktar yansıdı.",
+    NEGATIVE_LATE_BEDTIME: "Geç yatış uyku derinliğini sınırlamış olabilir.",
+    NEGATIVE_ALCOHOL_OR_LATE_MEAL: "Akşam geç saat yükü gece dinlenmesini zorlaştırdı.",
+  };
+  const fbKey = String(feedback || "").trim().toUpperCase();
+  const inKey = String(insight || "").trim().toUpperCase();
+  const fbText =
+    fbMap[fbKey] ||
+    (fbKey.startsWith("POSITIVE") ? "İyi ve toparlayıcı gece uykusu" : fbKey.startsWith("NEGATIVE") ? "Uyku kalitesi gelişime açık" : "");
+  const inText = inMap[inKey] || "";
+  if (!fbText && !inText) return "";
+  return inText ? `${fbText}. ${inText}` : fbText;
+}
+
+function translateBbFeedback(fb) {
+  const key = String(fb || "").trim().toUpperCase();
+  if (!key || key === "NONE") return "";
+  const map = {
+    GOOD_RECOVERY: "İyi gece toparlanması sağlandı",
+    HIGH_DRAIN: "Gün içinde enerji tüketimi yüksekti",
+    LOW_CHARGE: "Gece şarjı sınırlı kaldı",
+    BALANCED_DAY: "Gün içi enerji kullanımı dengeli",
+    EXERCISE_DRAIN: "Antrenman belirgin enerji harcaması yaptı",
+    STRESS_DRAIN: "Stres kaynaklı enerji düşüşü gözlendi",
+  };
+  return map[key] || "";
+}
+
+function renderMiniKpiBoxes(items) {
+  return (items || [])
+    .map(
+      (it) => `
+      <div class="mini-box">
+        <div class="mini-box-lbl">${escapeHtml(it.label)}</div>
+        <div class="mini-box-val mono"${it.color ? ` style="color:${it.color};"` : ""}>${escapeHtml(it.val)}</div>
+        ${it.sub ? `<div class="card-sub">${escapeHtml(it.sub)}</div>` : ""}
+      </div>`
+    )
+    .join("");
+}
+
+function renderLabChart(chartKey, canvasId, config) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  if (state.charts[chartKey]) state.charts[chartKey].destroy();
+  state.charts[chartKey] = new Chart(ctx, config);
+}
+
+function computePaddedBounds(values, minPad = 2, hardMin = null, hardMax = null) {
+  const nums = (values || []).map(Number).filter((n) => Number.isFinite(n));
+  if (!nums.length) return {};
+  const lo = Math.min(...nums);
+  const hi = Math.max(...nums);
+  const pad = Math.max(minPad, (hi - lo) * 0.25);
+  let sMin = Number((lo - pad).toFixed(1));
+  let sMax = Number((hi + pad).toFixed(1));
+  if (hardMin != null) sMin = Math.max(hardMin, sMin);
+  if (hardMax != null) sMax = Math.min(hardMax, sMax);
+  return { suggestedMin: sMin, suggestedMax: sMax };
+}
+
+function setActiveChipGroup(attr, val) {
+  document.querySelectorAll(`#lab-carousel-section [${attr}]`).forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute(attr) === val);
+  });
+}
+
+function renderSegmentedScale({ title, currentLabel, bands, value, nextTargetText }) {
+  if (!bands?.length) return "";
+  const totalMin = bands[0].min;
+  const totalMax = bands[bands.length - 1].max;
+  const span = Math.max(1, totalMax - totalMin);
+  const hasVal = value != null && Number.isFinite(Number(value));
+  const clampedPct = hasVal ? Math.max(2, Math.min(98, ((Number(value) - totalMin) / span) * 100)) : 50;
+  const activeBand = hasVal
+    ? bands.find((b, i) => (i === bands.length - 1 ? Number(value) >= b.min : Number(value) >= b.min && Number(value) < b.max)) ||
+      (Number(value) < totalMin ? bands[0] : bands[bands.length - 1])
+    : null;
+
+  return `
+    <div class="lab-scale-wrap">
+      <div class="lab-scale-head">
+        <span style="color:var(--text-secondary); font-weight:600;">${escapeHtml(title)}</span>
+        <strong class="mono" style="color:${activeBand?.color || "var(--text)"};">${escapeHtml(currentLabel)}</strong>
+      </div>
+      <div class="lab-scale-bar">
+        ${bands
+          .map((b) => {
+            const w = ((b.max - b.min) / span) * 100;
+            const isAct = activeBand && activeBand.label === b.label;
+            return `<div class="lab-scale-seg${isAct ? " active" : ""}" style="width:${w.toFixed(2)}%; background:${b.color};" title="${escapeHtml(b.label)}"></div>`;
+          })
+          .join("")}
+        ${hasVal ? `<div class="lab-scale-marker" style="left:${clampedPct.toFixed(1)}%; border-color:${activeBand?.color || "var(--emerald)"};"></div>` : ""}
+      </div>
+      <div class="lab-scale-labels">
+        ${bands.map((b) => `<span>${escapeHtml(b.label)}</span>`).join("")}
+      </div>
+      ${nextTargetText ? `<div class="lab-scale-foot">${escapeHtml(nextTargetText)}</div>` : ""}
+    </div>`;
+}
+
+function renderLabSleepSlide(latest) {
+  const te = latest?.raw_payload?.telemetry_extra || {};
+  const si = te.sleep_insights || {};
+  const sleepScore = latest.sleep_score != null ? Number(latest.sleep_score) : null;
+
+  const badge = document.getElementById("lab-sleep-badge");
+  if (badge) {
+    badge.textContent = sleepScore != null ? `Skor ${sleepScore}/100` : "Skor --";
+    badge.className = `badge mono ${sleepScore == null ? "badge-info" : sleepScore >= 80 ? "badge-ok" : sleepScore >= 60 ? "badge-warn" : "badge-crit"}`;
   }
 
-  // 1. Body Battery Current & Events
+  const deep = Number(latest.deep_sleep_seconds || 0);
+  const light = Number(latest.light_sleep_seconds || 0);
+  const rem = Number(latest.rem_sleep_seconds || 0);
+  const awake = Number(latest.awake_seconds || 0);
+  const totalStages = deep + light + rem + awake;
+  const restorativePct = totalStages > 0 ? Math.round(((deep + rem) / totalStages) * 100) : null;
+
+  const kpisEl = document.getElementById("lab-sleep-kpis");
+  if (kpisEl) {
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Toplam Uyku",
+        val: fmtSleepHoursCompact(latest.sleep_seconds || totalStages),
+        sub: sleepScore != null ? `Skor ${sleepScore}/100` : "Hedef 7,5 sa",
+        color: "#818cf8",
+      },
+      {
+        label: "Derin + REM",
+        val: restorativePct != null ? `%${restorativePct}` : "--",
+        sub: totalStages > 0 ? `${fmtSleepHoursCompact(deep + rem)} onarıcı` : "Evre verisi yok",
+        color: "#00e5a3",
+      },
+      {
+        label: "Gece Uyku Stresi",
+        val: latest.sleep_stress_avg != null ? `${Math.round(Number(latest.sleep_stress_avg))} puan` : "--",
+        sub: `Normal <${state.settings?.sleep_stress_threshold ?? 23}`,
+        color: "#38bdf8",
+      },
+    ]);
+  }
+
+  const totalLbl = document.getElementById("lab-sleep-total-label");
+  if (totalLbl) totalLbl.textContent = fmtDuration(latest.sleep_seconds || totalStages);
+
+  const hypEl = document.getElementById("lab-sleep-hypnogram");
+  const legEl = document.getElementById("lab-sleep-legend");
+  if (totalStages > 0) {
+    if (hypEl) {
+      hypEl.innerHTML = `
+        <div style="width:${(deep / totalStages) * 100}%; background:#6366f1;" title="Derin"></div>
+        <div style="width:${(light / totalStages) * 100}%; background:#38bdf8;" title="Hafif"></div>
+        <div style="width:${(rem / totalStages) * 100}%; background:#00e5a3;" title="REM"></div>
+        <div style="width:${(awake / totalStages) * 100}%; background:#f59e0b;" title="Uyanık"></div>`;
+    }
+    if (legEl) {
+      legEl.innerHTML = `
+        <span>🟣 Derin ${fmtDuration(deep)}</span>
+        <span>🔵 Hafif ${fmtDuration(light)}</span>
+        <span>🟢 REM ${fmtDuration(rem)}</span>
+        <span>🟠 Uyanık ${Math.round(awake / 60)} dk</span>`;
+    }
+  } else {
+    if (hypEl) hypEl.innerHTML = "";
+    if (legEl) legEl.innerHTML = `<span class="card-sub">Bu gün için detaylı uyku evresi kaydı bulunamadı.</span>`;
+  }
+
+  renderSleepDebtAndBedtime("lab-sleep-debt-box");
+
+  const insightEl = document.getElementById("lab-sleep-insight-box");
+  if (insightEl) {
+    const insText = translateSleepInsight(si.feedback, si.insight);
+    if (insText) {
+      insightEl.textContent = `💡 ${insText}`;
+      insightEl.classList.remove("hidden");
+    } else {
+      insightEl.textContent = "";
+      insightEl.classList.add("hidden");
+    }
+  }
+
+  const last14 = [...state.biometrics].slice(0, 14).reverse();
+  renderLabChart("labSleep", "labSleepChart", {
+    type: "bar",
+    data: {
+      labels: last14.map((d) => String(d.log_date || "").slice(5)),
+      datasets: [
+        {
+          type: "line",
+          label: "Uyku Skoru",
+          order: 0,
+          data: last14.map((d) => (d.sleep_score != null ? Number(d.sleep_score) : null)),
+          borderColor: "#00e5a3",
+          backgroundColor: "rgba(0,229,163,0.12)",
+          tension: 0.35,
+          pointRadius: 2.5,
+          spanGaps: true,
+          yAxisID: "y1",
+        },
+        {
+          type: "bar",
+          label: "Uyku (saat)",
+          order: 1,
+          data: last14.map((d) => (d.sleep_seconds ? Number((Number(d.sleep_seconds) / 3600).toFixed(2)) : null)),
+          backgroundColor: "rgba(99,102,241,0.48)",
+          borderColor: "#818cf8",
+          borderWidth: 1,
+          borderRadius: 5,
+          yAxisID: "y",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { position: "left", min: 0, max: 11, ticks: { color: "#818cf8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y1: { position: "right", min: 30, max: 100, ticks: { color: "#00e5a3" }, grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+}
+
+window.switchHrvChartMode = function (mode, btn) {
+  state.hrvChartMode = mode === "trend" ? "trend" : "night";
+  setActiveChipGroup("data-hrv-mode", state.hrvChartMode);
+  if (state.biometrics[0]) renderLabHrvSlide(state.biometrics[0]);
+  requestAnimationFrame(syncLabCarouselHeight);
+};
+
+function renderLabHrvSlide(latest) {
+  const te = latest?.raw_payload?.telemetry_extra || {};
+  const s = state.settings || {};
+  const baseHrv = te.hrv_baseline || {};
+  const lowBand = Number(baseHrv.balancedLow ?? s.base_hrv_min ?? 59);
+  const highBand = Number(baseHrv.balancedUpper ?? s.base_hrv_max ?? 74);
+  const hrvVal = latest.hrv_nightly_avg != null ? Number(latest.hrv_nightly_avg) : null;
+  const weekly7 = latest.hrv_weekly_avg ?? computeAvg(state.biometrics.slice(0, 7).map((d) => d.hrv_nightly_avg));
+  const hrvStatusMap = { BALANCED: "Dengeli", UNBALANCED: "Dengesiz", LOW: "Düşük", POOR: "Zayıf" };
+  const hrvRaw = String(latest.hrv_status || "").toUpperCase();
+  const hrvStatusTr = hrvStatusMap[hrvRaw] || (hrvVal == null ? "Veri yok" : hrvVal >= lowBand ? "Dengeli" : "Sınırda");
+
+  const peakBadge = document.getElementById("hrv-peak-badge");
+  if (peakBadge) {
+    peakBadge.textContent = `5-Dk Tepe: ${te.hrv_5min_high ?? "--"} ms · ${hrvStatusTr}`;
+    peakBadge.className = `badge ${hrvStatusTr === "Dengeli" ? "badge-ok" : "badge-warn"}`;
+  }
+
+  const kpisEl = document.getElementById("lab-hrv-kpis");
+  if (kpisEl) {
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Dün Gece",
+        val: hrvVal != null ? `${hrvVal} ms` : "--",
+        sub: hrvStatusTr,
+        color: "#00e5a3",
+      },
+      {
+        label: "7G Ort",
+        val: weekly7 != null ? `${Math.round(Number(weekly7))} ms` : "--",
+        sub: hrvVal != null && weekly7 != null ? `Fark ${hrvVal - Math.round(Number(weekly7)) >= 0 ? "+" : ""}${Math.round(hrvVal - Number(weekly7))} ms` : "Haftalık denge",
+        color: "#38bdf8",
+      },
+      {
+        label: "5-Dk Tepe",
+        val: te.hrv_5min_high != null ? `${te.hrv_5min_high} ms` : "--",
+        sub: `Baz ${lowBand}–${highBand}`,
+        color: "#a78bfa",
+      },
+    ]);
+  }
+
+  const corrEl = document.getElementById("lab-hrv-corridor");
+  if (corrEl) {
+    const minScale = Math.max(25, Math.min(lowBand - 22, hrvVal != null ? hrvVal - 8 : lowBand - 20));
+    const maxScale = Math.max(highBand + 20, hrvVal != null ? hrvVal + 8 : highBand + 20);
+    const lowUpper = Number(baseHrv.lowUpper ?? s.hrv_warn_threshold ?? 48);
+    corrEl.innerHTML = renderSegmentedScale({
+      title: `Kişisel Baz Koridoru (${lowBand}–${highBand} ms)`,
+      currentLabel: hrvVal != null ? `${hrvVal} ms · ${hrvStatusTr}` : "--",
+      value: hrvVal,
+      bands: [
+        { label: `Düşük <${lowUpper}`, min: minScale, max: lowUpper, color: "#ef4444" },
+        { label: `Sınırda`, min: lowUpper, max: lowBand, color: "#f59e0b" },
+        { label: `Dengeli ${lowBand}–${highBand}`, min: lowBand, max: highBand, color: "#00e5a3" },
+        { label: "Yüksek", min: highBand, max: maxScale, color: "#38bdf8" },
+      ],
+      nextTargetText:
+        hrvVal != null && hrvVal < lowBand
+          ? `Dengeli baz (${lowBand} ms) sınırına +${Math.round(lowBand - hrvVal)} ms uzaklıkta.`
+          : "Otonom sinir sistemi kişisel denge aralığında.",
+    });
+  }
+
+  setActiveChipGroup("data-hrv-mode", state.hrvChartMode);
+  if (state.hrvChartMode === "trend") {
+    const last14 = [...state.biometrics].slice(0, 14).reverse();
+    renderLabChart("hrvNight", "hrvNightChart", {
+      type: "line",
+      data: {
+        labels: last14.map((d) => String(d.log_date || "").slice(5)),
+        datasets: [
+          {
+            label: "Gece HRV (ms)",
+            data: last14.map((d) => d.hrv_nightly_avg),
+            borderColor: "#00e5a3",
+            backgroundColor: "rgba(0,229,163,0.14)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2.5,
+            spanGaps: true,
+          },
+          {
+            label: "7G Ortalama",
+            data: last14.map((d) => d.hrv_weekly_avg),
+            borderColor: "#38bdf8",
+            borderDash: [4, 3],
+            tension: 0.35,
+            pointRadius: 0,
+            spanGaps: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { ticks: { color: "#00e5a3" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  } else {
+    const hrvReadings = Array.isArray(te.hrv_readings) ? te.hrv_readings : [];
+    renderLabChart("hrvNight", "hrvNightChart", {
+      type: "line",
+      data: {
+        labels: hrvReadings.map((r) => r.time),
+        datasets: [
+          {
+            label: "5-Dk HRV (ms)",
+            data: hrvReadings.map((r) => r.val),
+            borderColor: "#00e5a3",
+            backgroundColor: "rgba(0,229,163,0.14)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { ticks: { color: "#00e5a3" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  }
+}
+
+window.switchHrChartMode = function (mode, btn) {
+  state.hrChartMode = mode === "rhr14" ? "rhr14" : "intraday";
+  setActiveChipGroup("data-hr-mode", state.hrChartMode);
+  if (state.biometrics[0]) renderLabHrSlide(state.biometrics[0]);
+  requestAnimationFrame(syncLabCarouselHeight);
+};
+
+function renderLabHrSlide(latest) {
+  const te = latest?.raw_payload?.telemetry_extra || {};
+  const s = state.settings || {};
+  const baseRhr = Number(s.base_rhr ?? 46);
+  const rhrVal = latest.rhr != null ? Number(latest.rhr) : null;
+  const rhr7 = te.rhr_7d_avg ?? computeAvg(state.biometrics.slice(0, 7).map((d) => d.rhr));
+
+  const rhrBadge = document.getElementById("intraday-rhr-badge");
+  if (rhrBadge) {
+    rhrBadge.textContent = `7G Ort: ${rhr7 != null ? Math.round(Number(rhr7)) : "--"} bpm`;
+  }
+
+  const kpisEl = document.getElementById("lab-hr-kpis");
+  if (kpisEl) {
+    const diff = rhrVal != null ? rhrVal - baseRhr : null;
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Dinlenik Nabız",
+        val: rhrVal != null ? `${rhrVal} bpm` : "--",
+        sub: diff != null ? `Baz ${baseRhr} (${diff > 0 ? `+${diff}` : diff})` : `Baz ${baseRhr}`,
+        color: rhrVal != null && rhrVal <= baseRhr + 2 ? "#00e5a3" : "#f59e0b",
+      },
+      {
+        label: "7G Ortalama",
+        val: rhr7 != null ? `${Math.round(Number(rhr7))} bpm` : "--",
+        sub: `Uyarı ≥${s.rhr_warn_threshold ?? 51} bpm`,
+        color: "#38bdf8",
+      },
+      {
+        label: "Günlük Min–Maks",
+        val: latest.min_hr != null && latest.max_hr != null ? `${latest.min_hr}–${latest.max_hr}` : "--",
+        sub: "bpm aralık",
+        color: "#f43f5e",
+      },
+    ]);
+  }
+
+  setActiveChipGroup("data-hr-mode", state.hrChartMode);
+  if (state.hrChartMode === "rhr14") {
+    const last14 = [...state.biometrics].slice(0, 14).reverse();
+    const vals = last14.map((d) => d.rhr).filter((v) => v != null);
+    const bounds = computePaddedBounds([...vals, baseRhr], 3, 35, 90);
+    renderLabChart("intradayHr", "intradayHrChart", {
+      type: "line",
+      data: {
+        labels: last14.map((d) => String(d.log_date || "").slice(5)),
+        datasets: [
+          {
+            label: "Dinlenik Nabız (bpm)",
+            data: last14.map((d) => d.rhr),
+            borderColor: "#f43f5e",
+            backgroundColor: "rgba(244,63,94,0.12)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2.5,
+            spanGaps: true,
+          },
+          {
+            label: `Kişisel Baz (${baseRhr})`,
+            data: last14.map(() => baseRhr),
+            borderColor: "#38bdf8",
+            borderDash: [4, 4],
+            pointRadius: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { ...bounds, ticks: { color: "#f43f5e" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  } else {
+    const hrPts = Array.isArray(te.intraday_hr) ? te.intraday_hr : [];
+    renderLabChart("intradayHr", "intradayHrChart", {
+      type: "line",
+      data: {
+        labels: hrPts.map((p) => p.time),
+        datasets: [
+          {
+            label: "Nabız (atım/dk)",
+            data: hrPts.map((p) => p.hr),
+            borderColor: "#f43f5e",
+            backgroundColor: "rgba(244,63,94,0.12)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 9 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { ticks: { color: "#f43f5e" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  }
+}
+
+window.switchBbChartMode = function (mode, btn) {
+  state.bbChartMode = mode === "trend14" ? "trend14" : "intraday";
+  setActiveChipGroup("data-bb-mode", state.bbChartMode);
+  if (state.biometrics[0]) renderLabBbSlide(state.biometrics[0]);
+  requestAnimationFrame(syncLabCarouselHeight);
+};
+
+function renderLabBbSlide(latest) {
+  const te = latest?.raw_payload?.telemetry_extra || {};
   const bbCur = te.bb_current ?? latest.body_battery_min ?? "--";
   const bbCurNum = Number(bbCur);
   const hasBbCur = bbCur !== "--" && Number.isFinite(bbCurNum);
@@ -1594,26 +2217,70 @@ function renderDeepTelemetry(latest) {
   const bbColor = hasBbCur ? (bbCurNum >= 50 ? "#00e5a3" : bbCurNum >= 25 ? "#f59e0b" : "#ef4444") : "var(--text)";
 
   const bbBadge = document.getElementById("bb-current-badge");
-  bbBadge.textContent = `🔋 Kalan: ${bbCur}/100 · Uyku +${te.bb_during_sleep ?? "--"}`;
-  bbBadge.className = `badge ${hasBbCur && bbCurNum >= 40 ? "badge-ok" : hasBbCur && bbCurNum >= 20 ? "badge-warn" : "badge-crit"}`;
+  if (bbBadge) {
+    bbBadge.textContent = `🔋 Kalan: ${bbCur}/100 · Uyku +${te.bb_during_sleep ?? "--"}`;
+    bbBadge.className = `badge ${hasBbCur && bbCurNum >= 40 ? "badge-ok" : hasBbCur && bbCurNum >= 20 ? "badge-warn" : "badge-crit"}`;
+  }
 
-  const bbSeries = Array.isArray(te.bb_series) ? te.bb_series : [];
-  const bbCtx = document.getElementById("bbIntradayChart");
-  if (bbCtx) {
-    if (state.charts.bbIntraday) state.charts.bbIntraday.destroy();
-    state.charts.bbIntraday = new Chart(bbCtx, {
+  setActiveChipGroup("data-bb-mode", state.bbChartMode);
+  if (state.bbChartMode === "trend14") {
+    const last14 = [...state.biometrics].slice(0, 14).reverse();
+    renderLabChart("bbIntraday", "bbIntradayChart", {
+      type: "bar",
+      data: {
+        labels: last14.map((d) => String(d.log_date || "").slice(5)),
+        datasets: [
+          {
+            type: "line",
+            label: "Sabah Maks",
+            order: 0,
+            data: last14.map((d) => (d.body_battery_max != null ? Number(d.body_battery_max) : null)),
+            borderColor: "#38bdf8",
+            backgroundColor: "rgba(56,189,248,0.16)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2.5,
+            spanGaps: true,
+          },
+          {
+            type: "bar",
+            label: "Gece Şarjı (+)",
+            order: 1,
+            data: last14.map((d) => (d.body_battery_charged != null ? Number(d.body_battery_charged) : null)),
+            backgroundColor: "rgba(0,229,163,0.42)",
+            borderColor: "#00e5a3",
+            borderWidth: 1,
+            borderRadius: 5,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { min: 0, max: 100, ticks: { color: "#38bdf8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  } else {
+    const bbSeries = Array.isArray(te.bb_series) ? te.bb_series : [];
+    renderLabChart("bbIntraday", "bbIntradayChart", {
       type: "line",
       data: {
         labels: bbSeries.map((p) => p.time),
-        datasets: [{
-          label: "Body Battery",
-          data: bbSeries.map((p) => p.bb),
-          borderColor: "#38bdf8",
-          backgroundColor: "rgba(56,189,248,0.16)",
-          fill: true,
-          tension: 0.35,
-          pointRadius: 1.5,
-        }],
+        datasets: [
+          {
+            label: "Body Battery",
+            data: bbSeries.map((p) => p.bb),
+            borderColor: "#38bdf8",
+            backgroundColor: "rgba(56,189,248,0.16)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 1.5,
+          },
+        ],
       },
       options: {
         responsive: true,
@@ -1663,6 +2330,7 @@ function renderDeepTelemetry(latest) {
   const drainSummaryText = drainReasons.length
     ? `Harcama kaynakları: ${drainReasons.slice(0, 3).join(" · ")}`
     : "Gün içi bazal metabolizma ve rutin hareketlere harcandı.";
+  const bbFbTr = translateBbFeedback(te.bb_feedback);
 
   const bbSummaryHtml = `
     <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px;">
@@ -1683,7 +2351,7 @@ function renderDeepTelemetry(latest) {
       </div>
     </div>
     <div class="event-row" style="justify-content:flex-start; background:rgba(56,189,248,0.06); border-color:rgba(56,189,248,0.2);">
-      <div><strong style="color:var(--text);">⚡ Neye Harcandı?</strong> <span class="card-sub" style="color:var(--text-secondary);">${escapeHtml(drainSummaryText)}</span></div>
+      <div><strong style="color:var(--text);">⚡ Neye Harcandı?</strong> <span class="card-sub" style="color:var(--text-secondary);">${escapeHtml(drainSummaryText)}${bbFbTr ? ` · ${escapeHtml(bbFbTr)}` : ""}</span></div>
     </div>
   `;
 
@@ -1703,125 +2371,711 @@ function renderDeepTelemetry(latest) {
         .join("")
     : `<p class="card-sub">Bugün için Body Battery olay kaydı yok.</p>`;
 
-  document.getElementById("bb-events-list").innerHTML = bbSummaryHtml + bbEventsHtml;
+  const bbListEl = document.getElementById("bb-events-list");
+  if (bbListEl) bbListEl.innerHTML = bbSummaryHtml + bbEventsHtml;
+}
 
-  // 2. Night 5-Min HRV Wave & Stress Breakdown
-  const baseHrv = te.hrv_baseline;
-  document.getElementById("hrv-peak-badge").textContent =
-    `5-Dk Tepe: ${te.hrv_5min_high ?? "--"} puan${baseHrv ? ` · Normal ${baseHrv.balancedLow}–${baseHrv.balancedUpper}` : ""}`;
+function renderLabStressSlide(latest) {
+  const te = latest?.raw_payload?.telemetry_extra || {};
+  const sbData = te.stress_breakdown || {};
+  const qualTr = translateStressQualifier(sbData.qualifier);
+  const stressVal = latest.stress_avg != null ? Number(latest.stress_avg) : null;
+  const sleepStress = latest.sleep_stress_avg != null ? Number(latest.sleep_stress_avg) : null;
+  const stressStatus = stressVal == null ? "Veri yok" : stressVal <= 25 ? "Düşük" : stressVal <= 50 ? "Orta" : "Yüksek";
 
-  const hrvReadings = Array.isArray(te.hrv_readings) ? te.hrv_readings : [];
-  const hrvNCtx = document.getElementById("hrvNightChart");
-  if (hrvNCtx) {
-    if (state.charts.hrvNight) state.charts.hrvNight.destroy();
-    state.charts.hrvNight = new Chart(hrvNCtx, {
-      type: "line",
-      data: {
-        labels: hrvReadings.map((r) => r.time),
-        datasets: [{
-          label: "5-Dk Kalp Dengesi (puan)",
-          data: hrvReadings.map((r) => r.val),
-          borderColor: "#00e5a3",
-          backgroundColor: "rgba(0,229,163,0.14)",
-          fill: true,
-          tension: 0.35,
-          pointRadius: 1,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
-          y: { ticks: { color: "#00e5a3" }, grid: { color: "rgba(148,163,184,0.08)" } },
-        },
-      },
-    });
+  const badge = document.getElementById("lab-stress-badge");
+  if (badge) {
+    badge.textContent = stressVal != null ? `${stressVal}/100 · ${qualTr}` : qualTr;
+    badge.className = `badge mono ${stressVal == null ? "badge-info" : stressVal <= 35 ? "badge-ok" : stressVal <= 55 ? "badge-warn" : "badge-crit"}`;
   }
 
-  const sbData = te.stress_breakdown || {};
-  document.getElementById("stress-max-label").textContent = `Maks Stres: ${sbData.max_stress ?? "--"} (${sbData.qualifier || "BALANCED"})`;
+  const kpisEl = document.getElementById("lab-stress-kpis");
+  if (kpisEl) {
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Günlük Ort",
+        val: stressVal != null ? `${stressVal} / 100` : "--",
+        sub: stressStatus,
+        color: "#f59e0b",
+      },
+      {
+        label: "Gece Uyku Stresi",
+        val: sleepStress != null ? `${Math.round(sleepStress)} puan` : "--",
+        sub: `Normal <${state.settings?.sleep_stress_threshold ?? 23}`,
+        color: "#38bdf8",
+      },
+      {
+        label: "Maks Stres",
+        val: sbData.max_stress != null ? `${sbData.max_stress}` : "--",
+        sub: qualTr,
+        color: "#ef4444",
+      },
+    ]);
+  }
+
+  const maxLbl = document.getElementById("stress-max-label");
+  if (maxLbl) maxLbl.textContent = `Maks Stres: ${sbData.max_stress ?? "--"} · ${qualTr}`;
+
   const rPct = sbData.rest_pct || 0;
   const lPct = sbData.low_pct || 0;
   const mPct = sbData.med_pct || 0;
   const hPct = sbData.high_pct || 0;
   const aPct = sbData.activity_pct || 0;
-  document.getElementById("stress-breakdown-bar").innerHTML = `
-    <div style="width:${rPct}%; background:#38bdf8;" title="Dinlenme"></div>
-    <div style="width:${lPct}%; background:#00e5a3;" title="Düşük Stres"></div>
-    <div style="width:${mPct}%; background:#f59e0b;" title="Orta Stres"></div>
-    <div style="width:${hPct}%; background:#ef4444;" title="Yüksek Stres"></div>
-    <div style="width:${aPct}%; background:#a78bfa;" title="Aktivite"></div>
-  `;
-  document.getElementById("stress-breakdown-legend").innerHTML = `
-    <span>🔵 Dinlenme %${Math.round(rPct)}</span>
-    <span>🟢 Düşük %${Math.round(lPct)}</span>
-    <span>🟠 Orta %${Math.round(mPct)}</span>
-    <span>🔴 Yüksek %${Math.round(hPct)}</span>
-    <span>🟣 Aktivite %${Math.round(aPct)}</span>
-  `;
+  const barEl = document.getElementById("stress-breakdown-bar");
+  if (barEl) {
+    barEl.innerHTML = `
+      <div style="width:${rPct}%; background:#38bdf8;" title="Dinlenme"></div>
+      <div style="width:${lPct}%; background:#00e5a3;" title="Düşük Stres"></div>
+      <div style="width:${mPct}%; background:#f59e0b;" title="Orta Stres"></div>
+      <div style="width:${hPct}%; background:#ef4444;" title="Yüksek Stres"></div>
+      <div style="width:${aPct}%; background:#a78bfa;" title="Aktivite"></div>
+    `;
+  }
+  const legEl = document.getElementById("stress-breakdown-legend");
+  if (legEl) {
+    legEl.innerHTML = `
+      <span>🔵 Dinlenme %${Math.round(rPct)}</span>
+      <span>🟢 Düşük %${Math.round(lPct)}</span>
+      <span>🟠 Orta %${Math.round(mPct)}</span>
+      <span>🔴 Yüksek %${Math.round(hPct)}</span>
+      <span>🟣 Aktivite %${Math.round(aPct)}</span>
+    `;
+  }
 
-  // 3. Intraday 2-min HR Chart
-  document.getElementById("intraday-rhr-badge").textContent = `7G Ort Nabız: ${te.rhr_7d_avg ?? "--"} atım/dk`;
-  const hrPts = Array.isArray(te.intraday_hr) ? te.intraday_hr : [];
-  const hrCtx = document.getElementById("intradayHrChart");
-  if (hrCtx) {
-    if (state.charts.intradayHr) state.charts.intradayHr.destroy();
-    state.charts.intradayHr = new Chart(hrCtx, {
-      type: "line",
-      data: {
-        labels: hrPts.map((p) => p.time),
-        datasets: [{
-          label: "Nabız (atım/dk)",
-          data: hrPts.map((p) => p.hr),
-          borderColor: "#f43f5e",
-          backgroundColor: "rgba(244,63,94,0.12)",
+  const last14 = [...state.biometrics].slice(0, 14).reverse();
+  renderLabChart("labStress", "labStressChart", {
+    type: "line",
+    data: {
+      labels: last14.map((d) => String(d.log_date || "").slice(5)),
+      datasets: [
+        {
+          label: "Günlük Ort Stres",
+          data: last14.map((d) => (d.stress_avg != null ? Number(d.stress_avg) : null)),
+          borderColor: "#f59e0b",
+          backgroundColor: "rgba(245,158,11,0.14)",
           fill: true,
-          tension: 0.3,
-          pointRadius: 1,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { color: "#94a3b8", maxTicksLimit: 9 }, grid: { color: "rgba(148,163,184,0.08)" } },
-          y: { ticks: { color: "#f43f5e" }, grid: { color: "rgba(148,163,184,0.08)" } },
+          tension: 0.35,
+          pointRadius: 2.5,
+          spanGaps: true,
         },
+        {
+          label: "Gece Uyku Stresi",
+          data: last14.map((d) => (d.sleep_stress_avg != null ? Number(d.sleep_stress_avg) : null)),
+          borderColor: "#38bdf8",
+          tension: 0.35,
+          pointRadius: 2,
+          spanGaps: true,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { min: 0, max: 100, ticks: { color: "#f59e0b" }, grid: { color: "rgba(148,163,184,0.08)" } },
       },
+    },
+  });
+}
+
+function renderLabVo2Slide(latest) {
+  const allBio = state.biometrics.length ? state.biometrics : [latest];
+  const vo2Rec = allBio.find((r) => r && r.vo2_max != null) || latest;
+  const vo2Val = vo2Rec?.vo2_max != null ? Number(vo2Rec.vo2_max) : null;
+  const vo2Status = vo2Val == null ? "Veri yok" : vo2Val >= 52 ? "Üstün" : vo2Val >= 47 ? "Mükemmel" : vo2Val >= 42 ? "İyi" : vo2Val >= 35 ? "Orta" : "Zayıf";
+
+  const badge = document.getElementById("lab-vo2-badge");
+  if (badge) {
+    badge.textContent = vo2Val != null ? `${String(vo2Val).replace(".", ",")} · ${vo2Status}` : "--";
+    badge.className = `badge mono ${vo2Val == null ? "badge-info" : vo2Val >= 42 ? "badge-ok" : "badge-warn"}`;
+  }
+
+  const vo2Bands = [
+    { label: "Zayıf", min: 25, max: 35, color: "#ef4444" },
+    { label: "Orta", min: 35, max: 42, color: "#f59e0b" },
+    { label: "İyi", min: 42, max: 47, color: "#00e5a3" },
+    { label: "Mükemmel", min: 47, max: 52, color: "#38bdf8" },
+    { label: "Üstün", min: 52, max: 62, color: "#a78bfa" },
+  ];
+  let nextText = "";
+  if (vo2Val != null) {
+    const nextBand = vo2Bands.find((b) => vo2Val < b.max && b.max < 62);
+    if (nextBand) {
+      const targetBand = vo2Bands[vo2Bands.indexOf(nextBand) + 1];
+      if (targetBand) {
+        const diff = (targetBand.min - vo2Val).toFixed(1).replace(".", ",");
+        nextText = `${targetBand.label} (${String(targetBand.min).replace(".", ",")}) seviyesine +${diff} puan kaldı.`;
+      }
+    } else {
+      nextText = "En üst aerobik kapasite katmanındasın.";
+    }
+  }
+
+  const scaleEl = document.getElementById("lab-vo2-scale");
+  if (scaleEl) {
+    scaleEl.innerHTML = renderSegmentedScale({
+      title: "Yaş Grubu Aerobik Kapasite Skalası",
+      currentLabel: vo2Val != null ? `${String(vo2Val).replace(".", ",")} ml/kg/dk · ${vo2Status}` : "--",
+      bands: vo2Bands,
+      value: vo2Val,
+      nextTargetText: nextText,
     });
   }
 
-  // 4. Metabolism, Floors, Fitness Age Target, Respiration & Sleep Insight
+  const cardioActs = (state.activities || []).filter(
+    (a) => Number(a.distance_meters || 0) > 500 && Number(a.duration_seconds || 0) > 300 && Number(a.avg_hr || 0) > 50
+  );
+  const lastEf = cardioActs[0]
+    ? (Number(cardioActs[0].distance_meters) / (Number(cardioActs[0].duration_seconds) / 60)) / Number(cardioActs[0].avg_hr)
+    : null;
+
+  const kpisEl = document.getElementById("lab-vo2-kpis");
+  if (kpisEl) {
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Güncel VO₂",
+        val: vo2Val != null ? String(vo2Val).replace(".", ",") : "--",
+        sub: vo2Status,
+        color: "#00e5a3",
+      },
+      {
+        label: "Son Güncelleme",
+        val: vo2Rec?.log_date ? fmtDateDmy(vo2Rec.log_date).slice(0, 5) : "--",
+        sub: "Garmin MaxMet",
+        color: "#38bdf8",
+      },
+      {
+        label: "Aerobik Verimlilik",
+        val: lastEf != null ? lastEf.toFixed(2) : "--",
+        sub: cardioActs[0] ? cardioActs[0].activity_name : "Kardiyo bekleniyor",
+        color: "#a78bfa",
+      },
+    ]);
+  }
+
+  const last30 = [...state.biometrics].slice(0, 30).reverse();
+  const vo2Bounds = computePaddedBounds(last30.map((d) => d.vo2_max), 2, 20, 75);
+  renderLabChart("labVo2", "labVo2Chart", {
+    type: "line",
+    data: {
+      labels: last30.map((d) => String(d.log_date || "").slice(5)),
+      datasets: [
+        {
+          label: "VO₂ Maks",
+          data: last30.map((d) => (d.vo2_max != null ? Number(d.vo2_max) : null)),
+          borderColor: "#10b981",
+          backgroundColor: "rgba(16,185,129,0.14)",
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2.5,
+          spanGaps: true,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { ...vo2Bounds, ticks: { color: "#10b981" }, grid: { color: "rgba(148,163,184,0.08)" } },
+      },
+    },
+  });
+}
+
+function renderLabEnduranceSlide(latest) {
+  const allBio = state.biometrics.length ? state.biometrics : [latest];
+  const endRec = allBio.find((r) => r && r.endurance_score != null) || latest;
+  const endVal = endRec?.endurance_score != null ? Number(endRec.endurance_score) : null;
+  const endTier =
+    endVal == null
+      ? "Veri yok"
+      : endVal >= 7500
+        ? "Elit"
+        : endVal >= 6600
+          ? "Üstün"
+          : endVal >= 5800
+            ? "İyi"
+            : endVal >= 5100
+              ? "Ara"
+              : "Başlangıç";
+
+  const badge = document.getElementById("lab-endurance-badge");
+  if (badge) {
+    badge.textContent = endVal != null ? `${endVal.toLocaleString("tr-TR")} · ${endTier}` : "--";
+    badge.className = `badge mono ${endVal == null ? "badge-info" : endVal >= 5800 ? "badge-ok" : "badge-warn"}`;
+  }
+
+  const endBands = [
+    { label: "Başlangıç", min: 3500, max: 5100, color: "#94a3b8" },
+    { label: "Ara", min: 5100, max: 5800, color: "#38bdf8" },
+    { label: "İyi", min: 5800, max: 6600, color: "#f97316" },
+    { label: "Üstün", min: 6600, max: 7500, color: "#00e5a3" },
+    { label: "Elit", min: 7500, max: 8800, color: "#a78bfa" },
+  ];
+  let nextText = "";
+  if (endVal != null) {
+    const idx = endBands.findIndex((b) => endVal < b.max);
+    if (idx >= 0 && idx < endBands.length - 1) {
+      const nextB = endBands[idx + 1];
+      nextText = `${nextB.label} (${nextB.min.toLocaleString("tr-TR")}) seviyesine +${(nextB.min - endVal).toLocaleString("tr-TR")} puan kaldı.`;
+    } else {
+      nextText = "En yüksek dayanıklılık katmanındasın.";
+    }
+  }
+
+  const scaleEl = document.getElementById("lab-endurance-scale");
+  if (scaleEl) {
+    scaleEl.innerHTML = renderSegmentedScale({
+      title: "Garmin Dayanıklılık Katmanı",
+      currentLabel: endVal != null ? `${endVal.toLocaleString("tr-TR")} · ${endTier}` : "--",
+      bands: endBands,
+      value: endVal,
+      nextTargetText: nextText,
+    });
+  }
+
+  const refMs = latest?.log_date ? new Date(`${latest.log_date}T23:59:59Z`).getTime() : Date.now();
+  const acts14 = (state.activities || []).filter((a) => {
+    const t = new Date(a.start_time_local).getTime();
+    return Number.isFinite(t) && (refMs - t) / 86400000 <= 14;
+  });
+  const dist14Km = acts14.reduce((s, a) => s + Number(a.distance_meters || 0) / 1000, 0);
+  const dur14Min = Math.round(acts14.reduce((s, a) => s + Number(a.duration_seconds || 0) / 60, 0));
+  const teVals = acts14.map((a) => a.aerobic_te).filter((v) => v != null && Number(v) > 0).map(Number);
+  const avgTe = teVals.length ? teVals.reduce((a, b) => a + b, 0) / teVals.length : null;
+
+  const kpisEl = document.getElementById("lab-endurance-kpis");
+  if (kpisEl) {
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Dayanıklılık",
+        val: endVal != null ? endVal.toLocaleString("tr-TR") : "--",
+        sub: endRec?.log_date ? `${endTier} · ${fmtDateDmy(endRec.log_date).slice(0, 5)}` : endTier,
+        color: "#f97316",
+      },
+      {
+        label: "14G Mesafe",
+        val: `${dist14Km.toFixed(1).replace(".", ",")} km`,
+        sub: `${acts14.length} seans · ${dur14Min} dk`,
+        color: "#38bdf8",
+      },
+      {
+        label: "Ort Aerobik TE",
+        val: avgTe != null ? avgTe.toFixed(1) : "--",
+        sub: "Son 14 gün seansları",
+        color: "#00e5a3",
+      },
+    ]);
+  }
+
+  const last30 = [...state.biometrics].slice(0, 30).reverse();
+  const endBounds = computePaddedBounds(last30.map((d) => d.endurance_score), 250, 2500, 10000);
+  renderLabChart("labEndurance", "labEnduranceChart", {
+    type: "line",
+    data: {
+      labels: last30.map((d) => String(d.log_date || "").slice(5)),
+      datasets: [
+        {
+          label: "Dayanıklılık Puanı",
+          data: last30.map((d) => d.endurance_score),
+          borderColor: "#f97316",
+          backgroundColor: "rgba(249,115,22,0.14)",
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2.5,
+          spanGaps: true,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { ...endBounds, ticks: { color: "#f97316" }, grid: { color: "rgba(148,163,184,0.08)" } },
+      },
+    },
+  });
+}
+
+function renderLabFitAgeSlide(latest) {
+  const s = state.settings || {};
+  const allBio = state.biometrics.length ? state.biometrics : [latest];
+  const fitRec =
+    allBio.find(
+      (r) =>
+        r &&
+        (r.raw_payload?.telemetry_extra?.fitness_age_detail?.current_age != null ||
+          r.raw_payload?.telemetry_extra?.fitness_age?.current_age != null ||
+          r.fitness_age != null)
+    ) || latest;
+  const fa = fitRec?.raw_payload?.telemetry_extra?.fitness_age_detail || fitRec?.raw_payload?.telemetry_extra?.fitness_age || {};
+  const fitAge = fa.current_age ?? fitRec?.fitness_age ?? null;
+  const chronoAge = Number(fa.chronological_age ?? new Date().getFullYear() - Number(s.birth_year || 1988));
+  const achAge = fa.achievable_age ?? null;
+  const diff = fitAge != null ? Number((chronoAge - Number(fitAge)).toFixed(1)) : null;
+
+  const badge = document.getElementById("lab-fitage-badge");
+  if (badge) {
+    badge.textContent =
+      diff != null
+        ? `${String(Math.abs(diff)).replace(".", ",")} yaş ${diff >= 0 ? "genç" : "yüksek"}`
+        : "--";
+    badge.className = `badge mono ${diff != null && diff >= 0 ? "badge-ok" : "badge-warn"}`;
+  }
+
+  const trioEl = document.getElementById("lab-fitage-trio");
+  if (trioEl) {
+    trioEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Gerçek Yaş",
+        val: `${chronoAge} Yaş`,
+        sub: `Doğum ${s.birth_year ?? 1988}`,
+        color: "var(--text)",
+      },
+      {
+        label: "Sağlık Yaşı",
+        val: fitAge != null ? `${String(fitAge).replace(".", ",")} Yaş` : "--",
+        sub: diff != null ? `${diff >= 0 ? "-" : "+"}${String(Math.abs(diff)).replace(".", ",")} yaş fark` : "--",
+        color: "#00e5a3",
+      },
+      {
+        label: "Ulaşılabilir Hedef",
+        val: achAge != null ? `${String(achAge).replace(".", ",")} Yaş` : "--",
+        sub: achAge != null && fitAge != null ? `${String((Number(fitAge) - Number(achAge)).toFixed(1)).replace(".", ",")} yaş potansiyel` : "Hedef yaş",
+        color: "#a78bfa",
+      },
+    ]);
+  }
+
+  const vigDays = fa.vigorous_days != null ? Number(fa.vigorous_days) : null;
+  const vigTarget = Number(fa.vigorous_target ?? 3);
+  const vigPct = vigDays != null ? Math.min(100, Math.round((vigDays / Math.max(1, vigTarget)) * 100)) : 0;
+
+  const rhrVal = latest.rhr != null ? Number(latest.rhr) : null;
+  const baseRhr = Number(s.base_rhr ?? 46);
+  const rhrPct = rhrVal != null ? Math.max(25, Math.min(100, Math.round(((70 - rhrVal) / Math.max(10, 70 - baseRhr)) * 100))) : 50;
+
+  const weeklyIntMin = state.biometrics
+    .slice(0, 7)
+    .reduce((sum, d) => sum + Number(d.moderate_intensity_minutes || 0) + 2 * Number(d.vigorous_intensity_minutes || 0), 0);
+  const intPct = Math.min(100, Math.round((weeklyIntMin / 150) * 100));
+
+  const factorsEl = document.getElementById("lab-fitage-factors");
+  if (factorsEl) {
+    factorsEl.innerHTML = `
+      <div>
+        <div class="bar-row-head"><span>Yoğun Gün Ortalaması</span><strong class="mono" style="color:#a78bfa;">${vigDays != null ? String(vigDays).replace(".", ",") : "--"} / ${vigTarget} gün</strong></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${vigPct}%; background:#a78bfa;"></div></div>
+      </div>
+      <div>
+        <div class="bar-row-head"><span>Dinlenik Nabız Katkısı</span><strong class="mono" style="color:#00e5a3;">${rhrVal != null ? `${rhrVal} bpm` : "--"} (Hedef ≤${baseRhr})</strong></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${rhrPct}%; background:#00e5a3;"></div></div>
+      </div>
+      <div>
+        <div class="bar-row-head"><span>7G Yoğunluk Dakikası</span><strong class="mono" style="color:#38bdf8;">${weeklyIntMin} / 150 dk</strong></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${intPct}%; background:#38bdf8;"></div></div>
+      </div>`;
+  }
+
+  const last30 = [...state.biometrics].slice(0, 30).reverse();
+  const ageSeries = last30.map((d) => {
+    const raw =
+      d.raw_payload?.telemetry_extra?.fitness_age_detail?.current_age ??
+      d.raw_payload?.telemetry_extra?.fitness_age?.current_age ??
+      d.fitness_age ??
+      null;
+    return raw != null ? Number(raw) : null;
+  });
+  const ageBounds = computePaddedBounds(ageSeries, 1.5, 18, 80);
+  renderLabChart("labFitAge", "labFitAgeChart", {
+    type: "line",
+    data: {
+      labels: last30.map((d) => String(d.log_date || "").slice(5)),
+      datasets: [
+        {
+          label: "Sağlık Yaşı",
+          data: ageSeries,
+          borderColor: "#0d9488",
+          backgroundColor: "rgba(13,148,136,0.16)",
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2.5,
+          spanGaps: true,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { ...ageBounds, ticks: { color: "#2dd4bf" }, grid: { color: "rgba(148,163,184,0.08)" } },
+      },
+    },
+  });
+}
+
+function renderLabRespSpo2Slide(latest) {
+  const s = state.settings || {};
+  const te = latest?.raw_payload?.telemetry_extra || {};
+  const wr = te.waking_respiration || {};
+  const spo2Avg = latest.spo2_avg != null ? Number(latest.spo2_avg) : null;
+  const spo2Min = latest.spo2_min != null ? Number(latest.spo2_min) : null;
+  const spo2Warn = Number(s.spo2_warn_threshold ?? 91);
+  const respWarn = Number(s.resp_warn_threshold ?? 18);
+  const spo2Status = spo2Avg == null ? "Veri yok" : spo2Avg >= 94 ? "Normal" : spo2Avg > spo2Warn ? "İyi" : "Dikkat";
+
+  const badge = document.getElementById("lab-resp-badge");
+  if (badge) {
+    badge.textContent = spo2Avg != null ? `SpO₂ %${Math.round(spo2Avg)} · ${spo2Status}` : spo2Status;
+    badge.className = `badge mono ${spo2Status === "Normal" || spo2Status === "İyi" ? "badge-ok" : "badge-warn"}`;
+  }
+
+  const kpisEl = document.getElementById("lab-resp-kpis");
+  if (kpisEl) {
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Ort SpO₂ (Oksijen)",
+        val: spo2Avg != null ? `%${Math.round(spo2Avg)}` : "--",
+        sub: spo2Status,
+        color: "#06b6d4",
+      },
+      {
+        label: "En Düşük SpO₂",
+        val: spo2Min != null ? `%${Math.round(spo2Min)}` : "--",
+        sub: `Eşik >%${spo2Warn}`,
+        color: spo2Min != null && spo2Min <= spo2Warn ? "#f59e0b" : "#38bdf8",
+      },
+      {
+        label: "Gece Solunumu",
+        val: latest.sleep_respiration_avg != null ? `${String(latest.sleep_respiration_avg).replace(".", ",")} dk⁻¹` : "--",
+        sub: `Normal <${respWarn} nefes/dk`,
+        color: "#00e5a3",
+      },
+      {
+        label: "Gündüz Solunumu",
+        val: wr.avg != null ? `${wr.avg} nefes/dk` : "--",
+        sub: wr.min != null && wr.max != null ? `Aralık ${wr.min}–${wr.max} · Son ${wr.latest ?? "--"}` : "Gün içi ölçüm",
+        color: "#a78bfa",
+      },
+    ]);
+  }
+
+  const tempEl = document.getElementById("lab-resp-temp-note");
+  if (tempEl) {
+    const tempRec = (state.biometrics || []).find((d) => d && d.skin_temp_deviation != null);
+    if (tempRec) {
+      const tv = Number(tempRec.skin_temp_deviation);
+      const isToday = tempRec.log_date === latest.log_date;
+      tempEl.textContent = `🌡️ Gece Deri Sıcaklığı Sapması: ${tv >= 0 ? "+" : ""}${String(tv).replace(".", ",")}°C${isToday ? "" : ` (${fmtDateDmy(tempRec.log_date).slice(0, 5)} kaydı)`}`;
+      tempEl.classList.remove("hidden");
+    } else {
+      tempEl.textContent = "";
+      tempEl.classList.add("hidden");
+    }
+  }
+
+  const last14 = [...state.biometrics].slice(0, 14).reverse();
+  renderLabChart("labRespSpo2", "labRespSpo2Chart", {
+    type: "line",
+    data: {
+      labels: last14.map((d) => String(d.log_date || "").slice(5)),
+      datasets: [
+        {
+          label: "Ort SpO₂ (%)",
+          data: last14.map((d) => (d.spo2_avg != null ? Number(d.spo2_avg) : null)),
+          borderColor: "#06b6d4",
+          backgroundColor: "rgba(6,182,212,0.14)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 2.5,
+          spanGaps: true,
+          yAxisID: "y",
+        },
+        {
+          label: "Gece Solunum (dk⁻¹)",
+          data: last14.map((d) => (d.sleep_respiration_avg != null ? Number(d.sleep_respiration_avg) : null)),
+          borderColor: "#a78bfa",
+          tension: 0.35,
+          pointRadius: 2.5,
+          spanGaps: true,
+          yAxisID: "y1",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { position: "left", min: 85, max: 100, ticks: { color: "#06b6d4" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y1: { position: "right", min: 11, max: 22, ticks: { color: "#a78bfa" }, grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+}
+
+window.switchMoveDay = function (dayMode, btn) {
+  const hasPrev = Boolean(state.biometrics[1]);
+  state.moveDayMode = dayMode === "yesterday" && hasPrev ? "yesterday" : "today";
+  setActiveChipGroup("data-move-day", state.moveDayMode);
+  if (state.biometrics[0]) renderLabMoveSlide(state.biometrics[0]);
+  requestAnimationFrame(syncLabCarouselHeight);
+};
+
+function renderLabMoveSlide(latest) {
+  const todayRec = latest;
+  const yestRec = state.biometrics[1] || null;
+  if (!yestRec && state.moveDayMode === "yesterday") {
+    state.moveDayMode = "today";
+  }
+  const yestChip = document.querySelector('#lab-carousel-section [data-move-day="yesterday"]');
+  if (yestChip) {
+    yestChip.disabled = !yestRec;
+    yestChip.style.opacity = yestRec ? "" : "0.45";
+  }
+  setActiveChipGroup("data-move-day", state.moveDayMode);
+
+  const rec = state.moveDayMode === "yesterday" && yestRec ? yestRec : todayRec;
+  const te = rec?.raw_payload?.telemetry_extra || {};
   const met = te.metabolism || {};
   const fl = te.floors || {};
-  const fa = te.fitness_age_detail || {};
-  const wr = te.waking_respiration || {};
-  const si = te.sleep_insights || {};
-  document.getElementById("deep-telemetry-cards").innerHTML = `
-    <div class="mini-box">
-      <div class="mini-box-lbl">Toplam Metabolizma</div>
-      <div class="mini-box-val mono" style="color:var(--emerald);">${met.total_kcal ?? "--"} kcal</div>
-      <div class="card-sub">BMR ${met.bmr_kcal ?? "--"} + Aktif ${met.active_kcal ?? "--"} · Aktif ${met.active_min ?? 0} dk / Sedanter ${Math.round((met.sedentary_min || 0) / 60)} sa</div>
-    </div>
-    <div class="mini-box">
-      <div class="mini-box-lbl">Çıkılan Kat & Rakım</div>
-      <div class="mini-box-val mono" style="color:var(--cyan);">${fl.ascended ?? "--"} / ${fl.goal ?? 10} Kat</div>
-      <div class="card-sub">Tırmanış +${fl.meters_up ?? "--"} m · Ortam Rakımı ${fl.altitude_m ?? "--"} m</div>
-    </div>
-    <div class="mini-box">
-      <div class="mini-box-lbl">Fitness Yaşı Potansiyeli</div>
-      <div class="mini-box-val mono" style="color:var(--purple);">${fa.current_age ?? "--"} → ${fa.achievable_age ?? "--"} Yaş</div>
-      <div class="card-sub">Kronolojik ${fa.chronological_age ?? 38} · Yoğun Gün ${fa.vigorous_days ?? "--"} / ${fa.vigorous_target ?? 3}</div>
-    </div>
-    <div class="mini-box">
-      <div class="mini-box-lbl">Gündüz Solunum & Uyku İçgörüsü</div>
-      <div class="mini-box-val mono">${wr.avg ?? "--"} nefes/dk (${wr.min ?? "--"}–${wr.max ?? "--"})</div>
-      <div class="card-sub">${escapeHtml((si.feedback || "BALANCED").replace(/_/g, " "))}</div>
-    </div>
-  `;
+
+  const steps = Number(rec.steps || 0);
+  const stepPct = Math.round((steps / 10000) * 100);
+  const remSteps = Math.max(0, 10000 - steps);
+  const activeKcal = rec.active_kilocalories ?? met.active_kcal ?? null;
+  const totalKcal =
+    met.total_kcal ??
+    (activeKcal != null ? Number(activeKcal) + Number(met.bmr_kcal || 1680) : null);
+
+  const badge = document.getElementById("lab-move-badge");
+  if (badge) {
+    badge.textContent = `${rec.log_date ? fmtDateDmy(rec.log_date).slice(0, 5) : "--"} · %${stepPct}`;
+    badge.className = `badge mono ${stepPct >= 100 ? "badge-ok" : "badge-info"}`;
+  }
+
+  const cmpEl = document.getElementById("lab-move-compare");
+  if (cmpEl) {
+    if (yestRec) {
+      const tSteps = Number(todayRec.steps || 0);
+      const ySteps = Number(yestRec.steps || 0);
+      const vsPct = ySteps > 0 ? Math.round((tSteps / ySteps) * 100) : null;
+      const tMet = todayRec.raw_payload?.telemetry_extra?.metabolism || {};
+      const yMet = yestRec.raw_payload?.telemetry_extra?.metabolism || {};
+      const tKcal = tMet.total_kcal ?? "--";
+      const yKcal = yMet.total_kcal ?? "--";
+      cmpEl.innerHTML = `
+        <span>⚡ Bugün: <strong class="mono">${tSteps.toLocaleString("tr-TR")}</strong> adım (${tKcal} kcal)</span>
+        <span>👣 Dün: <strong class="mono">${ySteps.toLocaleString("tr-TR")}</strong> adım (${yKcal} kcal)${vsPct != null ? ` · Dünün <strong class="mono">%${vsPct}</strong>'i` : ""}</span>`;
+    } else {
+      cmpEl.innerHTML = `<span>⚡ Bugün: <strong class="mono">${steps.toLocaleString("tr-TR")}</strong> adım</span><span>Dünün kapanış verisi henüz yok.</span>`;
+    }
+  }
+
+  const activeMin = Number(met.active_min || 0);
+  const highActMin = Number(met.highly_active_min || 0);
+  const sedH = met.sedentary_min != null ? (Number(met.sedentary_min) / 60).toFixed(1).replace(".", ",") : "--";
+  const modInt = Number(rec.moderate_intensity_minutes || 0);
+  const vigInt = Number(rec.vigorous_intensity_minutes || 0);
+
+  const kpisEl = document.getElementById("lab-move-kpis");
+  if (kpisEl) {
+    kpisEl.innerHTML = renderMiniKpiBoxes([
+      {
+        label: "Adım & 10.000 Hedef",
+        val: `${steps.toLocaleString("tr-TR")} (%${stepPct})`,
+        sub: remSteps > 0 ? `Hedefe ${remSteps.toLocaleString("tr-TR")} adım kaldı` : "Günlük hedef tamamlandı!",
+        color: "#38bdf8",
+      },
+      {
+        label: "Toplam Metabolizma",
+        val: totalKcal != null ? `${Number(totalKcal).toLocaleString("tr-TR")} kcal` : "--",
+        sub: `BMR ${met.bmr_kcal ?? "--"} + Aktif ${activeKcal ?? "--"} kcal`,
+        color: "#00e5a3",
+      },
+      {
+        label: "Çıkılan Kat & Rakım",
+        val: `${fl.ascended ?? 0} / ${fl.goal ?? 10} Kat`,
+        sub: `İniş ${fl.descended ?? 0} · +${fl.meters_up ?? 0} m · Rakım ${fl.altitude_m ?? "--"} m`,
+        color: "#a78bfa",
+      },
+      {
+        label: "Hareket & Yoğunluk",
+        val: `${activeMin} dk aktif`,
+        sub: `Çok yoğun ${highActMin} dk · Sedanter ${sedH} sa · Yoğunluk ${modInt}+${vigInt} dk`,
+        color: "#f59e0b",
+      },
+    ]);
+  }
+
+  const last14 = [...state.biometrics].slice(0, 14).reverse();
+  const selDate = rec.log_date;
+  renderLabChart("labMove", "labMoveChart", {
+    type: "bar",
+    data: {
+      labels: last14.map((d) => String(d.log_date || "").slice(5)),
+      datasets: [
+        {
+          type: "line",
+          label: "Aktif kcal",
+          order: 0,
+          data: last14.map((d) => {
+            const k = d.active_kilocalories ?? d.raw_payload?.telemetry_extra?.metabolism?.active_kcal ?? null;
+            return k != null ? Number(k) : null;
+          }),
+          borderColor: "#f97316",
+          tension: 0.35,
+          pointRadius: 2.5,
+          spanGaps: true,
+          yAxisID: "y1",
+        },
+        {
+          type: "bar",
+          label: "Adım",
+          order: 1,
+          data: last14.map((d) => (d.steps != null ? Number(d.steps) : null)),
+          backgroundColor: last14.map((d) => (d.log_date === selDate ? "rgba(0,229,163,0.75)" : "rgba(56,189,248,0.4)")),
+          borderColor: last14.map((d) => (d.log_date === selDate ? "#00e5a3" : "#38bdf8")),
+          borderWidth: 1,
+          borderRadius: 5,
+          yAxisID: "y",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { position: "left", ticks: { color: "#38bdf8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y1: { position: "right", ticks: { color: "#f97316" }, grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+}
+
+function renderDeepTelemetry(latest) {
+  if (!latest) return;
+  renderLabSleepSlide(latest);
+  renderLabHrvSlide(latest);
+  renderLabHrSlide(latest);
+  renderLabBbSlide(latest);
+  renderLabStressSlide(latest);
+  renderLabVo2Slide(latest);
+  renderLabEnduranceSlide(latest);
+  renderLabFitAgeSlide(latest);
+  renderLabRespSpo2Slide(latest);
+  renderLabMoveSlide(latest);
 }
 
 window.switchTrendMode = function (mode, btn) {

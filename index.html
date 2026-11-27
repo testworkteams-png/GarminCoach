@@ -244,25 +244,249 @@
           <div class="lab-carousel-header">
             <h2>🔬 Biyometri, Enerji &amp; Akıllı Özet</h2>
             <div class="lab-carousel-controls">
-              <span class="badge badge-info mono" id="lab-carousel-counter">1 / 7</span>
+              <span class="badge badge-info mono" id="lab-carousel-counter">1 / 13</span>
               <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveLabCarousel(-1)" aria-label="Önceki kart">‹</button>
               <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveLabCarousel(1)" aria-label="Sonraki kart">›</button>
             </div>
           </div>
 
           <div class="lab-carousel-nav" id="lab-carousel-nav">
-            <button type="button" class="lab-carousel-tab active" data-slide="0" onclick="goToLabSlide(0)">📈 Trend Lab</button>
-            <button type="button" class="lab-carousel-tab" data-slide="1" onclick="goToLabSlide(1)">🔋 Body Battery</button>
-            <button type="button" class="lab-carousel-tab" data-slide="2" onclick="goToLabSlide(2)">💓 Gece HRV &amp; Stres</button>
-            <button type="button" class="lab-carousel-tab" data-slide="3" onclick="goToLabSlide(3)">❤️ Canlı Nabız</button>
-            <button type="button" class="lab-carousel-tab" data-slide="4" onclick="goToLabSlide(4)">🔥 Metabolizma</button>
-            <button type="button" class="lab-carousel-tab" data-slide="5" onclick="goToLabSlide(5)">🧠 Akıllı Özet</button>
-            <button type="button" class="lab-carousel-tab" data-slide="6" onclick="goToLabSlide(6)">🔗 Vücut Tepkileri</button>
+            <button type="button" class="lab-carousel-tab active" data-slide="0" onclick="goToLabSlide(0)">😴 Uyku</button>
+            <button type="button" class="lab-carousel-tab" data-slide="1" onclick="goToLabSlide(1)">💗 HRV</button>
+            <button type="button" class="lab-carousel-tab" data-slide="2" onclick="goToLabSlide(2)">🫀 Nabız</button>
+            <button type="button" class="lab-carousel-tab" data-slide="3" onclick="goToLabSlide(3)">🔋 Body Battery</button>
+            <button type="button" class="lab-carousel-tab" data-slide="4" onclick="goToLabSlide(4)">🧘 Stres</button>
+            <button type="button" class="lab-carousel-tab" data-slide="5" onclick="goToLabSlide(5)">🏃 VO₂ Maks</button>
+            <button type="button" class="lab-carousel-tab" data-slide="6" onclick="goToLabSlide(6)">🏆 Dayanıklılık</button>
+            <button type="button" class="lab-carousel-tab" data-slide="7" onclick="goToLabSlide(7)">🧬 Sağlık Yaşı</button>
+            <button type="button" class="lab-carousel-tab" data-slide="8" onclick="goToLabSlide(8)">🫁 Solunum &amp; SpO₂</button>
+            <button type="button" class="lab-carousel-tab" data-slide="9" onclick="goToLabSlide(9)">⚡ Hareket</button>
+            <button type="button" class="lab-carousel-tab" data-slide="10" onclick="goToLabSlide(10)">📈 Trend Lab</button>
+            <button type="button" class="lab-carousel-tab" data-slide="11" onclick="goToLabSlide(11)">🧠 Akıllı Özet</button>
+            <button type="button" class="lab-carousel-tab" data-slide="12" onclick="goToLabSlide(12)">🔗 Vücut Tepkileri</button>
           </div>
 
           <div class="lab-carousel-track" id="lab-carousel-track">
-            <!-- Slide 1: Trend Lab -->
+            <!-- Slide 0: Sleep -->
             <div class="lab-carousel-slide" data-slide="0">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">😴 Uyku Mimarisi &amp; Toparlanma</div>
+                    <div class="card-sub">Gece uyku evreleri, 7G uyku borcu ve 14 günlük trend</div>
+                  </div>
+                  <span class="badge badge-info mono" id="lab-sleep-badge">Skor --</span>
+                </div>
+                <div class="lab-kpi-grid lab-kpi-3" id="lab-sleep-kpis"></div>
+                <div class="sleep-strip-wrap">
+                  <div class="bar-row-head">
+                    <span>Gece Uyku Evreleri</span>
+                    <strong class="mono" id="lab-sleep-total-label">--</strong>
+                  </div>
+                  <div class="sleep-strip" id="lab-sleep-hypnogram"></div>
+                  <div class="sleep-legend" id="lab-sleep-legend"></div>
+                  <div class="sleep-debt-banner" id="lab-sleep-debt-box"></div>
+                </div>
+                <div class="lab-insight-note hidden" id="lab-sleep-insight-box"></div>
+                <div class="chart-wrap mt-12" style="height:190px;">
+                  <canvas id="labSleepChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 1: HRV -->
+            <div class="lab-carousel-slide" data-slide="1">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">💗 Gece HRV &amp; Otonom Denge</div>
+                    <div class="card-sub">5 dakikalık gece HRV dalgası ve kişisel baz koridoru</div>
+                  </div>
+                  <div class="lab-card-head-right">
+                    <div class="chip-group">
+                      <button type="button" class="chip active" data-hrv-mode="night" onclick="switchHrvChartMode('night', this)">Gece 5-Dk</button>
+                      <button type="button" class="chip" data-hrv-mode="trend" onclick="switchHrvChartMode('trend', this)">14G Trend</button>
+                    </div>
+                    <span class="badge badge-ok" id="hrv-peak-badge">Tepe -- ms</span>
+                  </div>
+                </div>
+                <div class="lab-kpi-grid lab-kpi-3" id="lab-hrv-kpis"></div>
+                <div id="lab-hrv-corridor" class="mt-12"></div>
+                <div class="chart-wrap mt-12" style="height:200px;">
+                  <canvas id="hrvNightChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 2: Heart Rate -->
+            <div class="lab-carousel-slide" data-slide="2">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">🫀 Canlı Nabız &amp; Dinlenik Nabız</div>
+                    <div class="card-sub">2 dakikalık gün içi nabız eğrisi ve 14G dinlenik nabız takibi</div>
+                  </div>
+                  <div class="lab-card-head-right">
+                    <div class="chip-group">
+                      <button type="button" class="chip active" data-hr-mode="intraday" onclick="switchHrChartMode('intraday', this)">Canlı 2-Dk</button>
+                      <button type="button" class="chip" data-hr-mode="rhr14" onclick="switchHrChartMode('rhr14', this)">14G RHR</button>
+                    </div>
+                    <span class="badge badge-info" id="intraday-rhr-badge">7G RHR: --</span>
+                  </div>
+                </div>
+                <div class="lab-kpi-grid lab-kpi-3" id="lab-hr-kpis"></div>
+                <div class="chart-wrap mt-12" style="height:215px;">
+                  <canvas id="intradayHrChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 3: Body Battery Intraday -->
+            <div class="lab-carousel-slide" data-slide="3">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">🔋 Anlık Body Battery &amp; Enerji Olayları</div>
+                    <div class="card-sub">Uykuda şarj, stres kayıpları ve antrenman pil etkisi</div>
+                  </div>
+                  <div class="lab-card-head-right">
+                    <div class="chip-group">
+                      <button type="button" class="chip active" data-bb-mode="intraday" onclick="switchBbChartMode('intraday', this)">Bugün</button>
+                      <button type="button" class="chip" data-bb-mode="trend14" onclick="switchBbChartMode('trend14', this)">14G Trend</button>
+                    </div>
+                    <span class="badge badge-warn" id="bb-current-badge">🔋 --</span>
+                  </div>
+                </div>
+                <div class="chart-wrap" style="height:200px;">
+                  <canvas id="bbIntradayChart"></canvas>
+                </div>
+                <div class="event-timeline" id="bb-events-list"></div>
+              </div>
+            </div>
+
+            <!-- Slide 4: Stress -->
+            <div class="lab-carousel-slide" data-slide="4">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">🧘 Stres Seviyesi &amp; Sinir Sistemi Yükü</div>
+                    <div class="card-sub">Gün içi stres dağılımı ve 14 günlük gündüz / gece uyku stresi</div>
+                  </div>
+                  <span class="badge badge-warn mono" id="lab-stress-badge">--</span>
+                </div>
+                <div class="lab-kpi-grid lab-kpi-3" id="lab-stress-kpis"></div>
+                <div class="sleep-strip-wrap">
+                  <div class="bar-row-head">
+                    <span>Gün İçi Stres &amp; Dinlenme Dağılımı</span>
+                    <strong class="mono" id="stress-max-label">Maks --</strong>
+                  </div>
+                  <div class="stress-bar" id="stress-breakdown-bar"></div>
+                  <div class="sleep-legend" id="stress-breakdown-legend"></div>
+                </div>
+                <div class="chart-wrap mt-12" style="height:190px;">
+                  <canvas id="labStressChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 5: VO2 Max -->
+            <div class="lab-carousel-slide" data-slide="5">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">🏃 VO₂ Maks &amp; Aerobik Kapasite</div>
+                    <div class="card-sub">Yaş grubu skalası, üst seviye hedefi ve aerobik verimlilik</div>
+                  </div>
+                  <span class="badge badge-ok mono" id="lab-vo2-badge">--</span>
+                </div>
+                <div id="lab-vo2-scale"></div>
+                <div class="lab-kpi-grid lab-kpi-3 mt-12" id="lab-vo2-kpis"></div>
+                <div class="chart-wrap mt-12" style="height:190px;">
+                  <canvas id="labVo2Chart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 6: Endurance Score -->
+            <div class="lab-carousel-slide" data-slide="6">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">🏆 Dayanıklılık Puanı &amp; Yük Kapasitesi</div>
+                    <div class="card-sub">Garmin dayanıklılık katmanı, 14G kardiyo hacmi ve ACWR dengesi</div>
+                  </div>
+                  <span class="badge badge-warn mono" id="lab-endurance-badge">--</span>
+                </div>
+                <div id="lab-endurance-scale"></div>
+                <div class="lab-kpi-grid lab-kpi-3 mt-12" id="lab-endurance-kpis"></div>
+                <div class="chart-wrap mt-12" style="height:190px;">
+                  <canvas id="labEnduranceChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 7: Fitness Age -->
+            <div class="lab-carousel-slide" data-slide="7">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">🧬 Sağlık Yaşı &amp; Gençleşme Potansiyeli</div>
+                    <div class="card-sub">Gerçek yaş kıyası, ulaşılabilir hedef yaş ve etkileyen faktörler</div>
+                  </div>
+                  <span class="badge badge-ok mono" id="lab-fitage-badge">--</span>
+                </div>
+                <div class="lab-kpi-grid lab-kpi-3" id="lab-fitage-trio"></div>
+                <div class="formula-bars mt-12" id="lab-fitage-factors"></div>
+                <div class="chart-wrap mt-12" style="height:185px;">
+                  <canvas id="labFitAgeChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 8: Respiration & SpO2 -->
+            <div class="lab-carousel-slide" data-slide="8">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">🫁 Solunum Hızı &amp; Pulse Ox (SpO₂)</div>
+                    <div class="card-sub">Gece/gündüz solunum hızı, kan oksijeni ve deri sıcaklığı sapması</div>
+                  </div>
+                  <span class="badge badge-ok mono" id="lab-resp-badge">--</span>
+                </div>
+                <div class="lab-kpi-grid lab-kpi-2" id="lab-resp-kpis"></div>
+                <div class="lab-insight-note hidden" id="lab-resp-temp-note"></div>
+                <div class="chart-wrap mt-12" style="height:190px;">
+                  <canvas id="labRespSpo2Chart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 9: Daily Movement & Metabolism -->
+            <div class="lab-carousel-slide" data-slide="9">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">⚡ Günlük Hareket &amp; Metabolizma</div>
+                    <div class="card-sub">Adım, BMR + aktif kalori, çıkılan kat, rakım ve aktif/sedanter süre</div>
+                  </div>
+                  <div class="lab-card-head-right">
+                    <div class="chip-group">
+                      <button type="button" class="chip active" data-move-day="today" onclick="switchMoveDay('today', this)">⚡ Bugün (Anlık)</button>
+                      <button type="button" class="chip" data-move-day="yesterday" onclick="switchMoveDay('yesterday', this)">👣 Dünün Kapanışı</button>
+                    </div>
+                    <span class="badge badge-info mono" id="lab-move-badge">--</span>
+                  </div>
+                </div>
+                <div class="lab-compare-strip" id="lab-move-compare"></div>
+                <div class="lab-kpi-grid lab-kpi-2 mt-12" id="lab-move-kpis"></div>
+                <div class="chart-wrap mt-12" style="height:195px;">
+                  <canvas id="labMoveChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 10: Trend Lab -->
+            <div class="lab-carousel-slide" data-slide="10">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -281,78 +505,8 @@
               </div>
             </div>
 
-            <!-- Slide 2: Body Battery Intraday -->
-            <div class="lab-carousel-slide" data-slide="1">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <div class="card-title">Anlık Body Battery &amp; Enerji Olayları</div>
-                    <div class="card-sub">Uykuda şarj, stres kayıpları ve antrenman pil etkisi</div>
-                  </div>
-                  <span class="badge badge-warn" id="bb-current-badge">🔋 --</span>
-                </div>
-                <div class="chart-wrap" style="height:200px;">
-                  <canvas id="bbIntradayChart"></canvas>
-                </div>
-                <div class="event-timeline" id="bb-events-list"></div>
-              </div>
-            </div>
-
-            <!-- Slide 3: Night HRV & Stress Breakdown -->
-            <div class="lab-carousel-slide" data-slide="2">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <div class="card-title">Gece 5-Dk HRV Dalgası &amp; Sinir Sistemi Stres Dağılımı</div>
-                    <div class="card-sub">Garmin 5 dakikalık HRV okumaları ve gün içi stres yüzdeleri</div>
-                  </div>
-                  <span class="badge badge-ok" id="hrv-peak-badge">Tepe -- puan</span>
-                </div>
-                <div class="chart-wrap" style="height:200px;">
-                  <canvas id="hrvNightChart"></canvas>
-                </div>
-                <div class="sleep-strip-wrap">
-                  <div class="bar-row-head">
-                    <span>Gün İçi Stres &amp; Dinlenme Dağılımı</span>
-                    <strong class="mono" id="stress-max-label">Maks --</strong>
-                  </div>
-                  <div class="stress-bar" id="stress-breakdown-bar"></div>
-                  <div class="sleep-legend" id="stress-breakdown-legend"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Slide 4: Intraday Heart Rate -->
-            <div class="lab-carousel-slide" data-slide="3">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <div class="card-title">Gün Boyu Canlı Nabız Eğrisi (/dailyHeartRate)</div>
-                    <div class="card-sub">2 dakikalık örnekleme ve 7 günlük dinlenik nabız ortalaması</div>
-                  </div>
-                  <span class="badge badge-info" id="intraday-rhr-badge">7G RHR: --</span>
-                </div>
-                <div class="chart-wrap" style="height:235px;">
-                  <canvas id="intradayHrChart"></canvas>
-                </div>
-              </div>
-            </div>
-
-            <!-- Slide 5: Metabolism, Floors, Fitness Age, Respiration -->
-            <div class="lab-carousel-slide" data-slide="4">
-              <div class="card">
-                <div class="card-header">
-                  <div>
-                    <div class="card-title">Metabolizma · Çıkılan Kat · Fitness Yaşı · Solunum</div>
-                    <div class="card-sub">BMR, aktif kalori, rakım, yoğun gün hedefi ve uyku içgörüsü</div>
-                  </div>
-                </div>
-                <div class="deep-cards" id="deep-telemetry-cards"></div>
-              </div>
-            </div>
-
-            <!-- Slide 6: Active Intelligence 3x Summary -->
-            <div class="lab-carousel-slide" data-slide="5">
+            <!-- Slide 11: Active Intelligence 3x Summary -->
+            <div class="lab-carousel-slide" data-slide="11">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -365,8 +519,8 @@
               </div>
             </div>
 
-            <!-- Slide 7: Correlation Matrix -->
-            <div class="lab-carousel-slide" data-slide="6">
+            <!-- Slide 12: Correlation Matrix -->
+            <div class="lab-carousel-slide" data-slide="12">
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -382,13 +536,19 @@
 
           <div class="lab-carousel-footer">
             <div class="lab-carousel-dots" id="lab-carousel-dots">
-              <button type="button" class="lab-carousel-dot active" data-slide="0" onclick="goToLabSlide(0)" aria-label="Trend Lab"></button>
-              <button type="button" class="lab-carousel-dot" data-slide="1" onclick="goToLabSlide(1)" aria-label="Body Battery"></button>
-              <button type="button" class="lab-carousel-dot" data-slide="2" onclick="goToLabSlide(2)" aria-label="Gece HRV"></button>
-              <button type="button" class="lab-carousel-dot" data-slide="3" onclick="goToLabSlide(3)" aria-label="Canlı Nabız"></button>
-              <button type="button" class="lab-carousel-dot" data-slide="4" onclick="goToLabSlide(4)" aria-label="Metabolizma"></button>
-              <button type="button" class="lab-carousel-dot" data-slide="5" onclick="goToLabSlide(5)" aria-label="Akıllı Özet"></button>
-              <button type="button" class="lab-carousel-dot" data-slide="6" onclick="goToLabSlide(6)" aria-label="Vücut Tepkileri"></button>
+              <button type="button" class="lab-carousel-dot active" data-slide="0" onclick="goToLabSlide(0)" aria-label="Uyku"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="1" onclick="goToLabSlide(1)" aria-label="HRV"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="2" onclick="goToLabSlide(2)" aria-label="Nabız"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="3" onclick="goToLabSlide(3)" aria-label="Body Battery"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="4" onclick="goToLabSlide(4)" aria-label="Stres"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="5" onclick="goToLabSlide(5)" aria-label="VO2 Maks"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="6" onclick="goToLabSlide(6)" aria-label="Dayanıklılık"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="7" onclick="goToLabSlide(7)" aria-label="Sağlık Yaşı"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="8" onclick="goToLabSlide(8)" aria-label="Solunum ve SpO2"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="9" onclick="goToLabSlide(9)" aria-label="Hareket"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="10" onclick="goToLabSlide(10)" aria-label="Trend Lab"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="11" onclick="goToLabSlide(11)" aria-label="Akıllı Özet"></button>
+              <button type="button" class="lab-carousel-dot" data-slide="12" onclick="goToLabSlide(12)" aria-label="Vücut Tepkileri"></button>
             </div>
             <span class="lab-carousel-hint">← Kaydır →</span>
           </div>

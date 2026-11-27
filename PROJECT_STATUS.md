@@ -9,7 +9,7 @@
 - **GitHub Deposu:** `https://github.com/testworkteams-png/GarminCoach.git`
 - **Supabase Proje ID:** `htooqswstuuzslvrgxsx`
 - **Ana Kullanıcı (Owner) UUID:** `c4953941-0b4f-42b1-b18c-a3c8693aa32f`
-- **Güncel Service Worker Sürümü:** `garmincoach-shell-v54` (`sw.js`)
+- **Güncel Service Worker Sürümü:** `garmincoach-shell-v55` (`sw.js`)
 - **Mimari:** Sıfır derleme (zero-build) Vanilla HTML/CSS/JS + PWA + Capacitor (`capacitor.config.json`) + Supabase PostgreSQL + Deno Edge Functions + `pg_cron`
 
 ---
@@ -27,7 +27,7 @@
 | `lab-reports.js` | Kan tahlili PDF/görsel AI ayrıştırma (`parse-lab-report`), biyobelirteç eğrileri ve birleşik YZ tahlil özeti |
 | `ai-insights.js` | Günlük Active Intelligence özet kartı, beğeni geri bildirimi ve bildirim saati ayarları |
 | `theme-engine.js` | Canlı hava/özel gün tabanlı tema motoru (`weather_sunny` vb.) |
-| `sw.js` | Offline kabuk önbelleği (`CACHE_NAME = "garmincoach-shell-v54"`) ve Web Share Target (`/share-scale`) yakalayıcı |
+| `sw.js` | Offline kabuk önbelleği (`CACHE_NAME = "garmincoach-shell-v55"`) ve Web Share Target (`/share-scale`) yakalayıcı |
 | `GEMINI.md` | Antigravity çalışma alanı kuralları; her oturumda `PROJECT_STATUS.md` içeriğini otomatik yükler ve her değişiklikte güncellenmesini zorunlu tutar |
 | `PROJECT_STATUS.md` | Güncel mimari, Edge Function sürümleri, `pg_cron` zamanlayıcıları ve sürüm geçmişi referansı |
 
@@ -36,7 +36,7 @@
    - **11'li Stacked Progress Bar Kokpiti (`#home-live-grid`):**
      - *Toparlanma & Sinir Sistemi (5 bar):* `😴 Uyku`, `💓 HRV`, `🫀 Dinlenik Nabız`, `🔋 Body Battery`, `🧘 Stres Seviyesi`.
      - *Kondisyon, Sağlık & Günlük Hareket (6 bar):* `🏃 VO₂ Maks` (boş günlerde geriye dönük en güncel kayıt), `🏆 Dayanıklılık Puanı`, `🧬 Sağlık Yaşı`, `🫁 Solunum & Pulse Ox`, `⚡ Bugün (Anlık)` (güncel adım + toplam/aktif kcal + kat + hedef %), `👣 Dünün Kapanışı`.
-   - **7 Slaytlı Biyometri & Enerji Karuseli (`#lab-carousel-section`)**: Trend Lab, Body Battery, Gece HRV & Stres, Canlı Nabız, Metabolizma/Kat/Fitness Yaşı/Solunum, Akıllı Özet (`ai-daily-insight-card`), Vücut Tepkileri.
+   - **13 Slaytlı Biyometri, Enerji & Akıllı Özet Karuseli (`#lab-carousel-section`)**: `😴 Uyku` (evreler + uyku borcu + 14G), `💗 HRV` (5-dk/14G + baz koridoru), `🫀 Nabız` (2-dk/14G RHR), `🔋 Body Battery` (anlık/14G + olaylar), `🧘 Stres` (dağılım + 14G gün/gece), `🏃 VO₂ Maks` (yaş skalası + 30G + Ef), `🏆 Dayanıklılık` (katman skalası + 30G + 14G hacim), `🧬 Sağlık Yaşı` (gerçek/güncel/hedef + faktör barları + 30G), `🫁 Solunum & SpO₂` (gece/gündüz + deri sıcaklığı + 14G), `⚡ Hareket` (Bugün/Dün geçişli adım, BMR/aktif kcal, kat/rakım, aktif/sedanter süre + 14G), `📈 Trend Lab`, `🧠 Akıllı Özet` (`#active-intel-3x`), `🔗 Vücut Tepkileri`. Üstteki 11 bar satırının her biri tıklandığında ilgili karusel slaytına yönlenip kısa vurgu animasyonu oynatır.
    - **17:00–21:00 Akşam Yürüyüş & Hava Kalitesi Kadranı (`#evening-weather-card`)**: Yarım daire AQI kadranı ve sağında yan yana sıkıştırılmış `🧥 Giyim Tavsiyesi` kutusu (`.aqi-dial-row`), altında 4'lü hava KPI kartları (`.weather-kpis`), Altın Saat bandı ve saatlik şerit.
 2. **`#tab-body` (`⚖️ Vücut`)**: Güncel kilo/VKİ göstergesi, temel kilo metrikleri, vücut yapısı pasta grafiği, metrik tıklandığında geçmiş trend grafiği ve bildirimlere kaydedilen read-once YZ vücut yorumu.
 3. **`#tab-health` (`🩺 Sağlık`)**: İlaç/Takviye düzenleme ve kan tahlili sonuç arşivi.
@@ -81,7 +81,7 @@
 ---
 
 ## 4. Geliştirme ve Yayınlama Kuralları (Yeni Sohbet Kılavuzu)
-1. **Service Worker Sürümü:** Ön yüz dosyalarında (`index.html`, `styles.css`, `*.js`) herhangi bir değişiklik yapıldığında `sw.js` içindeki `CACHE_NAME` değerini mutlaka artırın (`garmincoach-shell-v54` → `garmincoach-shell-v55`).
+1. **Service Worker Sürümü:** Ön yüz dosyalarında (`index.html`, `styles.css`, `*.js`) herhangi bir değişiklik yapıldığında `sw.js` içindeki `CACHE_NAME` değerini mutlaka artırın (`garmincoach-shell-v55` → `garmincoach-shell-v56`).
 2. **Edge Function Dağıtımı:** Supabase MCP `deploy_edge_function` çağrılarında her zaman `import_map_path: "deno.json"` (içeriği `deno.json` ile birlikte) ve `verify_jwt: false` parametrelerini verin.
 3. **Doğrulama:** Push öncesinde JavaScriptCore (`/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc`) ile sözdizimi/smoke testi ve HTML `id` eşleşme kontrolü çalıştırın; GitHub Pages yayını (~18 sn) sonrası `https://garmin.alidincerozdemir.com/sw.js` üzerinden yeni sürümü doğrulayın.
 4. **Sohbet Hijyeni:** Antigravity'de yeni bir özellik eklerken yeni sohbet açıp *"PROJECT_STATUS.md dosyasını oku, ..."* diyerek başlamak gereksiz bağlam ve token tüketimini önler.
@@ -89,6 +89,7 @@
 ---
 
 ## 5. Son Tamamlanan Sürümler
+- **`v55`:** `#lab-carousel-section` 13 slayta çıkarıldı (😴 Uyku, 💗 HRV, 🫀 Nabız, 🔋 Body Battery, 🧘 Stres, 🏃 VO₂ Maks, 🏆 Dayanıklılık, 🧬 Sağlık Yaşı, 🫁 Solunum & SpO₂, ⚡ Hareket Bugün/Dün, 📈 Trend Lab, 🧠 Akıllı Özet, 🔗 Vücut Tepkileri); `#home-live-grid` içindeki tüm 11 bar satırına 1'e 1 slayt yönlendirmesi + pulse vurgu + `›` ipucu eklendi, İngilizce etiketler Türkçeleştirildi ve `fitness_age_detail` anahtar hatası giderildi.
 - **`942fa38` (`v54`):** Gemini `thinkingBudget: 0` & model güncellemesi, `maxOutputTokens` sınırları, `garminBearerCache`, `onlyActivities` modu, ön yüz açılış tekilleştirme ve 4 Edge Function dağıtımı.
 - **`f08a90c` (`v53`):** AQI kadranı sağına sıkıştırılmış `Giyim Tavsiyesi` kutusu ve mobil düzeni.
 - **`bc44a5b` (`v52`):** `⚡ Bugün (Anlık)` adım/kalori barı, `VO₂ Maks` & `Dayanıklılık Puanı` geriye dönük doldurma + uygulama açılışında otomatik güncelleme.
