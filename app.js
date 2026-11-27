@@ -858,6 +858,24 @@ window.toggleWeatherAccordion = function (forceOpen) {
   if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
 };
 
+window.toggleLabCarouselAccordion = function (forceOpen) {
+  const section = document.getElementById("lab-carousel-section");
+  const btn = document.getElementById("lab-acc-toggle");
+  if (!section) return;
+  const nextOpen = typeof forceOpen === "boolean" ? forceOpen : !section.classList.contains("is-open");
+  section.classList.toggle("is-open", nextOpen);
+  if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+  if (nextOpen) {
+    requestAnimationFrame(() => {
+      syncLabCarouselHeight();
+      try {
+        Object.values(state.charts || {}).forEach((c) => c?.resize?.());
+      } catch (_) {}
+    });
+    setTimeout(syncLabCarouselHeight, 320);
+  }
+};
+
 window.openDailyReportView = function () {
   document.querySelector('[data-tab="weekly"]')?.click();
   window.switchCeoMode?.("daily");
@@ -890,6 +908,7 @@ window.focusHomeMetric = function (key) {
   if (cfg.moveDay) {
     window.switchMoveDay?.(cfg.moveDay);
   }
+  window.toggleLabCarouselAccordion?.(true);
   window.goToLabSlide?.(cfg.slide);
   carousel.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -5937,6 +5956,8 @@ function updateLabCarouselUi(idx) {
 
   const counter = document.getElementById("lab-carousel-counter");
   if (counter) counter.textContent = `${clamped + 1} / ${total}`;
+  const countBadge = document.getElementById("lab-carousel-count-badge");
+  if (countBadge) countBadge.textContent = `${total} Kart`;
 
   const nav = document.getElementById("lab-carousel-nav");
   if (nav) {

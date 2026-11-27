@@ -303,16 +303,26 @@
           </div>
         </div>
 
-        <!-- Horizontal Swipeable Biometrics, Telemetry & Smart Summary Carousel -->
-        <div class="lab-carousel-section mt-18" id="lab-carousel-section">
-          <div class="lab-carousel-header">
-            <h2>🔬 Biyometri, Enerji &amp; Akıllı Özet</h2>
-            <div class="lab-carousel-controls">
-              <span class="badge badge-info mono" id="lab-carousel-counter">1 / 13</span>
-              <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveLabCarousel(-1)" aria-label="Önceki kart">‹</button>
-              <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveLabCarousel(1)" aria-label="Sonraki kart">›</button>
-            </div>
+        <!-- Horizontal Swipeable Biometrics, Telemetry & Smart Summary Carousel Accordion -->
+        <div class="card lab-carousel-section lab-carousel-accordion mt-18" id="lab-carousel-section">
+          <div class="lab-acc-head">
+            <button type="button" class="lab-acc-toggle" id="lab-acc-toggle" onclick="toggleLabCarouselAccordion()" aria-expanded="false" aria-controls="lab-acc-body">
+              <span class="card-title lab-acc-title">🔬 Biyometri, Enerji &amp; Akıllı Özet</span>
+              <span class="lab-acc-right">
+                <span class="badge badge-info mono" id="lab-carousel-count-badge">13 Kart</span>
+                <span class="lab-acc-chevron" aria-hidden="true"></span>
+              </span>
+            </button>
           </div>
+          <div class="lab-acc-body" id="lab-acc-body">
+            <div class="lab-acc-inner">
+              <div class="lab-carousel-header lab-carousel-inner-bar">
+                <div class="lab-carousel-controls">
+                  <span class="badge badge-info mono" id="lab-carousel-counter">1 / 13</span>
+                  <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveLabCarousel(-1)" aria-label="Önceki kart">‹</button>
+                  <button type="button" class="btn btn-sm lab-carousel-arrow" onclick="moveLabCarousel(1)" aria-label="Sonraki kart">›</button>
+                </div>
+              </div>
 
           <div class="lab-carousel-nav" id="lab-carousel-nav">
             <button type="button" class="lab-carousel-tab active" data-slide="0" onclick="goToLabSlide(0)">😴 Uyku</button>
@@ -630,6 +640,8 @@
               <button type="button" class="lab-carousel-dot" data-slide="12" onclick="goToLabSlide(12)" aria-label="Vücut Tepkileri"></button>
             </div>
             <span class="lab-carousel-hint">← Kaydır →</span>
+          </div>
+            </div>
           </div>
         </div>
       </section>
