@@ -228,17 +228,15 @@
 
       <!-- TAB 1: ANA EKRAN (GÜNCEL VERİLER) -->
       <section id="tab-dashboard" class="tab-panel active">
-        <div class="home-closing-strip" id="home-closing-strip"></div>
-
-        <div class="card card-glow mt-14 home-live-card">
+        <div class="card card-glow home-bars-card">
           <div class="card-header">
             <div>
-              <div class="card-title">⌚ Güncel Biyometri &amp; Performans</div>
+              <div class="card-title">⌚ Güncel Biyometri &amp; Kondisyon</div>
               <div class="card-sub" id="home-live-meta">Son senkron verileri yükleniyor...</div>
             </div>
             <button type="button" class="btn btn-cyan btn-sm" onclick="openDailyReportView()">☀️ Günlük Rapor →</button>
           </div>
-          <div class="home-live-grid" id="home-live-grid"></div>
+          <div id="home-live-grid" class="home-bars-wrap"></div>
         </div>
 
         <!-- Horizontal Swipeable Biometrics, Telemetry & Smart Summary Carousel -->

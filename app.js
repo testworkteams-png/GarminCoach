@@ -476,220 +476,205 @@ function fmtSleepHoursCompact(sec) {
 }
 
 function renderHomeLiveCockpit(latest) {
-  const closingEl = document.getElementById("home-closing-strip");
   const liveGridEl = document.getElementById("home-live-grid");
   const metaEl = document.getElementById("home-live-meta");
   const s = state.settings || {};
 
   if (!latest) {
     if (metaEl) metaEl.textContent = "İlk Garmin saat verisi bekleniyor";
-    if (closingEl) closingEl.innerHTML = "";
     if (liveGridEl) {
-      liveGridEl.innerHTML = `<p class="card-sub" style="grid-column:1/-1;">Güncel biyometri verisi için sağ üstten <strong>↻ Senkronize Et</strong> butonuna basın veya Ayarlar'dan Garmin bağlantısını yapın.</p>`;
+      liveGridEl.innerHTML = `<p class="card-sub">Güncel biyometri verisi için sağ üstten <strong>↻ Senkronize Et</strong> butonuna basın veya Ayarlar'dan Garmin bağlantısını yapın.</p>`;
     }
     return;
   }
 
   const prev = state.biometrics[1] || null;
   const te = latest.raw_payload?.telemetry_extra || {};
-  const w = latest.evening_weather || {};
   const met = te.metabolism || {};
-  const fl = te.floors || {};
   const fa = te.fitness_age_detail || {};
+  const clampPct = (v, min = 8, max = 100) => Math.max(min, Math.min(max, Math.round(v)));
 
   if (metaEl) {
-    const rScore = latest.readiness_score != null ? `Hazırlık ${latest.readiness_score}/100` : "Hazırlık --";
-    metaEl.textContent = `${latest.log_date} · ${rScore} · Dün kapanış verileri dahil`;
+    const todaySteps = Number(latest.steps || 0).toLocaleString("tr-TR");
+    const activeKcal = latest.active_kilocalories ?? met.active_kcal;
+    const kcalPart = activeKcal != null ? ` · ${Number(activeKcal).toLocaleString("tr-TR")} aktif kcal` : "";
+    const rScore = latest.readiness_score != null ? ` · Hazırlık ${latest.readiness_score}/100` : "";
+    metaEl.textContent = `${latest.log_date} · Bugün ${todaySteps} adım${kcalPart}${rScore}`;
   }
 
-  // 4-card Günün & Dünün Kapanışı strip
-  if (closingEl) {
-    const steps = Number(latest.steps || 0);
-    const prevSteps = prev?.steps != null ? Number(prev.steps).toLocaleString("tr-TR") : "--";
-    const stepPct = Math.min(100, Math.round((steps / 10000) * 100));
+  if (!liveGridEl) return;
 
-    const activeKcal = latest.active_kilocalories ?? met.active_kcal ?? null;
-    const totalKcal =
-      met.total_kcal ??
-      (activeKcal != null ? Number(activeKcal) + Number(met.bmr_kcal || 1680) : null);
-    const prevActive = prev?.active_kilocalories != null ? `${Number(prev.active_kilocalories).toLocaleString("tr-TR")} kcal` : "--";
+  const sleepScore = latest.sleep_score != null ? Number(latest.sleep_score) : null;
+  const hrvVal = latest.hrv_nightly_avg != null ? Number(latest.hrv_nightly_avg) : null;
+  const baseLow = Number(s.base_hrv_min ?? te.hrv_baseline?.balancedLow ?? 59);
+  const baseHigh = Number(s.base_hrv_max ?? te.hrv_baseline?.balancedUpper ?? 74);
+  const hrvStatusMap = { BALANCED: "Dengeli", UNBALANCED: "Dengesiz", LOW: "Düşük", POOR: "Zayıf" };
+  const hrvRaw = String(latest.hrv_status || "").toUpperCase();
+  const hrvStatus = hrvStatusMap[hrvRaw] || (hrvVal == null ? "Veri yok" : hrvVal >= baseLow ? "Dengeli" : hrvVal >= (s.hrv_warn_threshold ?? 48) ? "Sınırda" : "Düşük");
 
-    const modMin = Number(latest.moderate_intensity_minutes || 0);
-    const vigMin = Number(latest.vigorous_intensity_minutes || 0);
-    const totalIntMin = modMin + vigMin * 2;
-    const prevIntMin = prev ? Number(prev.moderate_intensity_minutes || 0) + Number(prev.vigorous_intensity_minutes || 0) * 2 : null;
+  const rhrVal = latest.rhr != null ? Number(latest.rhr) : null;
+  const bbCur = te.bb_current ?? latest.body_battery_max ?? null;
+  const bbNum = bbCur != null ? Number(bbCur) : null;
 
-    closingEl.innerHTML = `
-      <button type="button" class="home-closing-card" onclick="focusHomeMetric('steps')">
-        <div class="home-closing-top"><span>👣 Adım</span><span class="mono">%${stepPct}</span></div>
-        <div class="home-closing-val mono">${steps.toLocaleString("tr-TR")}</div>
-        <div class="home-closing-bar"><span style="width:${stepPct}%; background:var(--cyan);"></span></div>
-        <div class="home-closing-sub">Dün kapanış: ${escapeHtml(prevSteps)}</div>
-      </button>
-      <button type="button" class="home-closing-card" onclick="focusHomeMetric('calories')">
-        <div class="home-closing-top"><span>🔥 Kalori</span><span class="mono">Aktif</span></div>
-        <div class="home-closing-val mono">${activeKcal != null ? Number(activeKcal).toLocaleString("tr-TR") : "--"} <small>kcal</small></div>
-        <div class="home-closing-sub">Toplam: ${totalKcal != null ? Number(totalKcal).toLocaleString("tr-TR") : "--"} · Dün: ${escapeHtml(prevActive)}</div>
-      </button>
-      <button type="button" class="home-closing-card" onclick="focusHomeMetric('intensity')">
-        <div class="home-closing-top"><span>⚡ Yoğunluk</span><span class="mono">${fl.ascended ?? 0} kat</span></div>
-        <div class="home-closing-val mono">${totalIntMin} <small>dk</small></div>
-        <div class="home-closing-sub">Orta ${modMin} · Yük ${vigMin} · Dün: ${prevIntMin != null ? `${prevIntMin} dk` : "--"}</div>
-      </button>
-      <button type="button" class="home-closing-card" onclick="scrollToWeatherCard()">
-        <div class="home-closing-top"><span>🌤️ Akşam Hava</span><span class="mono">${escapeHtml(w.dial_level || "AQI")}</span></div>
-        <div class="home-closing-val mono">${w.temp_c ?? "--"}° <small>AQI ${w.aqi_max ?? "--"}</small></div>
-        <div class="home-closing-sub">${escapeHtml(w.city || s.active_city || s.default_city || "Konum")} · 17:00–21:00</div>
-      </button>`;
-  }
+  const stressVal = latest.stress_avg != null ? Number(latest.stress_avg) : null;
+  const stressStatus = stressVal == null ? "Veri yok" : stressVal <= 25 ? "Düşük" : stressVal <= 50 ? "Orta" : "Yüksek";
 
-  // 9 clickable live biometric tiles
-  if (liveGridEl) {
-    const hrv7 = computeAvg(state.biometrics.slice(0, 7).map((d) => d.hrv_nightly_avg));
-    const deepMin = Math.round(Number(latest.deep_sleep_seconds || 0) / 60);
-    const remMin = Math.round(Number(latest.rem_sleep_seconds || 0) / 60);
-    const sleepScore = latest.sleep_score != null ? Number(latest.sleep_score) : null;
-    const sleepStatus = sleepScore == null ? "Veri yok" : sleepScore >= 80 ? "İyi" : sleepScore >= 65 ? "Orta" : "Düşük";
-    const sleepCol = sleepScore == null ? "var(--text-dim)" : sleepScore >= 80 ? "var(--emerald)" : sleepScore >= 65 ? "var(--amber)" : "var(--red)";
+  const vo2Val = latest.vo2_max != null ? Number(latest.vo2_max) : null;
+  const vo2Status = vo2Val == null ? "Veri yok" : vo2Val >= 50 ? "Üstün" : vo2Val >= 42 ? "İyi" : "Orta";
+  const shortDate = String(latest.log_date || "").length >= 10
+    ? `${String(latest.log_date).slice(8, 10)}.${String(latest.log_date).slice(5, 7)}`
+    : "--";
 
-    const hrvVal = latest.hrv_nightly_avg != null ? Number(latest.hrv_nightly_avg) : null;
-    const hrvStatusMap = { BALANCED: "Dengeli", UNBALANCED: "Dengesiz", LOW: "Düşük", POOR: "Zayıf" };
-    const hrvRaw = String(latest.hrv_status || "").toUpperCase();
-    const hrvStatus = hrvStatusMap[hrvRaw] || (hrvVal == null ? "Veri yok" : hrvVal >= (s.base_hrv_min ?? 59) ? "Dengeli" : hrvVal >= (s.hrv_warn_threshold ?? 48) ? "Sınırda" : "Düşük");
-    const hrvCol = hrvStatus === "Dengeli" ? "var(--emerald)" : hrvStatus === "Düşük" || hrvStatus === "Zayıf" ? "var(--red)" : hrvVal == null ? "var(--text-dim)" : "var(--amber)";
+  const endVal = latest.endurance_score != null ? Number(latest.endurance_score) : null;
+  const endTierText = endVal == null
+    ? "Veri yok"
+    : endVal >= 6600
+      ? "Üstün (6.600+)"
+      : endVal >= 5800
+        ? "İyi (5.800 – 6.599)"
+        : endVal >= 5100
+          ? "Ara (5.100 – 5.799)"
+          : "Başlangıç (<5.100)";
 
-    const rhrVal = latest.rhr != null ? Number(latest.rhr) : null;
-    const rhrWarn = Number(s.rhr_warn_threshold ?? 51);
-    const rhrStatus = rhrVal == null ? "Veri yok" : rhrVal < rhrWarn ? "Normal" : "Yüksek";
-    const rhrCol = rhrVal == null ? "var(--text-dim)" : rhrVal < rhrWarn ? "var(--emerald)" : "var(--amber)";
+  const fitAge = fa.current_age ?? latest.fitness_age ?? null;
+  const chronoAge = Number(fa.chronological_age ?? (new Date().getFullYear() - Number(s.birth_year || 1988)));
+  const ageDiff = fitAge != null && Number.isFinite(chronoAge) ? Number((chronoAge - Number(fitAge)).toFixed(1)) : null;
+  const ageDiffText = ageDiff != null && Math.abs(ageDiff) > 0
+    ? ` (${String(Math.abs(ageDiff)).replace(".", ",")} yaş ${ageDiff >= 0 ? "genç" : "yüksek"})`
+    : "";
 
-    const bbCur = te.bb_current ?? latest.body_battery_max ?? null;
-    const bbNum = bbCur != null ? Number(bbCur) : null;
-    const bbStatus = bbNum == null ? "Veri yok" : bbNum >= 50 ? "İyi Enerji" : bbNum >= 25 ? "Orta" : "Düşük";
-    const bbCol = bbNum == null ? "var(--text-dim)" : bbNum >= 50 ? "var(--emerald)" : bbNum >= 25 ? "var(--amber)" : "var(--red)";
+  const spo2Val = latest.spo2_avg != null ? Number(latest.spo2_avg) : null;
+  const spo2Warn = Number(s.spo2_warn_threshold ?? 91);
+  const spo2Status = spo2Val == null && latest.sleep_respiration_avg == null
+    ? "Veri yok"
+    : spo2Val == null || spo2Val >= 94
+      ? "Normal"
+      : spo2Val > spo2Warn
+        ? "İyi"
+        : "Dikkat";
+  const respSubParts = [
+    latest.sleep_respiration_avg != null ? `${String(latest.sleep_respiration_avg).replace(".", ",")} dk⁻¹` : "Gece Takibi",
+    spo2Val != null ? `SpO₂ %${Math.round(spo2Val)}` : null,
+  ].filter(Boolean);
 
-    const stressVal = latest.stress_avg != null ? Number(latest.stress_avg) : null;
-    const stressStatus = stressVal == null ? "Veri yok" : stressVal <= 25 ? "Düşük" : stressVal <= 50 ? "Orta" : "Yüksek";
-    const stressCol = stressVal == null ? "var(--text-dim)" : stressVal <= 25 ? "var(--emerald)" : stressVal <= 50 ? "var(--amber)" : "var(--red)";
+  const closingRec = prev || latest;
+  const closingTe = closingRec.raw_payload?.telemetry_extra || {};
+  const closingMet = closingTe.metabolism || {};
+  const closingFl = closingTe.floors || {};
+  const closingSteps = Number(closingRec.steps || 0);
+  const closingStepPct = Math.min(100, Math.round((closingSteps / 10000) * 100));
+  const closingActive = closingRec.active_kilocalories ?? closingMet.active_kcal ?? null;
+  const closingTotalKcal =
+    closingMet.total_kcal ??
+    (closingActive != null ? Number(closingActive) + Number(closingMet.bmr_kcal || 1680) : null);
+  const closingFloors = closingFl.ascended ?? 0;
 
-    const spo2Val = latest.spo2_avg != null ? Number(latest.spo2_avg) : null;
-    const spo2Warn = Number(s.spo2_warn_threshold ?? 91);
-    const spo2Status = spo2Val == null ? "Veri yok" : spo2Val >= 94 ? "Optimal" : spo2Val > spo2Warn ? "Normal" : "Düşük";
-    const spo2Col = spo2Val == null ? "var(--text-dim)" : spo2Val >= 94 ? "var(--emerald)" : spo2Val > spo2Warn ? "var(--amber)" : "var(--red)";
+  const renderBarRow = (row) => `
+    <button type="button" class="home-bar-row" onclick="focusHomeMetric('${escapeHtml(row.key)}')">
+      <div class="home-bar-head">
+        <span class="home-bar-label">${escapeHtml(row.label)}</span>
+        <span class="home-bar-value">
+          <strong class="mono">${escapeHtml(row.val)}</strong>
+          ${row.meta ? ` <span class="home-bar-meta">(${escapeHtml(row.meta)})</span>` : ""}
+        </span>
+      </div>
+      <div class="home-bar-track">
+        <div class="home-bar-fill" style="width:${row.pct}%; background:${row.color};"></div>
+      </div>
+    </button>`;
 
-    const vo2Val = latest.vo2_max != null ? Number(latest.vo2_max) : null;
-    const vo2Status = vo2Val == null ? "Veri yok" : vo2Val >= 50 ? "Üstün" : vo2Val >= 42 ? "İyi" : "Orta";
-    const vo2Col = vo2Val == null ? "var(--text-dim)" : vo2Val >= 42 ? "var(--emerald)" : "var(--cyan)";
+  const group1 = [
+    {
+      key: "sleep",
+      label: "😴 Uyku",
+      val: fmtSleepHoursCompact(latest.sleep_seconds),
+      meta: `Skor: ${sleepScore ?? "--"}`,
+      pct: sleepScore != null ? clampPct(sleepScore, 8, 100) : 12,
+      color: "#6366f1",
+    },
+    {
+      key: "hrv",
+      label: "💗 HRV",
+      val: hrvVal != null ? `${hrvVal} ms` : "--",
+      meta: `${hrvStatus} · Baz: ${baseLow}–${baseHigh}`,
+      pct: hrvVal != null ? clampPct((hrvVal / 95) * 100, 12, 100) : 12,
+      color: "#10b981",
+    },
+    {
+      key: "hr",
+      label: "🫀 Dinlenik Nabız",
+      val: rhrVal != null ? `${rhrVal} bpm` : "--",
+      meta: latest.min_hr && latest.max_hr ? `Dinlenik · ${latest.min_hr}–${latest.max_hr}` : "Dinlenik",
+      pct: rhrVal != null ? clampPct(((95 - rhrVal) / 55) * 100, 18, 100) : 15,
+      color: "#ec4899",
+    },
+    {
+      key: "bb",
+      label: "🔋 Body Battery",
+      val: bbNum != null ? `${bbNum} / 100` : "--",
+      meta: `Sabah Maks: ${latest.body_battery_max ?? "--"}`,
+      pct: bbNum != null ? clampPct(bbNum, 8, 100) : 10,
+      color: "#0ea5e9",
+    },
+    {
+      key: "stress",
+      label: "🧘 Stres Seviyesi",
+      val: stressVal != null ? `${stressVal} / 100` : "--",
+      meta: stressStatus,
+      pct: stressVal != null ? clampPct(stressVal, 8, 100) : 10,
+      color: "#f59e0b",
+    },
+  ];
 
-    const endVal = latest.endurance_score != null ? Number(latest.endurance_score) : null;
-    const endStatus = endVal == null ? "Veri yok" : endVal >= 6500 ? "Güçlü" : endVal >= 4500 ? "Dengeli" : "Gelişiyor";
-    const endCol = endVal == null ? "var(--text-dim)" : endVal >= 4500 ? "var(--emerald)" : "var(--cyan)";
+  const group2 = [
+    {
+      key: "vo2",
+      label: "🏃 VO₂ Maks",
+      val: vo2Val != null ? String(vo2Val).replace(".", ",") : "--",
+      meta: `${vo2Status} · ${shortDate}`,
+      pct: vo2Val != null ? clampPct(((vo2Val - 25) / 40) * 100, 18, 100) : 15,
+      color: "#10b981",
+    },
+    {
+      key: "endurance",
+      label: "🏆 Dayanıklılık Puanı",
+      val: endVal != null ? endVal.toLocaleString("tr-TR") : "--",
+      meta: endTierText,
+      pct: endVal != null ? clampPct(((endVal - 3000) / 5500) * 100, 16, 100) : 15,
+      color: "#f97316",
+    },
+    {
+      key: "fitness_age",
+      label: "🧬 Sağlık Yaşı",
+      val: fitAge != null ? `${String(fitAge).replace(".", ",")} Yaş` : "--",
+      meta: `Gerçek Yaş: ${chronoAge}${ageDiffText}`,
+      pct: fitAge != null ? clampPct(((chronoAge + 10 - Number(fitAge)) / 20) * 100, 22, 100) : 20,
+      color: "#0d9488",
+    },
+    {
+      key: "resp_spo2",
+      label: "🫁 Solunum & Pulse Ox",
+      val: spo2Status,
+      meta: respSubParts.join(" · "),
+      pct: spo2Val != null ? clampPct(spo2Val, 20, 100) : 88,
+      color: "#06b6d4",
+    },
+    {
+      key: "steps",
+      label: prev ? "👣 Dünün Kapanışı" : "👣 Günün Özeti",
+      val: `${closingSteps.toLocaleString("tr-TR")} adım`,
+      meta: `${closingTotalKcal != null ? `${Number(closingTotalKcal).toLocaleString("tr-TR")} kcal` : "-- kcal"} · ${closingFloors} kat · Hedef %${closingStepPct}`,
+      pct: clampPct(closingStepPct, 8, 100),
+      color: "#22c55e",
+    },
+  ];
 
-    const fitAge = fa.current_age ?? latest.fitness_age ?? null;
-    const chronoAge = Number(fa.chronological_age ?? (new Date().getFullYear() - Number(s.birth_year || 1988)));
-    const ageDiff = fitAge != null && Number.isFinite(chronoAge) ? Number(fitAge) - chronoAge : null;
-    const ageStatus = fitAge == null ? "Veri yok" : ageDiff != null && ageDiff <= -2 ? "Genç Profil" : ageDiff != null && ageDiff <= 1 ? "Normal" : "Yüksek";
-    const ageCol = fitAge == null ? "var(--text-dim)" : ageDiff != null && ageDiff <= 0 ? "var(--emerald)" : "var(--amber)";
-
-    const tiles = [
-      {
-        key: "sleep",
-        label: "😴 Uyku",
-        val: fmtSleepHoursCompact(latest.sleep_seconds),
-        unit: sleepScore != null ? `${sleepScore}p` : "",
-        sub: `D ${deepMin}d · R ${remMin}d`,
-        status: sleepStatus,
-        color: sleepCol,
-      },
-      {
-        key: "hrv",
-        label: "💓 HRV",
-        val: hrvVal != null ? `${hrvVal}` : "--",
-        unit: "ms",
-        sub: `7G ort. ${hrv7 != null ? Math.round(hrv7) : "--"} ms`,
-        status: hrvStatus,
-        color: hrvCol,
-      },
-      {
-        key: "hr",
-        label: "❤️ Nabız",
-        val: rhrVal != null ? `${rhrVal}` : "--",
-        unit: "bpm",
-        sub: `${latest.min_hr ?? "--"}–${latest.max_hr ?? "--"} gün içi`,
-        status: rhrStatus,
-        color: rhrCol,
-      },
-      {
-        key: "bb",
-        label: "🔋 Body Battery",
-        val: bbNum != null ? `${bbNum}` : "--",
-        unit: "/100",
-        sub: `Zirve ${latest.body_battery_max ?? "--"} · +${latest.body_battery_charged ?? "--"}`,
-        status: bbStatus,
-        color: bbCol,
-      },
-      {
-        key: "stress",
-        label: "🧘 Stres",
-        val: stressVal != null ? `${stressVal}` : "--",
-        unit: "puan",
-        sub: `Uyku stresi ${latest.sleep_stress_avg ?? "--"}`,
-        status: stressStatus,
-        color: stressCol,
-      },
-      {
-        key: "resp_spo2",
-        label: "🫁 Solunum & SpO2",
-        val: latest.sleep_respiration_avg != null ? String(latest.sleep_respiration_avg).replace(".", ",") : "--",
-        unit: "dk⁻¹",
-        sub: `SpO2 %${latest.spo2_avg ?? "--"} (min %${latest.spo2_min ?? "--"})`,
-        status: spo2Status,
-        color: spo2Col,
-      },
-      {
-        key: "vo2",
-        label: "🏃 VO2 Max",
-        val: vo2Val != null ? String(vo2Val).replace(".", ",") : "--",
-        unit: "mL/kg",
-        sub: `Haftalık HRV ${latest.hrv_weekly_avg ?? "--"}`,
-        status: vo2Status,
-        color: vo2Col,
-      },
-      {
-        key: "endurance",
-        label: "🛡️ Dayanıklılık",
-        val: endVal != null ? endVal.toLocaleString("tr-TR") : "--",
-        unit: "puan",
-        sub: `Endurance Score`,
-        status: endStatus,
-        color: endCol,
-      },
-      {
-        key: "fitness_age",
-        label: "🧬 Sağlık Yaşı",
-        val: fitAge != null ? `${fitAge}` : "--",
-        unit: "yaş",
-        sub: ageDiff != null ? `Gerçek ${chronoAge} (${ageDiff > 0 ? `+${ageDiff}` : ageDiff})` : `Gerçek ${chronoAge}`,
-        status: ageStatus,
-        color: ageCol,
-      },
-    ];
-
-    liveGridEl.innerHTML = tiles
-      .map(
-        (t) => `
-      <button type="button" class="home-live-tile" onclick="focusHomeMetric('${escapeHtml(t.key)}')">
-        <div class="home-live-lbl">${escapeHtml(t.label)}</div>
-        <div class="home-live-main">
-          <span class="home-live-val mono">${escapeHtml(t.val)}</span>
-          ${t.unit ? `<span class="home-live-unit">${escapeHtml(t.unit)}</span>` : ""}
-        </div>
-        <div class="home-live-sub">${escapeHtml(t.sub)}</div>
-        <div class="home-live-status" style="color:${t.color};">${escapeHtml(t.status)}</div>
-      </button>`
-      )
-      .join("");
-  }
+  liveGridEl.innerHTML = `
+    <div class="home-bars-section-title">TOPARLANMA &amp; SİNİR SİSTEMİ</div>
+    ${group1.map(renderBarRow).join("")}
+    <div class="home-bars-divider"></div>
+    <div class="home-bars-section-title">KONDİSYON, SAĞLIK &amp; DÜNÜN KAPANIŞI</div>
+    ${group2.map(renderBarRow).join("")}`;
 }
 
 window.openDailyReportView = function () {
