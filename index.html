@@ -228,15 +228,54 @@
 
       <!-- TAB 1: ANA EKRAN (GÜNCEL VERİLER) -->
       <section id="tab-dashboard" class="tab-panel active">
-        <div class="card card-glow home-bars-card">
+        <div class="card card-glow home-bars-card home-bars-accordion" id="home-bars-card">
+          <div class="home-bars-acc-head">
+            <button type="button" class="home-bars-acc-toggle" id="home-bars-acc-toggle" onclick="toggleHomeBarsAccordion()" aria-expanded="false" aria-controls="home-bars-acc-body">
+              <span class="card-title">⌚ Güncel Biyometri &amp; Kondisyon</span>
+              <span class="home-bars-acc-chevron" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="btn btn-cyan btn-sm home-bars-report-btn" onclick="openDailyReportView()">☀️ Günlük Rapor →</button>
+          </div>
+          <div class="home-bars-acc-body" id="home-bars-acc-body">
+            <div class="home-bars-acc-inner">
+              <div class="card-sub home-bars-meta" id="home-live-meta">Son senkron verileri yükleniyor...</div>
+              <div id="home-live-grid" class="home-bars-wrap"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 17:00-21:00 Semicircle AQI Gauge + Hourly Strip -->
+        <div class="card mt-18" id="evening-weather-card">
           <div class="card-header">
             <div>
-              <div class="card-title">⌚ Güncel Biyometri &amp; Kondisyon</div>
-              <div class="card-sub" id="home-live-meta">Son senkron verileri yükleniyor...</div>
+              <div class="card-title">17:00–21:00 Akşam Yürüyüş &amp; Hava Kalitesi Kadranı</div>
+              <div class="card-sub" id="weather-source-label">MET Norway + Open-Meteo AQI</div>
             </div>
-            <button type="button" class="btn btn-cyan btn-sm" onclick="openDailyReportView()">☀️ Günlük Rapor →</button>
+            <button type="button" class="btn btn-cyan btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">⟳ Havayı Yenile</button>
           </div>
-          <div id="home-live-grid" class="home-bars-wrap"></div>
+          <div class="aqi-dial-row">
+            <div class="aqi-gauge-box">
+              <svg viewBox="0 0 210 122" width="210" height="122">
+                <!-- 4 segments: Yeşil, Sarı, Turuncu, Kırmızı -->
+                <path d="M 20 102 A 85 85 0 0 1 58 31" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="round" opacity="0.88" />
+                <path d="M 65 27 A 85 85 0 0 1 105 17" fill="none" stroke="#f59e0b" stroke-width="14" opacity="0.88" />
+                <path d="M 112 17 A 85 85 0 0 1 152 31" fill="none" stroke="#fb923c" stroke-width="14" opacity="0.88" />
+                <path d="M 158 36 A 85 85 0 0 1 190 102" fill="none" stroke="#ef4444" stroke-width="14" stroke-linecap="round" opacity="0.88" />
+                <g id="aqi-needle" transform="rotate(-65 105 102)">
+                  <line x1="105" y1="102" x2="105" y2="28" stroke="#f8fafc" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="105" cy="102" r="6" fill="#00e5a3" />
+                </g>
+              </svg>
+              <div class="aqi-gauge-center">
+                <div class="mono" style="font-size:20px; font-weight:800;" id="aqi-dial-val">-- AQI</div>
+                <div id="aqi-dial-badge" class="badge badge-ok">--</div>
+              </div>
+            </div>
+            <div class="clothing-box clothing-side-box" id="evening-clothing-advice">--</div>
+          </div>
+          <div class="weather-kpis mt-12" id="evening-weather-stats"></div>
+          <div class="best-slot-banner" id="best-walk-slot-banner"></div>
+          <div class="hourly-strip" id="hourly-walk-strip"></div>
         </div>
 
         <!-- Horizontal Swipeable Biometrics, Telemetry & Smart Summary Carousel -->
@@ -567,40 +606,6 @@
             </div>
             <span class="lab-carousel-hint">← Kaydır →</span>
           </div>
-        </div>
-
-        <!-- 17:00-21:00 Semicircle AQI Gauge + Hourly Strip -->
-        <div class="card mt-18" id="evening-weather-card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">17:00–21:00 Akşam Yürüyüş &amp; Hava Kalitesi Kadranı</div>
-              <div class="card-sub" id="weather-source-label">MET Norway + Open-Meteo AQI</div>
-            </div>
-            <button type="button" class="btn btn-cyan btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">⟳ Havayı Yenile</button>
-          </div>
-          <div class="aqi-dial-row">
-            <div class="aqi-gauge-box">
-              <svg viewBox="0 0 210 122" width="210" height="122">
-                <!-- 4 segments: Yeşil, Sarı, Turuncu, Kırmızı -->
-                <path d="M 20 102 A 85 85 0 0 1 58 31" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="round" opacity="0.88" />
-                <path d="M 65 27 A 85 85 0 0 1 105 17" fill="none" stroke="#f59e0b" stroke-width="14" opacity="0.88" />
-                <path d="M 112 17 A 85 85 0 0 1 152 31" fill="none" stroke="#fb923c" stroke-width="14" opacity="0.88" />
-                <path d="M 158 36 A 85 85 0 0 1 190 102" fill="none" stroke="#ef4444" stroke-width="14" stroke-linecap="round" opacity="0.88" />
-                <g id="aqi-needle" transform="rotate(-65 105 102)">
-                  <line x1="105" y1="102" x2="105" y2="28" stroke="#f8fafc" stroke-width="3" stroke-linecap="round" />
-                  <circle cx="105" cy="102" r="6" fill="#00e5a3" />
-                </g>
-              </svg>
-              <div class="aqi-gauge-center">
-                <div class="mono" style="font-size:20px; font-weight:800;" id="aqi-dial-val">-- AQI</div>
-                <div id="aqi-dial-badge" class="badge badge-ok">--</div>
-              </div>
-            </div>
-            <div class="clothing-box clothing-side-box" id="evening-clothing-advice">--</div>
-          </div>
-          <div class="weather-kpis mt-12" id="evening-weather-stats"></div>
-          <div class="best-slot-banner" id="best-walk-slot-banner"></div>
-          <div class="hourly-strip" id="hourly-walk-strip"></div>
         </div>
       </section>
 

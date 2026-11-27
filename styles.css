@@ -5299,7 +5299,111 @@ html[data-theme="weather_sunny"] .med-manage-chev {
   background: rgba(15, 23, 42, 0.07);
 }
 
-/* Ana Ekran: Alt Alta Barlar (Toparlanma & Kondisyon) */
+/* Ana Ekran: Akordeon + Alt Alta Barlar (Toparlanma & Kondisyon) */
+.home-bars-accordion {
+  padding: 14px 18px;
+}
+
+.home-bars-acc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.home-bars-acc-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-bars-acc-toggle:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.home-bars-acc-chevron {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  position: relative;
+  flex-shrink: 0;
+  transition: transform 0.3s ease, background 0.2s ease;
+}
+
+.home-bars-acc-chevron::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.home-bars-accordion.is-open .home-bars-acc-chevron {
+  transform: rotate(180deg);
+}
+
+.home-bars-report-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.home-bars-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+
+.home-bars-accordion.is-open .home-bars-acc-body {
+  grid-template-rows: 1fr;
+}
+
+.home-bars-acc-inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  padding-top: 0;
+  transition: opacity 0.22s ease, padding-top 0.28s ease;
+}
+
+.home-bars-accordion.is-open .home-bars-acc-inner {
+  opacity: 1;
+  padding-top: 12px;
+}
+
+.home-bars-meta {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+html[data-theme="weather_sunny"] .home-bars-acc-chevron {
+  background: rgba(15, 23, 42, 0.07);
+}
+
+@media (max-width: 480px) {
+  .home-bars-accordion {
+    padding: 12px 14px;
+  }
+  .home-bars-acc-toggle .card-title {
+    font-size: 13.5px;
+  }
+}
+
 .home-bars-wrap {
   display: flex;
   flex-direction: column;

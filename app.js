@@ -834,6 +834,15 @@ function renderHomeLiveCockpit(latest) {
     ${group2.map(renderBarRow).join("")}`;
 }
 
+window.toggleHomeBarsAccordion = function (forceOpen) {
+  const card = document.getElementById("home-bars-card");
+  const btn = document.getElementById("home-bars-acc-toggle");
+  if (!card) return;
+  const nextOpen = typeof forceOpen === "boolean" ? forceOpen : !card.classList.contains("is-open");
+  card.classList.toggle("is-open", nextOpen);
+  if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+};
+
 window.openDailyReportView = function () {
   document.querySelector('[data-tab="weekly"]')?.click();
   window.switchCeoMode?.("daily");
