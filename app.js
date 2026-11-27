@@ -8,11 +8,11 @@ const ALERT_ACK_STORAGE_KEY = "garmincoach_ack_alerts_v1";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 const TAB_TITLES = {
-  dashboard: "Sabah Biyometri & Akşam Hava Kokpiti",
+  dashboard: "Ana Ekran · Güncel Biyometri",
   body: "Vücut Kompozisyonu · Honor Scale 2",
   health: "Sağlık Merkezi · Faz 2",
   workouts: "Antrenman & Anatomik Kas Laboratuvarı",
-  weekly: "Yönetici Kokpiti · Haftalık & Aylık Raporlar",
+  weekly: "Raporlar · Günlük, Haftalık, Aylık & Yıllık",
   archive: "30 Günlük Kayan Doküman & Sınırsız E-Tablo",
   settings: "Hibrit Konum, Garmin API & Otomasyon Merkezi",
 };
@@ -29,7 +29,7 @@ const state = {
   selectedActivityId: null,
   activityFilter: "ALL",
   trendMode: "hrv",
-  ceoMode: "weekly",
+  ceoMode: "daily",
   _activeAlertSig: null,
   _labSlideIndex: 0,
   charts: {
@@ -38,6 +38,7 @@ const state = {
     activityElev: null,
     customCompare: null,
     weeklyZones: null,
+    yearlyTrend: null,
     bbIntraday: null,
     hrvNight: null,
     intradayHr: null,
@@ -168,7 +169,7 @@ function getTimeGreeting(name) {
     hr >= 12 && hr < 18 ? "Tünaydın" :
     hr >= 18 && hr < 23 ? "İyi akşamlar" :
     "İyi geceler";
-  return name ? `${base}, ${name}` : "Günlük Özet";
+  return name ? `${base}, ${name}` : "Ana Ekran";
 }
 
 function setupTabs() {
@@ -189,6 +190,9 @@ function setupTabs() {
       if (target === "dashboard") {
         requestAnimationFrame(syncLabCarouselHeight);
       }
+      if (target === "weekly") {
+        requestAnimationFrame(() => window.switchCeoMode(state.ceoMode || "daily"));
+      }
       if (target === "body") {
         requestAnimationFrame(() => window.GarminBodyScale?.onTabShown?.());
       }
@@ -208,8 +212,8 @@ async function loadAllData() {
 
   const [settingsRes, bioRes, actRes, weekRes, monthRes, notifRes, logsRes, intRes] = await Promise.all([
     sb.from("athlete_settings").select("*").eq("user_id", uid).maybeSingle(),
-    sb.from("daily_biometrics").select("*").eq("user_id", uid).order("log_date", { ascending: false }).limit(60),
-    sb.from("activities").select("*").eq("user_id", uid).order("start_time_local", { ascending: false }).limit(25),
+    sb.from("daily_biometrics").select("*").eq("user_id", uid).order("log_date", { ascending: false }).limit(365),
+    sb.from("activities").select("*").eq("user_id", uid).order("start_time_local", { ascending: false }).limit(200),
     sb.from("weekly_strategies").select("*").eq("user_id", uid).order("week_start_date", { ascending: false }).limit(1),
     sb.from("monthly_reports").select("*").eq("user_id", uid).order("month_key", { ascending: false }).limit(1),
     sb.from("notifications").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(25),
@@ -251,6 +255,7 @@ function renderAll() {
   renderWorkouts();
   renderWeekly();
   renderMonthly();
+  renderYearly();
   renderNotifications();
   renderArchive();
   renderSettings();
@@ -462,9 +467,267 @@ function clearRedAlertUi() {
   document.getElementById("alerts-drawer")?.classList.add("hidden");
 }
 
+function fmtSleepHoursCompact(sec) {
+  if (!sec || !Number.isFinite(Number(sec))) return "--";
+  const mins = Math.round(Number(sec) / 60);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}s ${m}dk`;
+}
+
+function renderHomeLiveCockpit(latest) {
+  const closingEl = document.getElementById("home-closing-strip");
+  const liveGridEl = document.getElementById("home-live-grid");
+  const metaEl = document.getElementById("home-live-meta");
+  const s = state.settings || {};
+
+  if (!latest) {
+    if (metaEl) metaEl.textContent = "İlk Garmin saat verisi bekleniyor";
+    if (closingEl) closingEl.innerHTML = "";
+    if (liveGridEl) {
+      liveGridEl.innerHTML = `<p class="card-sub" style="grid-column:1/-1;">Güncel biyometri verisi için sağ üstten <strong>↻ Senkronize Et</strong> butonuna basın veya Ayarlar'dan Garmin bağlantısını yapın.</p>`;
+    }
+    return;
+  }
+
+  const prev = state.biometrics[1] || null;
+  const te = latest.raw_payload?.telemetry_extra || {};
+  const w = latest.evening_weather || {};
+  const met = te.metabolism || {};
+  const fl = te.floors || {};
+  const fa = te.fitness_age_detail || {};
+
+  if (metaEl) {
+    const rScore = latest.readiness_score != null ? `Hazırlık ${latest.readiness_score}/100` : "Hazırlık --";
+    metaEl.textContent = `${latest.log_date} · ${rScore} · Dün kapanış verileri dahil`;
+  }
+
+  // 4-card Günün & Dünün Kapanışı strip
+  if (closingEl) {
+    const steps = Number(latest.steps || 0);
+    const prevSteps = prev?.steps != null ? Number(prev.steps).toLocaleString("tr-TR") : "--";
+    const stepPct = Math.min(100, Math.round((steps / 10000) * 100));
+
+    const activeKcal = latest.active_kilocalories ?? met.active_kcal ?? null;
+    const totalKcal =
+      met.total_kcal ??
+      (activeKcal != null ? Number(activeKcal) + Number(met.bmr_kcal || 1680) : null);
+    const prevActive = prev?.active_kilocalories != null ? `${Number(prev.active_kilocalories).toLocaleString("tr-TR")} kcal` : "--";
+
+    const modMin = Number(latest.moderate_intensity_minutes || 0);
+    const vigMin = Number(latest.vigorous_intensity_minutes || 0);
+    const totalIntMin = modMin + vigMin * 2;
+    const prevIntMin = prev ? Number(prev.moderate_intensity_minutes || 0) + Number(prev.vigorous_intensity_minutes || 0) * 2 : null;
+
+    closingEl.innerHTML = `
+      <button type="button" class="home-closing-card" onclick="focusHomeMetric('steps')">
+        <div class="home-closing-top"><span>👣 Adım</span><span class="mono">%${stepPct}</span></div>
+        <div class="home-closing-val mono">${steps.toLocaleString("tr-TR")}</div>
+        <div class="home-closing-bar"><span style="width:${stepPct}%; background:var(--cyan);"></span></div>
+        <div class="home-closing-sub">Dün kapanış: ${escapeHtml(prevSteps)}</div>
+      </button>
+      <button type="button" class="home-closing-card" onclick="focusHomeMetric('calories')">
+        <div class="home-closing-top"><span>🔥 Kalori</span><span class="mono">Aktif</span></div>
+        <div class="home-closing-val mono">${activeKcal != null ? Number(activeKcal).toLocaleString("tr-TR") : "--"} <small>kcal</small></div>
+        <div class="home-closing-sub">Toplam: ${totalKcal != null ? Number(totalKcal).toLocaleString("tr-TR") : "--"} · Dün: ${escapeHtml(prevActive)}</div>
+      </button>
+      <button type="button" class="home-closing-card" onclick="focusHomeMetric('intensity')">
+        <div class="home-closing-top"><span>⚡ Yoğunluk</span><span class="mono">${fl.ascended ?? 0} kat</span></div>
+        <div class="home-closing-val mono">${totalIntMin} <small>dk</small></div>
+        <div class="home-closing-sub">Orta ${modMin} · Yük ${vigMin} · Dün: ${prevIntMin != null ? `${prevIntMin} dk` : "--"}</div>
+      </button>
+      <button type="button" class="home-closing-card" onclick="scrollToWeatherCard()">
+        <div class="home-closing-top"><span>🌤️ Akşam Hava</span><span class="mono">${escapeHtml(w.dial_level || "AQI")}</span></div>
+        <div class="home-closing-val mono">${w.temp_c ?? "--"}° <small>AQI ${w.aqi_max ?? "--"}</small></div>
+        <div class="home-closing-sub">${escapeHtml(w.city || s.active_city || s.default_city || "Konum")} · 17:00–21:00</div>
+      </button>`;
+  }
+
+  // 9 clickable live biometric tiles
+  if (liveGridEl) {
+    const hrv7 = computeAvg(state.biometrics.slice(0, 7).map((d) => d.hrv_nightly_avg));
+    const deepMin = Math.round(Number(latest.deep_sleep_seconds || 0) / 60);
+    const remMin = Math.round(Number(latest.rem_sleep_seconds || 0) / 60);
+    const sleepScore = latest.sleep_score != null ? Number(latest.sleep_score) : null;
+    const sleepStatus = sleepScore == null ? "Veri yok" : sleepScore >= 80 ? "İyi" : sleepScore >= 65 ? "Orta" : "Düşük";
+    const sleepCol = sleepScore == null ? "var(--text-dim)" : sleepScore >= 80 ? "var(--emerald)" : sleepScore >= 65 ? "var(--amber)" : "var(--red)";
+
+    const hrvVal = latest.hrv_nightly_avg != null ? Number(latest.hrv_nightly_avg) : null;
+    const hrvStatusMap = { BALANCED: "Dengeli", UNBALANCED: "Dengesiz", LOW: "Düşük", POOR: "Zayıf" };
+    const hrvRaw = String(latest.hrv_status || "").toUpperCase();
+    const hrvStatus = hrvStatusMap[hrvRaw] || (hrvVal == null ? "Veri yok" : hrvVal >= (s.base_hrv_min ?? 59) ? "Dengeli" : hrvVal >= (s.hrv_warn_threshold ?? 48) ? "Sınırda" : "Düşük");
+    const hrvCol = hrvStatus === "Dengeli" ? "var(--emerald)" : hrvStatus === "Düşük" || hrvStatus === "Zayıf" ? "var(--red)" : hrvVal == null ? "var(--text-dim)" : "var(--amber)";
+
+    const rhrVal = latest.rhr != null ? Number(latest.rhr) : null;
+    const rhrWarn = Number(s.rhr_warn_threshold ?? 51);
+    const rhrStatus = rhrVal == null ? "Veri yok" : rhrVal < rhrWarn ? "Normal" : "Yüksek";
+    const rhrCol = rhrVal == null ? "var(--text-dim)" : rhrVal < rhrWarn ? "var(--emerald)" : "var(--amber)";
+
+    const bbCur = te.bb_current ?? latest.body_battery_max ?? null;
+    const bbNum = bbCur != null ? Number(bbCur) : null;
+    const bbStatus = bbNum == null ? "Veri yok" : bbNum >= 50 ? "İyi Enerji" : bbNum >= 25 ? "Orta" : "Düşük";
+    const bbCol = bbNum == null ? "var(--text-dim)" : bbNum >= 50 ? "var(--emerald)" : bbNum >= 25 ? "var(--amber)" : "var(--red)";
+
+    const stressVal = latest.stress_avg != null ? Number(latest.stress_avg) : null;
+    const stressStatus = stressVal == null ? "Veri yok" : stressVal <= 25 ? "Düşük" : stressVal <= 50 ? "Orta" : "Yüksek";
+    const stressCol = stressVal == null ? "var(--text-dim)" : stressVal <= 25 ? "var(--emerald)" : stressVal <= 50 ? "var(--amber)" : "var(--red)";
+
+    const spo2Val = latest.spo2_avg != null ? Number(latest.spo2_avg) : null;
+    const spo2Warn = Number(s.spo2_warn_threshold ?? 91);
+    const spo2Status = spo2Val == null ? "Veri yok" : spo2Val >= 94 ? "Optimal" : spo2Val > spo2Warn ? "Normal" : "Düşük";
+    const spo2Col = spo2Val == null ? "var(--text-dim)" : spo2Val >= 94 ? "var(--emerald)" : spo2Val > spo2Warn ? "var(--amber)" : "var(--red)";
+
+    const vo2Val = latest.vo2_max != null ? Number(latest.vo2_max) : null;
+    const vo2Status = vo2Val == null ? "Veri yok" : vo2Val >= 50 ? "Üstün" : vo2Val >= 42 ? "İyi" : "Orta";
+    const vo2Col = vo2Val == null ? "var(--text-dim)" : vo2Val >= 42 ? "var(--emerald)" : "var(--cyan)";
+
+    const endVal = latest.endurance_score != null ? Number(latest.endurance_score) : null;
+    const endStatus = endVal == null ? "Veri yok" : endVal >= 6500 ? "Güçlü" : endVal >= 4500 ? "Dengeli" : "Gelişiyor";
+    const endCol = endVal == null ? "var(--text-dim)" : endVal >= 4500 ? "var(--emerald)" : "var(--cyan)";
+
+    const fitAge = fa.current_age ?? latest.fitness_age ?? null;
+    const chronoAge = Number(fa.chronological_age ?? (new Date().getFullYear() - Number(s.birth_year || 1988)));
+    const ageDiff = fitAge != null && Number.isFinite(chronoAge) ? Number(fitAge) - chronoAge : null;
+    const ageStatus = fitAge == null ? "Veri yok" : ageDiff != null && ageDiff <= -2 ? "Genç Profil" : ageDiff != null && ageDiff <= 1 ? "Normal" : "Yüksek";
+    const ageCol = fitAge == null ? "var(--text-dim)" : ageDiff != null && ageDiff <= 0 ? "var(--emerald)" : "var(--amber)";
+
+    const tiles = [
+      {
+        key: "sleep",
+        label: "😴 Uyku",
+        val: fmtSleepHoursCompact(latest.sleep_seconds),
+        unit: sleepScore != null ? `${sleepScore}p` : "",
+        sub: `D ${deepMin}d · R ${remMin}d`,
+        status: sleepStatus,
+        color: sleepCol,
+      },
+      {
+        key: "hrv",
+        label: "💓 HRV",
+        val: hrvVal != null ? `${hrvVal}` : "--",
+        unit: "ms",
+        sub: `7G ort. ${hrv7 != null ? Math.round(hrv7) : "--"} ms`,
+        status: hrvStatus,
+        color: hrvCol,
+      },
+      {
+        key: "hr",
+        label: "❤️ Nabız",
+        val: rhrVal != null ? `${rhrVal}` : "--",
+        unit: "bpm",
+        sub: `${latest.min_hr ?? "--"}–${latest.max_hr ?? "--"} gün içi`,
+        status: rhrStatus,
+        color: rhrCol,
+      },
+      {
+        key: "bb",
+        label: "🔋 Body Battery",
+        val: bbNum != null ? `${bbNum}` : "--",
+        unit: "/100",
+        sub: `Zirve ${latest.body_battery_max ?? "--"} · +${latest.body_battery_charged ?? "--"}`,
+        status: bbStatus,
+        color: bbCol,
+      },
+      {
+        key: "stress",
+        label: "🧘 Stres",
+        val: stressVal != null ? `${stressVal}` : "--",
+        unit: "puan",
+        sub: `Uyku stresi ${latest.sleep_stress_avg ?? "--"}`,
+        status: stressStatus,
+        color: stressCol,
+      },
+      {
+        key: "resp_spo2",
+        label: "🫁 Solunum & SpO2",
+        val: latest.sleep_respiration_avg != null ? String(latest.sleep_respiration_avg).replace(".", ",") : "--",
+        unit: "dk⁻¹",
+        sub: `SpO2 %${latest.spo2_avg ?? "--"} (min %${latest.spo2_min ?? "--"})`,
+        status: spo2Status,
+        color: spo2Col,
+      },
+      {
+        key: "vo2",
+        label: "🏃 VO2 Max",
+        val: vo2Val != null ? String(vo2Val).replace(".", ",") : "--",
+        unit: "mL/kg",
+        sub: `Haftalık HRV ${latest.hrv_weekly_avg ?? "--"}`,
+        status: vo2Status,
+        color: vo2Col,
+      },
+      {
+        key: "endurance",
+        label: "🛡️ Dayanıklılık",
+        val: endVal != null ? endVal.toLocaleString("tr-TR") : "--",
+        unit: "puan",
+        sub: `Endurance Score`,
+        status: endStatus,
+        color: endCol,
+      },
+      {
+        key: "fitness_age",
+        label: "🧬 Sağlık Yaşı",
+        val: fitAge != null ? `${fitAge}` : "--",
+        unit: "yaş",
+        sub: ageDiff != null ? `Gerçek ${chronoAge} (${ageDiff > 0 ? `+${ageDiff}` : ageDiff})` : `Gerçek ${chronoAge}`,
+        status: ageStatus,
+        color: ageCol,
+      },
+    ];
+
+    liveGridEl.innerHTML = tiles
+      .map(
+        (t) => `
+      <button type="button" class="home-live-tile" onclick="focusHomeMetric('${escapeHtml(t.key)}')">
+        <div class="home-live-lbl">${escapeHtml(t.label)}</div>
+        <div class="home-live-main">
+          <span class="home-live-val mono">${escapeHtml(t.val)}</span>
+          ${t.unit ? `<span class="home-live-unit">${escapeHtml(t.unit)}</span>` : ""}
+        </div>
+        <div class="home-live-sub">${escapeHtml(t.sub)}</div>
+        <div class="home-live-status" style="color:${t.color};">${escapeHtml(t.status)}</div>
+      </button>`
+      )
+      .join("");
+  }
+}
+
+window.openDailyReportView = function () {
+  document.querySelector('[data-tab="weekly"]')?.click();
+  window.switchCeoMode?.("daily");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+window.focusHomeMetric = function (key) {
+  const carousel = document.getElementById("lab-carousel-section");
+  if (!carousel) return;
+  const map = {
+    steps: { slide: 0, trend: "steps" },
+    sleep: { slide: 0, trend: "readiness" },
+    vo2: { slide: 0, trend: "hrv" },
+    bb: { slide: 1 },
+    hrv: { slide: 2 },
+    stress: { slide: 2 },
+    hr: { slide: 3 },
+    calories: { slide: 4 },
+    intensity: { slide: 4 },
+    resp_spo2: { slide: 4 },
+    endurance: { slide: 4 },
+    fitness_age: { slide: 4 },
+  };
+  const cfg = map[key] || { slide: 0 };
+  if (cfg.trend) {
+    const trendBtn = document.querySelector(`#lab-carousel-section [onclick*="'${cfg.trend}'"]`);
+    window.switchTrendMode?.(cfg.trend, trendBtn);
+  }
+  window.goToLabSlide?.(cfg.slide);
+  carousel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+};
+
 function renderDashboard() {
   const latest = state.biometrics[0];
   const s = state.settings || {};
+  renderHomeLiveCockpit(latest);
   if (!latest) {
     clearRedAlertUi();
     document.getElementById("readiness-score").textContent = "--";
@@ -1459,8 +1722,10 @@ function renderDeepTelemetry(latest) {
 
 window.switchTrendMode = function (mode, btn) {
   state.trendMode = mode;
-  btn.parentElement.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
-  btn.classList.add("active");
+  if (btn?.parentElement) {
+    btn.parentElement.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
+    btn.classList.add("active");
+  }
   renderTrendChart();
   requestAnimationFrame(syncLabCarouselHeight);
 };
@@ -2183,16 +2448,23 @@ window.selectActivity = function (id) {
 };
 
 window.switchCeoMode = function (mode) {
-  state.ceoMode = mode === "monthly" ? "monthly" : "weekly";
-  const weeklyBtn = document.getElementById("ceo-btn-weekly");
-  const monthlyBtn = document.getElementById("ceo-btn-monthly");
-  const weeklyView = document.getElementById("ceo-weekly-view");
-  const monthlyView = document.getElementById("ceo-monthly-view");
-  if (weeklyBtn) weeklyBtn.classList.toggle("active", state.ceoMode === "weekly");
-  if (monthlyBtn) monthlyBtn.classList.toggle("active", state.ceoMode === "monthly");
-  if (weeklyView) weeklyView.classList.toggle("hidden", state.ceoMode !== "weekly");
-  if (monthlyView) monthlyView.classList.toggle("hidden", state.ceoMode !== "monthly");
-  if (state.ceoMode === "monthly") renderMonthly();
+  const validModes = ["daily", "weekly", "monthly", "yearly"];
+  state.ceoMode = validModes.includes(mode) ? mode : "daily";
+  for (const m of validModes) {
+    document.getElementById(`ceo-btn-${m}`)?.classList.toggle("active", state.ceoMode === m);
+    document.getElementById(`ceo-${m}-view`)?.classList.toggle("hidden", state.ceoMode !== m);
+  }
+  if (state.ceoMode === "daily") {
+    try {
+      renderCustomCompareChart();
+    } catch (_) {}
+  } else if (state.ceoMode === "weekly") {
+    renderWeekly();
+  } else if (state.ceoMode === "monthly") {
+    renderMonthly();
+  } else if (state.ceoMode === "yearly") {
+    renderYearly();
+  }
 };
 
 function renderWeekly() {
@@ -2418,6 +2690,248 @@ function renderMonthly() {
   }
 }
 
+const TR_MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+const TR_MONTHS_LONG = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+function fmtMonthLabel(ymKey, longForm = false) {
+  const [y, m] = String(ymKey || "").split("-");
+  const idx = Number(m) - 1;
+  const list = longForm ? TR_MONTHS_LONG : TR_MONTHS_SHORT;
+  return idx >= 0 && idx < 12 ? `${list[idx]} ${longForm ? y : y.slice(2)}` : ymKey;
+}
+
+function renderYearly() {
+  const periodEl = document.getElementById("yearly-period-label");
+  const sampleBadge = document.getElementById("yearly-sample-badge");
+  const summaryEl = document.getElementById("yearly-exec-summary");
+  const kpiGrid = document.getElementById("yearly-kpi-grid");
+  const monthsGrid = document.getElementById("yearly-months-grid");
+  const chartCanvas = document.getElementById("yearlyTrendChart");
+  if (!kpiGrid || !monthsGrid) return;
+
+  const days = Array.isArray(state.biometrics) ? state.biometrics : [];
+  const acts = Array.isArray(state.activities) ? state.activities : [];
+
+  if (!days.length) {
+    if (sampleBadge) sampleBadge.textContent = "0 gün";
+    if (periodEl) periodEl.textContent = "Henüz yıllık veri bulunmuyor";
+    if (summaryEl) summaryEl.textContent = "Yıllık performans ve biyometri bilançosu için günlük veriler biriktikçe burada ay-ay özetler ve grafikler oluşur.";
+    kpiGrid.innerHTML = "";
+    monthsGrid.innerHTML = "";
+    if (state.charts.yearlyTrend) {
+      state.charts.yearlyTrend.destroy();
+      state.charts.yearlyTrend = null;
+    }
+    return;
+  }
+
+  const byMonth = new Map();
+  const ensureBucket = (ym) => {
+    if (!byMonth.has(ym)) {
+      byMonth.set(ym, { days: [], acts: [] });
+    }
+    return byMonth.get(ym);
+  };
+
+  for (const d of days) {
+    const ym = String(d.log_date || "").slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(ym)) ensureBucket(ym).days.push(d);
+  }
+  for (const a of acts) {
+    const ym = String(a.start_time_local || "").slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(ym) && byMonth.has(ym)) ensureBucket(ym).acts.push(a);
+  }
+
+  const monthKeysAsc = [...byMonth.keys()].sort();
+  const monthlyStats = monthKeysAsc.map((ym) => {
+    const b = byMonth.get(ym);
+    const totalSteps = b.days.reduce((acc, d) => acc + Number(d.steps || 0), 0);
+    const totalActiveKcal = b.days.reduce((acc, d) => acc + Number(d.active_kilocalories || 0), 0);
+    const avgReadiness = computeAvg(b.days.map((d) => d.readiness_score));
+    const avgSleepScore = computeAvg(b.days.map((d) => d.sleep_score));
+    const avgSleepHrs = computeAvg(b.days.map((d) => (d.sleep_seconds != null ? Number(d.sleep_seconds) / 3600 : null)));
+    const avgHrv = computeAvg(b.days.map((d) => d.hrv_nightly_avg));
+    const avgRhr = computeAvg(b.days.map((d) => d.rhr));
+    const vo2s = b.days.map((d) => Number(d.vo2_max)).filter((v) => Number.isFinite(v) && v > 0);
+    const peakVo2 = vo2s.length ? Math.max(...vo2s) : null;
+    return {
+      ym,
+      daysCount: b.days.length,
+      workoutsCount: b.acts.length,
+      totalSteps,
+      totalActiveKcal,
+      avgReadiness,
+      avgSleepScore,
+      avgSleepHrs,
+      avgHrv,
+      avgRhr,
+      peakVo2,
+    };
+  });
+
+  const totalDays = days.length;
+  const totalSteps = days.reduce((acc, d) => acc + Number(d.steps || 0), 0);
+  const estStepKm = Math.round(totalSteps * 0.00075);
+  const totalWorkouts = acts.length;
+  const totalActiveKcal = days.reduce((acc, d) => acc + Number(d.active_kilocalories || 0), 0);
+  const avgReadiness = computeAvg(days.map((d) => d.readiness_score));
+  const avgSleepScore = computeAvg(days.map((d) => d.sleep_score));
+  const avgSleepHrs = computeAvg(days.map((d) => (d.sleep_seconds != null ? Number(d.sleep_seconds) / 3600 : null)));
+  const avgHrv = computeAvg(days.map((d) => d.hrv_nightly_avg));
+  const avgRhr = computeAvg(days.map((d) => d.rhr));
+  const allVo2 = days.map((d) => Number(d.vo2_max)).filter((v) => Number.isFinite(v) && v > 0);
+  const peakVo2 = allVo2.length ? Math.max(...allVo2) : null;
+
+  const bestMonth = monthlyStats
+    .filter((m) => m.avgReadiness != null)
+    .sort((a, b) => Number(b.avgReadiness) - Number(a.avgReadiness))[0] || null;
+
+  const oldestDate = String(days[days.length - 1]?.log_date || "");
+  const newestDate = String(days[0]?.log_date || "");
+  if (sampleBadge) sampleBadge.textContent = `${totalDays} gün · ${monthKeysAsc.length} ay`;
+  if (periodEl) periodEl.textContent = `Dönem: ${oldestDate} → ${newestDate} (Son 12 ay)`;
+  if (summaryEl) {
+    const bestPart = bestMonth ? ` En zinde ay: ${fmtMonthLabel(bestMonth.ym, true)} (Ort. ${Math.round(bestMonth.avgReadiness)}/100).` : "";
+    summaryEl.textContent = `${monthKeysAsc.length} aylık dönemde ${totalDays} gün ve ${totalWorkouts} antrenman kaydedildi. Günlük ortalama ${(Math.round(totalSteps / Math.max(1, totalDays))).toLocaleString("tr-TR")} adım ile toplam ~${estStepKm.toLocaleString("tr-TR")} km mesafe kat edildi.${bestPart}`;
+  }
+
+  const cards = [
+    {
+      lbl: "Ort. Hazırlık Skoru",
+      val: avgReadiness != null ? `${Math.round(avgReadiness)}/100` : "--",
+      sub: bestMonth ? `En iyi: ${fmtMonthLabel(bestMonth.ym)} (${Math.round(bestMonth.avgReadiness)})` : `${totalDays} kayıtlı gün`,
+      color: "var(--emerald)",
+    },
+    {
+      lbl: "Ort. Uyku & Süre",
+      val: avgSleepScore != null ? `${Math.round(avgSleepScore)}/100` : "--",
+      sub: avgSleepHrs != null ? `Ort. ${avgSleepHrs.toFixed(1).replace(".", ",")} sa/gece` : "Uyku süresi",
+      color: "var(--purple)",
+    },
+    {
+      lbl: "Gece HRV & RHR",
+      val: avgHrv != null ? `${Math.round(avgHrv)} ms` : "--",
+      sub: `Dinlenik Nabız: ${avgRhr != null ? `${Math.round(avgRhr)} bpm` : "--"}`,
+      color: "var(--cyan)",
+    },
+    {
+      lbl: "Toplam Adım & Mesafe",
+      val: totalSteps.toLocaleString("tr-TR"),
+      sub: `~${estStepKm.toLocaleString("tr-TR")} km · ${(Math.round(totalSteps / Math.max(1, totalDays))).toLocaleString("tr-TR")}/gün`,
+      color: "var(--text)",
+    },
+    {
+      lbl: "Antrenman & Efor",
+      val: `${totalWorkouts} seans`,
+      sub: `${totalActiveKcal.toLocaleString("tr-TR")} aktif kcal`,
+      color: "var(--amber)",
+    },
+    {
+      lbl: "Zirve VO2 Max",
+      val: peakVo2 != null ? peakVo2.toFixed(1).replace(".", ",") : "--",
+      sub: `${monthKeysAsc.length} aylık kapsama`,
+      color: "var(--emerald)",
+    },
+  ];
+
+  kpiGrid.innerHTML = cards
+    .map(
+      (c) => `
+    <div class="corridor-card">
+      <div class="corridor-top"><span class="card-sub">${escapeHtml(c.lbl)}</span></div>
+      <div class="corridor-val mono" style="color:${c.color};">${escapeHtml(c.val)}</div>
+      <div class="card-sub">${escapeHtml(c.sub)}</div>
+    </div>`
+    )
+    .join("");
+
+  const monthlyDesc = [...monthlyStats].reverse();
+  monthsGrid.innerHTML = monthlyDesc
+    .map((m) => {
+      const rVal = m.avgReadiness != null ? Math.round(m.avgReadiness) : null;
+      const rCls = rVal == null ? "badge-info" : rVal >= 75 ? "badge-ok" : rVal >= 58 ? "badge-warn" : "badge-crit";
+      return `
+      <div class="yearly-month-card">
+        <div class="yearly-month-head">
+          <strong>${escapeHtml(fmtMonthLabel(m.ym, true))}</strong>
+          <span class="badge ${rCls} mono">${rVal != null ? `Hazırlık ${rVal}` : `${m.daysCount} gün`}</span>
+        </div>
+        <div class="yearly-month-metrics">
+          <span>😴 Uyku <strong>${m.avgSleepScore != null ? Math.round(m.avgSleepScore) : "--"}</strong> (${m.avgSleepHrs != null ? `${m.avgSleepHrs.toFixed(1).replace(".", ",")}sa` : "--"})</span>
+          <span>💓 HRV <strong>${m.avgHrv != null ? Math.round(m.avgHrv) : "--"}</strong> · ❤️ <strong>${m.avgRhr != null ? Math.round(m.avgRhr) : "--"}</strong></span>
+          <span>👣 ${m.totalSteps.toLocaleString("tr-TR")} adım · 🏋️ ${m.workoutsCount} antrenman</span>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  if (chartCanvas && typeof Chart !== "undefined") {
+    if (state.charts.yearlyTrend) {
+      state.charts.yearlyTrend.destroy();
+      state.charts.yearlyTrend = null;
+    }
+    const isSunny = document.documentElement.getAttribute("data-theme") === "weather_sunny";
+    const tickColor = isSunny ? "#334155" : "#94a3b8";
+    const gridColor = isSunny ? "rgba(15,23,42,0.10)" : "rgba(148,163,184,0.10)";
+    const legColor = isSunny ? "#0b1220" : "#cbd5e1";
+
+    state.charts.yearlyTrend = new Chart(chartCanvas, {
+      type: "line",
+      data: {
+        labels: monthlyStats.map((m) => fmtMonthLabel(m.ym, false)),
+        datasets: [
+          {
+            label: "Ort. Hazırlık",
+            data: monthlyStats.map((m) => (m.avgReadiness != null ? Math.round(m.avgReadiness) : null)),
+            borderColor: "#00e5a3",
+            backgroundColor: "rgba(0,229,163,0.12)",
+            fill: true,
+            tension: 0.3,
+            spanGaps: true,
+            yAxisID: "y",
+          },
+          {
+            label: "Ort. Uyku Puanı",
+            data: monthlyStats.map((m) => (m.avgSleepScore != null ? Math.round(m.avgSleepScore) : null)),
+            borderColor: "#a78bfa",
+            tension: 0.3,
+            spanGaps: true,
+            yAxisID: "y",
+          },
+          {
+            label: "Ort. HRV (ms)",
+            data: monthlyStats.map((m) => (m.avgHrv != null ? Math.round(m.avgHrv) : null)),
+            borderColor: "#38bdf8",
+            tension: 0.3,
+            spanGaps: true,
+            yAxisID: "y1",
+          },
+          {
+            label: "Ort. Nabız (bpm)",
+            data: monthlyStats.map((m) => (m.avgRhr != null ? Math.round(m.avgRhr) : null)),
+            borderColor: "#f59e0b",
+            borderDash: [4, 4],
+            tension: 0.3,
+            spanGaps: true,
+            yAxisID: "y1",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: legColor, boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+          y: { position: "left", min: 30, max: 100, ticks: { color: tickColor }, grid: { color: gridColor } },
+          y1: { position: "right", ticks: { color: tickColor }, grid: { drawOnChartArea: false } },
+        },
+      },
+    });
+  }
+}
+
 function renderNotifications() {
   const listEl = document.getElementById("notif-list");
   const badgeEl = document.getElementById("notif-unread-badge");
@@ -2561,7 +3075,10 @@ window.openNotificationItem = async function (id) {
   }
   document.getElementById("notif-drawer")?.classList.add("hidden");
 
-  const targetTab = n.payload?.tab || (n.type === "WORKOUT_REPORT" ? "workouts" : n.type === "WEEKLY_CEO" || n.type === "MONTHLY_CEO" ? "weekly" : "dashboard");
+  const isDailyReport = n.type === "MORNING_REPORT" || n.payload?.focus_card === "ai-daily-insight-card";
+  const targetTab = isDailyReport
+    ? "weekly"
+    : n.payload?.tab || (n.type === "WORKOUT_REPORT" ? "workouts" : n.type === "WEEKLY_CEO" || n.type === "MONTHLY_CEO" ? "weekly" : "dashboard");
   const tabBtn = document.querySelector(`[data-tab="${targetTab}"]`);
   if (tabBtn) tabBtn.click();
 
@@ -2573,6 +3090,8 @@ window.openNotificationItem = async function (id) {
     switchCeoMode("monthly");
   } else if (n.type === "WEEKLY_CEO" || n.payload?.mode === "weekly") {
     switchCeoMode("weekly");
+  } else if (isDailyReport || n.payload?.mode === "daily") {
+    switchCeoMode("daily");
   }
   if (n.payload?.kind === "body_ai_commentary" && typeof window.openSavedBodyAiCommentary === "function") {
     window.openSavedBodyAiCommentary(n);
@@ -3140,8 +3659,10 @@ async function initNativePushIfAvailable() {
       const data = action?.notification?.data || {};
       loadAllData()
         .then(() => {
-          if (data.tab) {
-            document.querySelector(`[data-tab="${data.tab}"]`)?.click();
+          const isDailyPush = data.type === "MORNING_REPORT" || data.type === "AI_INSIGHT" || data.focus_card === "ai-daily-insight-card";
+          const targetTab = isDailyPush ? "weekly" : data.tab;
+          if (targetTab) {
+            document.querySelector(`[data-tab="${targetTab}"]`)?.click();
           }
           if (data.activity_id) {
             state.selectedActivityId = Number(data.activity_id);
@@ -3151,6 +3672,8 @@ async function initNativePushIfAvailable() {
             switchCeoMode("monthly");
           } else if (data.mode === "weekly" || data.type === "WEEKLY_CEO") {
             switchCeoMode("weekly");
+          } else if (isDailyPush || data.mode === "daily") {
+            switchCeoMode("daily");
           }
         })
         .catch(() => {});

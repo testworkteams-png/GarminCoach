@@ -474,8 +474,9 @@
   };
 
   hostObj.focusAiInsightCard = function () {
-    const dashBtn = document.querySelector('[data-tab="dashboard"]');
-    if (dashBtn) dashBtn.click();
+    const repBtn = document.querySelector('[data-tab="weekly"]');
+    if (repBtn) repBtn.click();
+    window.switchCeoMode?.("daily");
     setTimeout(() => {
       const card = document.getElementById("ai-daily-insight-card");
       if (!card) return;

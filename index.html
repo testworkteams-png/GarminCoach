@@ -107,14 +107,14 @@
       </div>
 
       <nav class="side-nav" aria-label="Ana Navigasyon">
-        <button type="button" class="nav-btn active" data-tab="dashboard">⚡ Özet</button>
+        <button type="button" class="nav-btn active" data-tab="dashboard">🏠 Ana Ekran</button>
         <button type="button" class="nav-btn" data-tab="body">⚖️ Vücut</button>
         <button type="button" class="nav-btn nav-btn-add" onclick="openQuickAddSheet()">＋ Hızlı Ekle</button>
         <button type="button" class="nav-btn" data-tab="health">🩺 Sağlık</button>
         <button type="button" class="nav-btn" data-tab="settings">⚙️ Ayarlar</button>
         <div class="side-nav-divider">Kokpit Modülleri</div>
         <button type="button" class="nav-btn" data-tab="workouts">🏋️ Antrenman &amp; Kas</button>
-        <button type="button" class="nav-btn" data-tab="weekly">📊 CEO Kokpiti (Hafta/Ay)</button>
+        <button type="button" class="nav-btn" data-tab="weekly">📊 Raporlar (Gün/Hafta/Ay/Yıl)</button>
         <button type="button" class="nav-btn" data-tab="archive">🗂️ 30G Doküman &amp; Arşiv</button>
       </nav>
 
@@ -169,7 +169,7 @@
           <span class="pill" id="mobile-watch-pill" onclick="openWatchSettings()" style="cursor:pointer;" title="Saat modelini düzenlemek için tıklayın">⌚ Garmin Saat</span>
           <span class="pill mono" id="pill-datetime"><span id="pill-date">--.--</span> · <span id="pill-clock">--:--</span></span>
           <span class="pill hidden" id="pill-weather" onclick="scrollToWeatherCard()" style="cursor:pointer;" title="Hava durumu detayları">🌤 --°</span>
-          <span class="pill mono hidden" id="pill-readiness" title="Günlük Hazırlık Skoru">⚡ --</span>
+          <span class="pill mono hidden" id="pill-readiness" onclick="openDailyReportView()" style="cursor:pointer;" title="Günlük Hazırlık Raporunu Aç">⚡ --</span>
         </div>
         <div class="ribbon-context">
           <span class="pill" id="pill-location" onclick="detectLiveBrowserGps()" style="cursor:pointer;" title="Cihazın canlı GPS konumunu yenilemek için tıklayın">📍 Yükleniyor...</span>
@@ -179,9 +179,8 @@
 
       <!-- MOBILE QUICK SUB-MODULE CHIPS -->
       <div class="mobile-subtabs" aria-label="Kokpit Alt Modülleri">
-        <button type="button" class="chip active" data-tab="dashboard">⚡ Özet</button>
+        <button type="button" class="chip" data-tab="weekly">📊 Raporlar</button>
         <button type="button" class="chip" data-tab="workouts">🏋️ Antrenman</button>
-        <button type="button" class="chip" data-tab="weekly">📊 CEO Rapor</button>
         <button type="button" class="chip" data-tab="archive">🗂️ 30G Arşiv</button>
       </div>
 
@@ -227,167 +226,19 @@
         </div>
       </div>
 
-      <!-- TAB 1: DASHBOARD -->
+      <!-- TAB 1: ANA EKRAN (GÜNCEL VERİLER) -->
       <section id="tab-dashboard" class="tab-panel active">
-        <!-- ACTIVE INTELLIGENCE DAILY AI SUMMARY CARD -->
-        <div class="card ai-insight-hero-card ai-accordion" id="ai-daily-insight-card">
-          <button type="button" class="ai-acc-head" id="ai-acc-toggle" aria-expanded="false" aria-controls="ai-acc-body" onclick="toggleAiInsightAccordion()">
-            <span class="ai-acc-head-top">
-              <span class="ai-acc-label">✨ Günlük AI Özeti</span>
-              <span class="badge badge-info" id="ai-insight-cat-badge">Hazırlanıyor</span>
-              <span class="ai-acc-chevron" aria-hidden="true"></span>
-            </span>
-            <span class="ai-insight-title" id="ai-insight-title">Günlük AI Özeti yükleniyor...</span>
-            <span class="ai-acc-short" id="ai-insight-short">Verileriniz inceleniyor.</span>
-          </button>
-          <div class="ai-acc-body" id="ai-acc-body" role="region" aria-labelledby="ai-acc-toggle">
-            <div class="ai-acc-inner">
-              <p class="ai-insight-summary" id="ai-insight-summary">Verileriniz inceleniyor.</p>
-              <div class="ai-tip-box hidden" id="ai-insight-tip"></div>
-              <div class="ai-feedback-row hidden" id="ai-insight-feedback-row">
-                <span class="card-sub" id="ai-insight-fb-status">Bu içgörü faydalı oldu mu?</span>
-                <div style="display:flex; gap:8px;">
-                  <button type="button" class="ai-fb-btn" id="btn-ai-fb-up" onclick="rateAiInsight(1)">👍 Faydalı</button>
-                  <button type="button" class="ai-fb-btn" id="btn-ai-fb-down" onclick="rateAiInsight(-1)">👎 Geliştir</button>
-                </div>
-              </div>
-              <div class="ai-acc-foot">
-                <span class="card-sub"><span class="mono" id="ai-insight-date-badge">--</span> · Son 14 günlük trend analizi</span>
-                <button type="button" class="btn btn-sm" id="btn-ai-refresh" onclick="refreshAiInsight(true)" title="İçgörüyü Yenile">↻ Yenile</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div class="home-closing-strip" id="home-closing-strip"></div>
 
-        <div class="grid-2">
-          <!-- Hero Dual-Ring Readiness + Sleep Architecture -->
-          <div class="card card-glow">
-            <div class="card-header">
-              <div>
-                <div class="card-title">Sabah Hazırlık & Body Battery Halkası</div>
-                <div class="card-sub">%30 Body Battery + %30 Uyku + %25 Gece HRV + %15 RHR</div>
-              </div>
-              <span class="badge badge-ok" id="readiness-badge">--</span>
-            </div>
-            <div class="readiness-hero">
-              <div class="ring-visual-row">
-                <div class="dual-ring">
-                  <svg viewBox="0 0 174 174">
-                    <circle class="ring-track" cx="87" cy="87" r="72" stroke-width="12" />
-                    <circle class="ring-fill" id="ring-readiness" cx="87" cy="87" r="72" stroke-width="12" stroke="#00e5a3" stroke-dasharray="452.39" stroke-dashoffset="452.39" />
-                    <circle class="ring-track" cx="87" cy="87" r="54" stroke-width="8" />
-                    <circle class="ring-fill" id="ring-bb" cx="87" cy="87" r="54" stroke-width="8" stroke="#38bdf8" stroke-dasharray="339.29" stroke-dashoffset="339.29" />
-                  </svg>
-                  <div class="dual-ring-center">
-                    <div class="dual-ring-score mono" id="readiness-score">--</div>
-                    <div class="dual-ring-sub" id="readiness-status-label">OPTİMAL</div>
-                    <div class="dual-ring-bb mono" id="bb-ring-label">BB --</div>
-                  </div>
-                </div>
-                <svg class="ring-connectors-svg" viewBox="0 0 34 174" aria-hidden="true">
-                  <g id="ring-arrow-readiness" stroke="#00e5a3" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="-18" cy="52" r="3.2" fill="#00e5a3" stroke="none" />
-                    <path d="M -18 52 L 6 38 L 31 38" />
-                    <path d="M 26 34 L 31 38 L 26 42" />
-                  </g>
-                  <g id="ring-arrow-bb" stroke="#38bdf8" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="-35" cy="112" r="3.2" fill="#38bdf8" stroke="none" />
-                    <path d="M -35 112 L 6 132 L 31 132" />
-                    <path d="M 26 128 L 31 132 L 26 136" />
-                  </g>
-                </svg>
-                <div class="ring-legend-box">
-                  <div class="ring-legend-item" id="ring-legend-card-readiness">
-                    <span class="ring-legend-dot" id="ring-legend-dot-readiness" style="background:#00e5a3;"></span>
-                    <div class="ring-legend-body">
-                      <div class="ring-legend-title">Dış Halka · Hazırlık <strong class="mono" id="ring-legend-val-readiness">--/100</strong></div>
-                      <div class="ring-legend-desc">Uyku, HRV, nabız ve enerji bileşimi</div>
-                    </div>
-                  </div>
-                  <div class="ring-legend-item" id="ring-legend-card-bb">
-                    <span class="ring-legend-dot" id="ring-legend-dot-bb" style="background:#38bdf8;"></span>
-                    <div class="ring-legend-body">
-                      <div class="ring-legend-title">İç Halka · Body Battery <strong class="mono" id="ring-legend-val-bb">--/100</strong></div>
-                      <div class="ring-legend-desc">Sabah en yüksek enerji rezervi</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="formula-bars" id="readiness-breakdown"></div>
-            </div>
-            <div class="sleep-strip-wrap">
-              <div class="bar-row-head">
-                <span>Gece Uyku Mimarisi</span>
-                <strong class="mono" id="sleep-total-label">--</strong>
-              </div>
-              <div class="sleep-strip" id="sleep-hypnogram"></div>
-              <div class="sleep-legend" id="sleep-legend"></div>
-              <div class="sleep-debt-banner" id="sleep-debt-box"></div>
-            </div>
-          </div>
-
-          <!-- 17:00-21:00 Semicircle AQI Gauge + Hourly Strip -->
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">17:00–21:00 Akşam Yürüyüş & Hava Kalitesi Kadranı</div>
-                <div class="card-sub" id="weather-source-label">MET Norway + Open-Meteo AQI</div>
-              </div>
-              <button class="btn btn-cyan btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">⟳ Havayı Yenile</button>
-            </div>
-            <div class="dial-flex">
-              <div class="aqi-gauge-box">
-                <svg viewBox="0 0 210 122" width="210" height="122">
-                  <!-- 4 segments: Yeşil, Sarı, Turuncu, Kırmızı -->
-                  <path d="M 20 102 A 85 85 0 0 1 58 31" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="round" opacity="0.88" />
-                  <path d="M 65 27 A 85 85 0 0 1 105 17" fill="none" stroke="#f59e0b" stroke-width="14" opacity="0.88" />
-                  <path d="M 112 17 A 85 85 0 0 1 152 31" fill="none" stroke="#fb923c" stroke-width="14" opacity="0.88" />
-                  <path d="M 158 36 A 85 85 0 0 1 190 102" fill="none" stroke="#ef4444" stroke-width="14" stroke-linecap="round" opacity="0.88" />
-                  <g id="aqi-needle" transform="rotate(-65 105 102)">
-                    <line x1="105" y1="102" x2="105" y2="28" stroke="#f8fafc" stroke-width="3" stroke-linecap="round" />
-                    <circle cx="105" cy="102" r="6" fill="#00e5a3" />
-                  </g>
-                </svg>
-                <div class="aqi-gauge-center">
-                  <div class="mono" style="font-size:20px; font-weight:800;" id="aqi-dial-val">-- AQI</div>
-                  <div id="aqi-dial-badge" class="badge badge-ok">--</div>
-                </div>
-              </div>
-              <div class="weather-kpis" id="evening-weather-stats"></div>
-            </div>
-            <div class="best-slot-banner" id="best-walk-slot-banner"></div>
-            <div class="hourly-strip" id="hourly-walk-strip"></div>
-            <div class="clothing-box" id="evening-clothing-advice">--</div>
-          </div>
-        </div>
-
-        <!-- Physiological Baseline Corridors -->
-        <div class="corridor-grid mt-18" id="baseline-cards"></div>
-
-        <!-- AI Coach + Chat -->
-        <div class="card mt-18">
+        <div class="card card-glow mt-14 home-live-card">
           <div class="card-header">
             <div>
-              <div class="card-title" id="ai-headline">Günün Performans Koçu Reçetesi</div>
-              <div class="card-sub" id="ai-source-tag">Gemini 3.6 Flash AI & Deterministik Koç</div>
+              <div class="card-title">⌚ Güncel Biyometri &amp; Performans</div>
+              <div class="card-sub" id="home-live-meta">Son senkron verileri yükleniyor...</div>
             </div>
-            <span class="badge badge-info" id="today-weekday-badge">--</span>
+            <button type="button" class="btn btn-cyan btn-sm" onclick="openDailyReportView()">☀️ Günlük Rapor →</button>
           </div>
-          <div id="ai-daily-blocks"></div>
-
-          <div class="coach-chat-box">
-            <div class="card-title" style="font-size:13px;">💬 Canlı AI Performans Koçuna Sor</div>
-            <div class="chip-group mt-12">
-              <button class="chip" onclick="askCoachPreset('Bugün hangi Kochler rotasyonuna girmeliyim?')">Kochler rotasyonu</button>
-              <button class="chip" onclick="askCoachPreset('Son 7 günlük uyku borcum ve HRV trendime göre bu akşam nasıl yükleneyim?')">Uyku borcu & HRV</button>
-              <button class="chip" onclick="askCoachPreset('Sağ omzum hafif yorgun, 10 kg Omuz-Sırt gününü nasıl revize edelim?')">Omuz revizesi</button>
-            </div>
-            <form class="chat-input-row" onsubmit="submitCoachChat(event)">
-              <input id="coach-question-input" placeholder="Örn: Bugün 6 kg yerine 8 kg geçeyim mi?" />
-              <button type="submit" class="btn btn-primary btn-sm" id="btn-ask-coach">Gönder</button>
-            </form>
-            <div id="coach-chat-reply" class="chat-reply" style="display:none;"></div>
-          </div>
+          <div class="home-live-grid" id="home-live-grid"></div>
         </div>
 
         <!-- Horizontal Swipeable Biometrics, Telemetry & Smart Summary Carousel -->
@@ -545,68 +396,38 @@
           </div>
         </div>
 
-        <!-- Connect+ 2: Performance Dashboard (ACWR, Aerobic Efficiency Ef & Custom Chart Builder) -->
-        <div class="section-divider">
-          <h2>📈 Performans Laboratuvarı & Çapraz Metrik Oluşturucu</h2>
-          <span class="badge badge-ok mono" id="perf-acwr-badge">ACWR --</span>
-        </div>
-
-        <div class="acwr-strip" id="acwr-ef-strip"></div>
-
-        <div class="card mt-18">
+        <!-- 17:00-21:00 Semicircle AQI Gauge + Hourly Strip -->
+        <div class="card mt-18" id="evening-weather-card">
           <div class="card-header">
             <div>
-              <div class="card-title">Çapraz Metrik Grafik Oluşturucu (Performance Dashboard)</div>
-              <div class="card-sub">İki farklı biyometrik veriyi çift eksende üst üste çizdirip trend kırılımlarını keşfet</div>
+              <div class="card-title">17:00–21:00 Akşam Yürüyüş &amp; Hava Kalitesi Kadranı</div>
+              <div class="card-sub" id="weather-source-label">MET Norway + Open-Meteo AQI</div>
             </div>
-            <div class="chip-group">
-              <button type="button" class="chip active" onclick="applyCustomPreset('hrv_nightly_avg', 'sleep_stress_avg', this)">HRV vs Uyku Stresi</button>
-              <button type="button" class="chip" onclick="applyCustomPreset('body_battery_max', 'active_kilocalories', this)">BB vs Aktif Kalori</button>
-              <button type="button" class="chip" onclick="applyCustomPreset('readiness_score', 'rhr', this)">Hazırlık vs RHR</button>
-            </div>
+            <button type="button" class="btn btn-cyan btn-sm" onclick="triggerEngine('havaVeKonumGuncelle')">⟳ Havayı Yenile</button>
           </div>
-          <div class="builder-controls">
-            <div class="builder-field">
-              <label for="custom-x1">Sol Eksen (X1)</label>
-              <select id="custom-x1" class="builder-select" onchange="renderCustomCompareChart()">
-                <option value="hrv_nightly_avg" selected>Kalp Dengesi · HRV (puan)</option>
-                <option value="readiness_score">Sabah Hazırlık Skoru</option>
-                <option value="body_battery_max">Body Battery Maks</option>
-                <option value="sleep_score">Uyku Skoru</option>
-                <option value="sleep_hours">Uyku Süresi (saat)</option>
-                <option value="steps">Günlük Adım</option>
-                <option value="active_kilocalories">Aktif Kalori (kcal)</option>
-                <option value="rhr">Dinlenik Nabız (atım/dk)</option>
-                <option value="sleep_stress_avg">Uyku Stresi</option>
-                <option value="vo2_max">VO2 Max</option>
-              </select>
+          <div class="dial-flex">
+            <div class="aqi-gauge-box">
+              <svg viewBox="0 0 210 122" width="210" height="122">
+                <!-- 4 segments: Yeşil, Sarı, Turuncu, Kırmızı -->
+                <path d="M 20 102 A 85 85 0 0 1 58 31" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="round" opacity="0.88" />
+                <path d="M 65 27 A 85 85 0 0 1 105 17" fill="none" stroke="#f59e0b" stroke-width="14" opacity="0.88" />
+                <path d="M 112 17 A 85 85 0 0 1 152 31" fill="none" stroke="#fb923c" stroke-width="14" opacity="0.88" />
+                <path d="M 158 36 A 85 85 0 0 1 190 102" fill="none" stroke="#ef4444" stroke-width="14" stroke-linecap="round" opacity="0.88" />
+                <g id="aqi-needle" transform="rotate(-65 105 102)">
+                  <line x1="105" y1="102" x2="105" y2="28" stroke="#f8fafc" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="105" cy="102" r="6" fill="#00e5a3" />
+                </g>
+              </svg>
+              <div class="aqi-gauge-center">
+                <div class="mono" style="font-size:20px; font-weight:800;" id="aqi-dial-val">-- AQI</div>
+                <div id="aqi-dial-badge" class="badge badge-ok">--</div>
+              </div>
             </div>
-            <div class="builder-field">
-              <label for="custom-x2">Sağ Eksen (X2)</label>
-              <select id="custom-x2" class="builder-select" onchange="renderCustomCompareChart()">
-                <option value="sleep_stress_avg" selected>Uyku Stresi</option>
-                <option value="hrv_nightly_avg">Kalp Dengesi · HRV (puan)</option>
-                <option value="readiness_score">Sabah Hazırlık Skoru</option>
-                <option value="body_battery_max">Body Battery Maks</option>
-                <option value="sleep_score">Uyku Skoru</option>
-                <option value="sleep_hours">Uyku Süresi (saat)</option>
-                <option value="steps">Günlük Adım</option>
-                <option value="active_kilocalories">Aktif Kalori (kcal)</option>
-                <option value="rhr">Dinlenik Nabız (atım/dk)</option>
-                <option value="vo2_max">VO2 Max</option>
-              </select>
-            </div>
-            <div class="builder-field" style="max-width:160px;">
-              <label for="custom-chart-type">Grafik Tipi</label>
-              <select id="custom-chart-type" class="builder-select" onchange="renderCustomCompareChart()">
-                <option value="line" selected>Çizgi (Trend)</option>
-                <option value="bar">Sütun (Çift Bar)</option>
-              </select>
-            </div>
+            <div class="weather-kpis" id="evening-weather-stats"></div>
           </div>
-          <div class="chart-wrap mt-16" style="height:260px;">
-            <canvas id="customCompareChart"></canvas>
-          </div>
+          <div class="best-slot-banner" id="best-walk-slot-banner"></div>
+          <div class="hourly-strip" id="hourly-walk-strip"></div>
+          <div class="clothing-box" id="evening-clothing-advice">--</div>
         </div>
       </section>
 
@@ -746,14 +567,207 @@
         </div>
       </section>
 
-      <!-- TAB 3: WEEKLY & MONTHLY CEO COCKPIT -->
+      <!-- TAB 3: RAPORLAR (GÜN / HAFTA / AY / YIL) -->
       <section id="tab-weekly" class="tab-panel">
-        <div class="chip-group" style="margin-bottom:14px;">
-          <button type="button" class="chip active" id="ceo-btn-weekly" onclick="switchCeoMode('weekly')">📅 Haftalık Strateji Bülteni</button>
-          <button type="button" class="chip" id="ceo-btn-monthly" onclick="switchCeoMode('monthly')">📈 Aylık CEO Bilançosu (Neredeyiz? Nereye Gidiyoruz?)</button>
+        <div class="chip-group report-mode-tabs" style="margin-bottom:14px;">
+          <button type="button" class="chip active" id="ceo-btn-daily" onclick="switchCeoMode('daily')">☀️ Günlük Rapor</button>
+          <button type="button" class="chip" id="ceo-btn-weekly" onclick="switchCeoMode('weekly')">📅 Haftalık Rapor</button>
+          <button type="button" class="chip" id="ceo-btn-monthly" onclick="switchCeoMode('monthly')">📈 Aylık Rapor</button>
+          <button type="button" class="chip" id="ceo-btn-yearly" onclick="switchCeoMode('yearly')">🏆 Yıllık Rapor</button>
         </div>
 
-        <div id="ceo-weekly-view">
+        <div id="ceo-daily-view">
+          <!-- ACTIVE INTELLIGENCE DAILY AI SUMMARY CARD -->
+          <div class="card ai-insight-hero-card ai-accordion" id="ai-daily-insight-card">
+            <button type="button" class="ai-acc-head" id="ai-acc-toggle" aria-expanded="false" aria-controls="ai-acc-body" onclick="toggleAiInsightAccordion()">
+              <span class="ai-acc-head-top">
+                <span class="ai-acc-label">✨ Günlük AI Özeti</span>
+                <span class="badge badge-info" id="ai-insight-cat-badge">Hazırlanıyor</span>
+                <span class="ai-acc-chevron" aria-hidden="true"></span>
+              </span>
+              <span class="ai-insight-title" id="ai-insight-title">Günlük AI Özeti yükleniyor...</span>
+              <span class="ai-acc-short" id="ai-insight-short">Verileriniz inceleniyor.</span>
+            </button>
+            <div class="ai-acc-body" id="ai-acc-body" role="region" aria-labelledby="ai-acc-toggle">
+              <div class="ai-acc-inner">
+                <p class="ai-insight-summary" id="ai-insight-summary">Verileriniz inceleniyor.</p>
+                <div class="ai-tip-box hidden" id="ai-insight-tip"></div>
+                <div class="ai-feedback-row hidden" id="ai-insight-feedback-row">
+                  <span class="card-sub" id="ai-insight-fb-status">Bu içgörü faydalı oldu mu?</span>
+                  <div style="display:flex; gap:8px;">
+                    <button type="button" class="ai-fb-btn" id="btn-ai-fb-up" onclick="rateAiInsight(1)">👍 Faydalı</button>
+                    <button type="button" class="ai-fb-btn" id="btn-ai-fb-down" onclick="rateAiInsight(-1)">👎 Geliştir</button>
+                  </div>
+                </div>
+                <div class="ai-acc-foot">
+                  <span class="card-sub"><span class="mono" id="ai-insight-date-badge">--</span> · Son 14 günlük trend analizi</span>
+                  <button type="button" class="btn btn-sm" id="btn-ai-refresh" onclick="refreshAiInsight(true)" title="İçgörüyü Yenile">↻ Yenile</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hero Dual-Ring Readiness + Sleep Architecture -->
+          <div class="card card-glow mt-18">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Sabah Hazırlık &amp; Body Battery Halkası</div>
+                <div class="card-sub">%30 Body Battery + %30 Uyku + %25 Gece HRV + %15 RHR</div>
+              </div>
+              <span class="badge badge-ok" id="readiness-badge">--</span>
+            </div>
+            <div class="readiness-hero">
+              <div class="ring-visual-row">
+                <div class="dual-ring">
+                  <svg viewBox="0 0 174 174">
+                    <circle class="ring-track" cx="87" cy="87" r="72" stroke-width="12" />
+                    <circle class="ring-fill" id="ring-readiness" cx="87" cy="87" r="72" stroke-width="12" stroke="#00e5a3" stroke-dasharray="452.39" stroke-dashoffset="452.39" />
+                    <circle class="ring-track" cx="87" cy="87" r="54" stroke-width="8" />
+                    <circle class="ring-fill" id="ring-bb" cx="87" cy="87" r="54" stroke-width="8" stroke="#38bdf8" stroke-dasharray="339.29" stroke-dashoffset="339.29" />
+                  </svg>
+                  <div class="dual-ring-center">
+                    <div class="dual-ring-score mono" id="readiness-score">--</div>
+                    <div class="dual-ring-sub" id="readiness-status-label">OPTİMAL</div>
+                    <div class="dual-ring-bb mono" id="bb-ring-label">BB --</div>
+                  </div>
+                </div>
+                <svg class="ring-connectors-svg" viewBox="0 0 34 174" aria-hidden="true">
+                  <g id="ring-arrow-readiness" stroke="#00e5a3" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="-18" cy="52" r="3.2" fill="#00e5a3" stroke="none" />
+                    <path d="M -18 52 L 6 38 L 31 38" />
+                    <path d="M 26 34 L 31 38 L 26 42" />
+                  </g>
+                  <g id="ring-arrow-bb" stroke="#38bdf8" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="-35" cy="112" r="3.2" fill="#38bdf8" stroke="none" />
+                    <path d="M -35 112 L 6 132 L 31 132" />
+                    <path d="M 26 128 L 31 132 L 26 136" />
+                  </g>
+                </svg>
+                <div class="ring-legend-box">
+                  <div class="ring-legend-item" id="ring-legend-card-readiness">
+                    <span class="ring-legend-dot" id="ring-legend-dot-readiness" style="background:#00e5a3;"></span>
+                    <div class="ring-legend-body">
+                      <div class="ring-legend-title">Dış Halka · Hazırlık <strong class="mono" id="ring-legend-val-readiness">--/100</strong></div>
+                      <div class="ring-legend-desc">Uyku, HRV, nabız ve enerji bileşimi</div>
+                    </div>
+                  </div>
+                  <div class="ring-legend-item" id="ring-legend-card-bb">
+                    <span class="ring-legend-dot" id="ring-legend-dot-bb" style="background:#38bdf8;"></span>
+                    <div class="ring-legend-body">
+                      <div class="ring-legend-title">İç Halka · Body Battery <strong class="mono" id="ring-legend-val-bb">--/100</strong></div>
+                      <div class="ring-legend-desc">Sabah en yüksek enerji rezervi</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="formula-bars" id="readiness-breakdown"></div>
+            </div>
+            <div class="sleep-strip-wrap">
+              <div class="bar-row-head">
+                <span>Gece Uyku Mimarisi</span>
+                <strong class="mono" id="sleep-total-label">--</strong>
+              </div>
+              <div class="sleep-strip" id="sleep-hypnogram"></div>
+              <div class="sleep-legend" id="sleep-legend"></div>
+              <div class="sleep-debt-banner" id="sleep-debt-box"></div>
+            </div>
+          </div>
+
+          <!-- Physiological Baseline Corridors -->
+          <div class="corridor-grid mt-18" id="baseline-cards"></div>
+
+          <!-- AI Coach + Chat -->
+          <div class="card mt-18">
+            <div class="card-header">
+              <div>
+                <div class="card-title" id="ai-headline">Günün Performans Koçu Reçetesi</div>
+                <div class="card-sub" id="ai-source-tag">Gemini 3.6 Flash AI &amp; Deterministik Koç</div>
+              </div>
+              <span class="badge badge-info" id="today-weekday-badge">--</span>
+            </div>
+            <div id="ai-daily-blocks"></div>
+
+            <div class="coach-chat-box">
+              <div class="card-title" style="font-size:13px;">💬 Canlı AI Performans Koçuna Sor</div>
+              <div class="chip-group mt-12">
+                <button class="chip" onclick="askCoachPreset('Bugün hangi Kochler rotasyonuna girmeliyim?')">Kochler rotasyonu</button>
+                <button class="chip" onclick="askCoachPreset('Son 7 günlük uyku borcum ve HRV trendime göre bu akşam nasıl yükleneyim?')">Uyku borcu &amp; HRV</button>
+                <button class="chip" onclick="askCoachPreset('Sağ omzum hafif yorgun, 10 kg Omuz-Sırt gününü nasıl revize edelim?')">Omuz revizesi</button>
+              </div>
+              <form class="chat-input-row" onsubmit="submitCoachChat(event)">
+                <input id="coach-question-input" placeholder="Örn: Bugün 6 kg yerine 8 kg geçeyim mi?" />
+                <button type="submit" class="btn btn-primary btn-sm" id="btn-ask-coach">Gönder</button>
+              </form>
+              <div id="coach-chat-reply" class="chat-reply" style="display:none;"></div>
+            </div>
+          </div>
+
+          <!-- Connect+ 2: Performance Dashboard (ACWR, Aerobic Efficiency Ef & Custom Chart Builder) -->
+          <div class="section-divider">
+            <h2>📈 Performans Laboratuvarı &amp; Çapraz Metrik Oluşturucu</h2>
+            <span class="badge badge-ok mono" id="perf-acwr-badge">ACWR --</span>
+          </div>
+
+          <div class="acwr-strip" id="acwr-ef-strip"></div>
+
+          <div class="card mt-18">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Çapraz Metrik Grafik Oluşturucu (Performance Dashboard)</div>
+                <div class="card-sub">İki farklı biyometrik veriyi çift eksende üst üste çizdirip trend kırılımlarını keşfet</div>
+              </div>
+              <div class="chip-group">
+                <button type="button" class="chip active" onclick="applyCustomPreset('hrv_nightly_avg', 'sleep_stress_avg', this)">HRV vs Uyku Stresi</button>
+                <button type="button" class="chip" onclick="applyCustomPreset('body_battery_max', 'active_kilocalories', this)">BB vs Aktif Kalori</button>
+                <button type="button" class="chip" onclick="applyCustomPreset('readiness_score', 'rhr', this)">Hazırlık vs RHR</button>
+              </div>
+            </div>
+            <div class="builder-controls">
+              <div class="builder-field">
+                <label for="custom-x1">Sol Eksen (X1)</label>
+                <select id="custom-x1" class="builder-select" onchange="renderCustomCompareChart()">
+                  <option value="hrv_nightly_avg" selected>Kalp Dengesi · HRV (puan)</option>
+                  <option value="readiness_score">Sabah Hazırlık Skoru</option>
+                  <option value="body_battery_max">Body Battery Maks</option>
+                  <option value="sleep_score">Uyku Skoru</option>
+                  <option value="sleep_hours">Uyku Süresi (saat)</option>
+                  <option value="steps">Günlük Adım</option>
+                  <option value="active_kilocalories">Aktif Kalori (kcal)</option>
+                  <option value="rhr">Dinlenik Nabız (atım/dk)</option>
+                  <option value="sleep_stress_avg">Uyku Stresi</option>
+                  <option value="vo2_max">VO2 Max</option>
+                </select>
+              </div>
+              <div class="builder-field">
+                <label for="custom-x2">Sağ Eksen (X2)</label>
+                <select id="custom-x2" class="builder-select" onchange="renderCustomCompareChart()">
+                  <option value="sleep_stress_avg" selected>Uyku Stresi</option>
+                  <option value="hrv_nightly_avg">Kalp Dengesi · HRV (puan)</option>
+                  <option value="readiness_score">Sabah Hazırlık Skoru</option>
+                  <option value="body_battery_max">Body Battery Maks</option>
+                  <option value="sleep_score">Uyku Skoru</option>
+                  <option value="sleep_hours">Uyku Süresi (saat)</option>
+                  <option value="steps">Günlük Adım</option>
+                  <option value="active_kilocalories">Aktif Kalori (kcal)</option>
+                  <option value="rhr">Dinlenik Nabız (atım/dk)</option>
+                  <option value="vo2_max">VO2 Max</option>
+                </select>
+              </div>
+              <div class="builder-field" style="max-width:160px;">
+                <label for="custom-chart-type">Grafik Tipi</label>
+                <select id="custom-chart-type" class="builder-select" onchange="renderCustomCompareChart()">
+                  <option value="line" selected>Çizgi (Trend)</option>
+                  <option value="bar">Sütun (Çift Bar)</option>
+                </select>
+              </div>
+            </div>
+            <div class="chart-wrap mt-16" style="height:260px;">
+              <canvas id="customCompareChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div id="ceo-weekly-view" class="hidden">
           <div class="card card-glow">
             <div class="card-header">
               <div>
@@ -840,6 +854,42 @@
               </div>
               <div id="monthly-actions-box"></div>
             </div>
+          </div>
+        </div>
+
+        <div id="ceo-yearly-view" class="hidden">
+          <div class="card card-glow">
+            <div class="card-header">
+              <div>
+                <div class="card-title">🏆 Yıllık Performans &amp; Biyometri Bilançosu</div>
+                <div class="card-sub" id="yearly-period-label">Son 12 aylık biyometri ve antrenman özeti</div>
+              </div>
+              <span class="badge badge-ok mono" id="yearly-sample-badge">-- gün</span>
+            </div>
+            <p id="yearly-exec-summary" style="font-size:13.5px; color:var(--text-secondary); margin-bottom:14px;"></p>
+            <div class="grid-3" id="yearly-kpi-grid"></div>
+          </div>
+
+          <div class="card mt-18">
+            <div class="card-header">
+              <div>
+                <div class="card-title">📈 Aylık Ortalamalar Trendi (Hazırlık · Uyku · HRV · RHR)</div>
+                <div class="card-sub">Aylara göre toparlanma ve kalp dengesi seyri</div>
+              </div>
+            </div>
+            <div class="chart-wrap" style="height:245px;">
+              <canvas id="yearlyTrendChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card mt-18">
+            <div class="card-header">
+              <div>
+                <div class="card-title">🗓️ Ay-Ay Yıllık Kırılım</div>
+                <div class="card-sub">Her ayın ortalama biyometri, toplam adım ve antrenman karnesi</div>
+              </div>
+            </div>
+            <div class="yearly-months-grid" id="yearly-months-grid"></div>
           </div>
         </div>
       </section>
@@ -1278,7 +1328,7 @@
 
   <!-- MOBILE BOTTOM NAV (5-ÖĞELİ CAM EFEKTLİ) -->
   <nav class="mobile-nav" aria-label="Mobil Menü">
-    <button type="button" class="active" data-tab="dashboard">⚡<span>Özet</span></button>
+    <button type="button" class="active" data-tab="dashboard">🏠<span>Ana Ekran</span></button>
     <button type="button" data-tab="body">⚖️<span>Vücut</span></button>
     <button type="button" class="mobile-nav-fab" onclick="openQuickAddSheet()" aria-label="Hızlı Ekle">＋</button>
     <button type="button" data-tab="health">🩺<span>Sağlık</span></button>
